@@ -1,0 +1,45 @@
+import { describe, it, expect } from 'vitest';
+import { computeFinalTotal, formatOrderNumber } from '../services/order.service';
+import { roundQty } from '../services/stock.service';
+import { STATUS_TRANSITIONS } from '../constants';
+
+describe('computeFinalTotal', () => {
+  it('applique une réduction en montant', () => {
+    expect(computeFinalTotal(5000, 1000, 0)).toBe(4000);
+  });
+  it('applique une réduction en pourcentage', () => {
+    expect(computeFinalTotal(5000, 0, 10)).toBe(4500);
+  });
+  it('ne descend jamais sous 0', () => {
+    expect(computeFinalTotal(1000, 5000, 0)).toBe(0);
+  });
+  it('sans réduction', () => {
+    expect(computeFinalTotal(3000, 0, 0)).toBe(3000);
+  });
+});
+
+describe('formatOrderNumber', () => {
+  it('formate avec padding sur 3 chiffres', () => {
+    expect(formatOrderNumber('20260519', 0)).toBe('20260519-001');
+    expect(formatOrderNumber('20260519', 11)).toBe('20260519-012');
+  });
+});
+
+describe('roundQty', () => {
+  it('arrondit à 2 décimales (évite la dérive flottante)', () => {
+    expect(roundQty(0.1 + 0.2)).toBe(0.3);
+    expect(roundQty(49.5 - 0.3)).toBe(49.2);
+  });
+});
+
+describe('STATUS_TRANSITIONS', () => {
+  it('autorise commandée -> en_cours', () => {
+    expect(STATUS_TRANSITIONS['commandée']).toContain('en_cours');
+  });
+  it('interdit de revenir en arrière', () => {
+    expect(STATUS_TRANSITIONS['prête']).not.toContain('en_cours');
+  });
+  it('servie est un état terminal', () => {
+    expect(STATUS_TRANSITIONS['servie']).toEqual([]);
+  });
+});

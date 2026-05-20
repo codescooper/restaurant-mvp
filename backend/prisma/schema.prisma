@@ -1,0 +1,220 @@
+// Prisma schema - Gestion Restaurant MVP
+// Valeurs catégorielles (role, status, unit, payment_method, category, etc.) stockées en String
+// et validées par Zod côté API afin de conserver les libellés français accentués du cahier des charges.
+// Montants en Int (FCFA, sans centimes - cf. §13.3) ; quantités en Float.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique @db.VarChar(50)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  role         String    @db.VarChar(20)
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  lastLogin    DateTime? @map("last_login")
+
+  createdOrders     Order[]            @relation("CreatedOrders")
+  servedOrders      Order[]            @relation("ServerOrders")
+  stockMovements    StockMovement[]
+  notificationReads NotificationRead[]
+
+  @@map("users")
+}
+
+model StockItem {
+  id             Int      @id @default(autoincrement())
+  name           String   @db.VarChar(100)
+  quantity       Float    @default(0)
+  unit           String   @db.VarChar(20)
+  alertThreshold Float    @default(10) @map("alert_threshold")
+  lastUpdated    DateTime @default(now()) @map("last_updated")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  dishIngredients DishIngredient[]
+  movements       StockMovement[]
+  notifications   Notification[]
+
+  @@index([quantity, alertThreshold], map: "idx_stock_items_alert")
+  @@map("stock_items")
+}
+
+model Dish {
+  id              Int      @id @default(autoincrement())
+  name            String   @db.VarChar(100)
+  description     String?  @db.Text
+  price           Int
+  imageUrl        String?  @map("image_url") @db.VarChar(255)
+  isActive        Boolean  @default(true) @map("is_active")
+  category        String?  @db.VarChar(50)
+  preparationTime Int?     @map("preparation_time")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  ingredients DishIngredient[]
+  orderItems  OrderItem[]
+
+  @@index([isActive], map: "idx_dishes_active")
+  @@map("dishes")
+}
+
+model DishIngredient {
+  id             Int   @id @default(autoincrement())
+  dishId         Int   @map("dish_id")
+  stockItemId    Int   @map("stock_item_id")
+  quantityNeeded Float @map("quantity_needed")
+
+  dish      Dish      @relation(fields: [dishId], references: [id], onDelete: Cascade)
+  stockItem StockItem @relation(fields: [stockItemId], references: [id], onDelete: Restrict)
+
+  @@unique([dishId, stockItemId])
+  @@map("dish_ingredients")
+}
+
+model Order {
+  id                  Int       @id @default(autoincrement())
+  orderNumber         String    @unique @map("order_number") @db.VarChar(20)
+  total               Int
+  discountAmount      Int       @default(0) @map("discount_amount")
+  discountPercent     Float     @default(0) @map("discount_percent")
+  finalTotal          Int       @map("final_total")
+  paymentMethod       String?   @map("payment_method") @db.VarChar(20)
+  paymentDetails      Json?     @map("payment_details")
+  mobileMoneyProvider String?   @map("mobile_money_provider") @db.VarChar(20)
+  cashGiven           Int?      @map("cash_given")
+  changeReturned      Int?      @map("change_returned")
+  isPaid              Boolean   @default(false) @map("is_paid")
+  paidAt              DateTime? @map("paid_at")
+  status              String    @default("commandée") @db.VarChar(30)
+  tableId             Int?      @map("table_id")
+  serverId            Int?      @map("server_id")
+  createdBy           Int?      @map("created_by")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  preparedAt          DateTime? @map("prepared_at")
+  readyAt             DateTime? @map("ready_at")
+  servedAt            DateTime? @map("served_at")
+  cancelledAt         DateTime? @map("cancelled_at")
+  cancellationReason  String?   @map("cancellation_reason") @db.Text
+  isSynced            Boolean   @default(false) @map("is_synced")
+
+  creator        User?           @relation("CreatedOrders", fields: [createdBy], references: [id])
+  server         User?           @relation("ServerOrders", fields: [serverId], references: [id])
+  table          Table?          @relation(fields: [tableId], references: [id])
+  items          OrderItem[]
+  stockMovements StockMovement[]
+  notifications  Notification[]
+
+  @@index([status], map: "idx_orders_status")
+  @@index([createdAt], map: "idx_orders_created_at")
+  @@index([orderNumber], map: "idx_orders_number")
+  @@index([tableId], map: "idx_orders_table")
+  @@map("orders")
+}
+
+model OrderItem {
+  id        Int     @id @default(autoincrement())
+  orderId   Int     @map("order_id")
+  dishId    Int     @map("dish_id")
+  dishName  String  @map("dish_name") @db.VarChar(100)
+  dishPrice Int     @map("dish_price")
+  quantity  Int     @default(1)
+  subtotal  Int
+  notes     String? @db.Text
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  dish  Dish  @relation(fields: [dishId], references: [id])
+
+  @@map("order_items")
+}
+
+model StockMovement {
+  id               Int      @id @default(autoincrement())
+  stockItemId      Int      @map("stock_item_id")
+  movementType     String   @map("movement_type") @db.VarChar(20)
+  quantity         Float
+  previousQuantity Float    @map("previous_quantity")
+  newQuantity      Float    @map("new_quantity")
+  orderId          Int?     @map("order_id")
+  note             String?  @db.Text
+  createdBy        Int?     @map("created_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  stockItem StockItem @relation(fields: [stockItemId], references: [id])
+  order     Order?    @relation(fields: [orderId], references: [id])
+  creator   User?     @relation(fields: [createdBy], references: [id])
+
+  @@map("stock_movements")
+}
+
+model Notification {
+  id             Int      @id @default(autoincrement())
+  userRole       String   @map("user_role") @db.VarChar(20)
+  title          String   @db.VarChar(100)
+  message        String   @db.Text
+  type           String   @db.VarChar(30)
+  relatedOrderId Int?     @map("related_order_id")
+  relatedStockId Int?     @map("related_stock_id")
+  isRead         Boolean  @default(false) @map("is_read")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  relatedOrder Order?             @relation(fields: [relatedOrderId], references: [id])
+  relatedStock StockItem?         @relation(fields: [relatedStockId], references: [id])
+  reads        NotificationRead[]
+
+  @@index([userRole, isRead], map: "idx_notifications_role")
+  @@map("notifications")
+}
+
+model NotificationRead {
+  id             Int      @id @default(autoincrement())
+  notificationId Int      @map("notification_id")
+  userId         Int      @map("user_id")
+  readAt         DateTime @default(now()) @map("read_at")
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([notificationId, userId])
+  @@map("notification_reads")
+}
+
+model AppSetting {
+  id           Int      @id @default(autoincrement())
+  settingKey   String   @unique @map("setting_key") @db.VarChar(50)
+  settingValue String   @map("setting_value") @db.Text
+  description  String?  @db.Text
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
+}
+
+model Table {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(50)
+  capacity  Int      @default(4)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  orders Order[]
+
+  @@map("tables")
+}
+
+model SyncQueue {
+  id         Int       @id @default(autoincrement())
+  actionType String    @map("action_type") @db.VarChar(50)
+  tableName  String    @map("table_name") @db.VarChar(50)
+  recordId   Int?      @map("record_id")
+  data       Json
+  createdAt  DateTime  @default(now()) @map("created_at")
+  syncedAt   DateTime? @map("synced_at")
+  isSynced   Boolean   @default(false) @map("is_synced")
+
+  @@map("sync_queue")
+}
