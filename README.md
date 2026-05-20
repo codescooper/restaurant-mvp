@@ -1,57 +1,98 @@
-# Restaurant Pilote — Application de Gestion (MVP)
+# 🍽️ Restaurant Pilote
 
-Application web full-stack de gestion d'un restaurant : stock, caisse, cuisine (KDS) et
-statistiques, en temps réel, avec 3 rôles (Administrateur, Caissier, Cuisinier) et mode hors-ligne.
+> Application web full-stack de gestion de restaurant : **caisse**, **cuisine (KDS)**, **stock**, **statistiques** et **service à table**, en temps réel.
 
-## Stack
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=nodedotjs&logoColor=white)
+![Express](https://img.shields.io/badge/Express-4-000000?logo=express&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?logo=postgresql&logoColor=white)
+![Prisma](https://img.shields.io/badge/Prisma-5-2D3748?logo=prisma&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-38B2AC?logo=tailwindcss&logoColor=white)
+![Socket.io](https://img.shields.io/badge/Socket.io-4-010101?logo=socketdotio&logoColor=white)
 
-- **Frontend** : React 18 + TypeScript, Vite, Tailwind CSS, React Router, Axios, socket.io-client, Dexie (offline)
-- **Backend** : Node + Express + TypeScript, Socket.io, JWT, bcrypt, Zod, Prisma
-- **Base de données** : PostgreSQL 15 (Docker en dev)
+---
 
-## Prérequis
+## ✨ Aperçu
 
-- Node.js 18+ (testé avec Node 22)
-- Docker Desktop (pour PostgreSQL en développement)
+Application pensée pour un restaurant : prise de commande, envoi automatique en cuisine,
+suivi en temps réel, décrément automatique du stock, encaissement (immédiat ou différé),
+service à table et tableau de bord des ventes. Fonctionne aussi **hors-ligne** (les commandes
+sont mises en file et synchronisées à la reconnexion).
 
-> Au **premier lancement de Docker Desktop**, il faut accepter l'accord de licence dans
-> l'interface graphique avant que le moteur ne démarre.
+## 🚀 Fonctionnalités
 
-## Démarrage rapide
+- 🔐 **Authentification** par rôle (JWT access + refresh, mots de passe hachés bcrypt, rate-limiting)
+- 🧾 **Caisse** : menu filtrable, panier, réductions (montant / %), paiement (espèces, mobile money, carte), **reçu imprimable**
+- 👨‍🍳 **Cuisine (KDS)** : réception temps réel, statuts séquentiels (commandée → en cours → prête), temps écoulé, **alerte sonore**
+- 🍽️ **Service à table** : plan de **salle** (tables libres/occupées), commande rattachée à une table, **paiement immédiat ou différé**, règlement de l'addition à la caisse
+- 📦 **Stock** : recettes par plat, **décrément automatique** à chaque vente, **alertes de seuil**, historique des mouvements
+- 📊 **Dashboard** : KPIs, ventes par heure, top plats, modes de paiement, **export PDF / CSV**
+- ⚡ **Temps réel** : WebSocket (Socket.io) avec *rooms* par rôle
+- 📴 **Hors-ligne** : cache du menu (IndexedDB / Dexie) + file de synchronisation
+- 📱 **Responsive** : desktop, tablette, smartphone
 
-### 1. Base de données (PostgreSQL via Docker)
+## 👥 Rôles & interfaces
 
-Depuis la racine du projet :
+| Rôle           | Accès                                                        |
+| -------------- | ----------------------------------------------------------- |
+| Administrateur | Dashboard, Gestion (stock/menu/users), Caisse, Salle, Service, Cuisine |
+| Caissier       | Caisse, Salle, Service, Statistiques                        |
+| Serveur        | Salle (prise de commande à table, service)                  |
+| Cuisinier      | Cuisine (KDS)                                               |
+
+## 🛠️ Stack technique
+
+| Côté        | Technologies                                                                 |
+| ----------- | --------------------------------------------------------------------------- |
+| **Frontend**| React 18, TypeScript, Vite, Tailwind CSS, React Router, Axios, socket.io-client, Dexie |
+| **Backend** | Node.js, Express, TypeScript, Socket.io, JWT, bcrypt, Zod, Prisma           |
+| **Base**    | PostgreSQL 15 (Docker en local, ou Neon/Supabase en ligne)                  |
+| **Tests**   | Vitest, Supertest                                                           |
+
+## 📦 Prérequis
+
+- [Node.js](https://nodejs.org) 18+ (testé avec Node 22)
+- Une base **PostgreSQL** : [Docker Desktop](https://www.docker.com/products/docker-desktop/) en local, ou un service gratuit ([Neon](https://neon.tech) recommandé, sans carte bancaire)
+
+## 🚀 Démarrage rapide
+
+### 1. Base de données
+
+**Option A — Docker (local)** depuis la racine :
 
 ```bash
 docker compose up -d
 ```
 
-Cela démarre PostgreSQL sur `localhost:5432` (base `restaurant_db`, user/mot de passe `restaurant`).
+PostgreSQL démarre sur `localhost:5432` (base `restaurant_db`, user/mdp `restaurant`).
+
+**Option B — Neon (en ligne, gratuit)** : crée un projet sur [neon.tech](https://neon.tech) et mets la
+*connection string* (connexion **directe**, sans `-pooler`) dans `backend/.env` → `DATABASE_URL`.
 
 ### 2. Backend
 
 ```bash
 cd backend
+cp .env.example .env      # puis renseigne DATABASE_URL et les secrets JWT
 npm install
-npm run prisma:migrate     # crée les tables
-npm run seed               # insère les données de démonstration
-npm run dev                # démarre l'API + WebSocket sur http://localhost:3000
+npm run prisma:migrate    # crée les tables
+npm run seed              # données de démonstration
+npm run dev               # API + WebSocket sur http://localhost:3000
 ```
 
 ### 3. Frontend
 
-Dans un autre terminal :
-
 ```bash
 cd frontend
+cp .env.example .env
 npm install
-npm run dev                # http://localhost:5173
+npm run dev               # http://localhost:5173
 ```
 
-Ouvrir http://localhost:5173.
+Ouvre **http://localhost:5173** 🎉
 
-## Comptes de démonstration
+## 👤 Comptes de démonstration
 
 | Rôle           | Identifiant | Mot de passe |
 | -------------- | ----------- | ------------ |
@@ -60,9 +101,48 @@ Ouvrir http://localhost:5173.
 | Cuisinier      | `chef1`     | `chef123`    |
 | Serveur        | `serveur1`  | `serveur123` |
 
-## Variables d'environnement
+## 🔄 Cycle de vie d'une commande
 
-### `backend/.env`
+```
+Caisse / Serveur  →  Cuisine            →  Service           →  Caisse
+(prise + envoi)      (Commencer →           (Marquer servie)     (encaisser
+                      Terminer = prête)                           l'addition)
+   commandée      →   en_cours → prête   →   servie           →   payée → table libérée
+```
+
+Le **stock est décrémenté automatiquement** dès la création de la commande, et toutes les étapes
+sont diffusées en **temps réel** via WebSocket.
+
+## 📁 Architecture
+
+```
+.
+├── docker-compose.yml          # PostgreSQL (dev)
+├── backend/
+│   ├── prisma/                 # schema.prisma + migrations + seed.ts
+│   └── src/
+│       ├── config/             # env, client Prisma
+│       ├── controllers/        # contrôleurs HTTP
+│       ├── routes/             # routes Express (+ permissions par rôle)
+│       ├── services/           # logique métier (transactions, stock, stats, tables…)
+│       ├── middlewares/        # auth, validation, rate-limit, erreurs
+│       ├── validators/         # schémas Zod
+│       ├── websocket/          # Socket.io (rooms par rôle)
+│       └── utils/
+└── frontend/
+    └── src/
+        ├── contexts/           # Auth, WebSocket, Notifications
+        ├── components/         # Layout, Navigation, ProtectedRoute…
+        ├── pages/              # Login, Caisse, Cuisine, Admin, Dashboard, Salle, Service
+        ├── services/           # api (axios), socket, endpoints, offline (Dexie)
+        ├── hooks/              # useClock, useOfflineSync
+        └── utils/
+```
+
+## 🔐 Variables d'environnement
+
+<details>
+<summary><code>backend/.env</code></summary>
 
 ```
 PORT=3000
@@ -74,87 +154,55 @@ JWT_REFRESH_SECRET=...
 JWT_REFRESH_EXPIRES_IN=7d
 CORS_ORIGIN=http://localhost:5173
 ```
+</details>
 
-### `frontend/.env`
+<details>
+<summary><code>frontend/.env</code></summary>
 
 ```
 VITE_API_URL=http://localhost:3000/api
 VITE_WS_URL=http://localhost:3000
 VITE_APP_NAME=Restaurant Pilote
 ```
+</details>
 
-## Scripts utiles
+> ⚠️ Les fichiers `.env` (qui contiennent des secrets) sont **ignorés par git**. Seuls les `.env.example` sont versionnés.
 
-### Backend (`cd backend`)
+## 🧪 Scripts & tests
 
-- `npm run dev` — serveur de développement (tsx watch)
-- `npm run build` / `npm start` — build + exécution production
-- `npm run prisma:migrate` — migrations
-- `npm run prisma:studio` — explorateur de base Prisma
-- `npm run seed` — données de démonstration
-- `npm test` — tests unitaires (logique métier + smoke API, sans DB)
-- `npm run type-check` — vérification TypeScript
+**Backend** (`cd backend`)
 
-### Frontend (`cd frontend`)
+| Commande | Description |
+| --- | --- |
+| `npm run dev` | Serveur de développement (tsx watch) |
+| `npm run build` / `npm start` | Build + exécution production |
+| `npm run prisma:migrate` | Migrations |
+| `npm run prisma:studio` | Explorateur de base Prisma |
+| `npm run seed` | Données de démonstration |
+| `npm test` | Tests (logique métier + smoke API) |
 
-- `npm run dev` — serveur Vite
-- `npm run build` — build production
-- `npm test` — tests
-- `npm run type-check` — vérification TypeScript
+**Frontend** (`cd frontend`)
 
-## Architecture
+| Commande | Description |
+| --- | --- |
+| `npm run dev` | Serveur Vite |
+| `npm run build` | Build production |
+| `npm test` | Tests |
 
-```
-.
-├── docker-compose.yml          # PostgreSQL (dev)
-├── backend/
-│   ├── prisma/                 # schema.prisma + seed.ts
-│   └── src/
-│       ├── config/             # env, client Prisma
-│       ├── controllers/        # contrôleurs HTTP
-│       ├── routes/             # routes Express (+ permissions par rôle)
-│       ├── services/           # logique métier (transactions, stock, stats…)
-│       ├── middlewares/        # auth, validation, rate-limit, erreurs
-│       ├── validators/         # schémas Zod
-│       ├── websocket/          # Socket.io (rooms par rôle)
-│       ├── app.ts / server.ts
-│       └── utils/
-└── frontend/
-    └── src/
-        ├── contexts/           # Auth, WebSocket, Notifications
-        ├── components/         # Layout, Navigation, ProtectedRoute…
-        ├── pages/              # Login, Caisse, Cuisine, Admin, Dashboard
-        ├── services/           # api (axios), socket, endpoints, offline (Dexie)
-        ├── hooks/              # useClock, useOfflineSync
-        └── utils/
-```
+## 📝 Notes d'implémentation
 
-## Fonctionnalités
+- Logique métier (numéro de commande `YYYYMMDD-NNN`, décrément de stock, transitions de statut)
+  implémentée en **TypeScript dans des transactions Prisma** — source de vérité unique et testable.
+- Montants en **entiers (FCFA, sans centimes)** ; quantités de stock en flottants arrondis à 2 décimales.
+- Auth par **Bearer token** (header `Authorization`) → pas de CSRF (non applicable) ; sécurité assurée
+  par `helmet`, CORS strict, rate-limiting et sanitization des entrées.
 
-- **Authentification** JWT (access 24h + refresh 7j), bcrypt, rate-limiting sur le login.
-- **Caisse** : menu filtrable, panier, réductions (montant/%), paiement (espèces/mobile money/carte),
-  reçu imprimable. Décrément automatique du stock à la validation.
-- **Cuisine (KDS)** : réception temps réel, statuts séquentiels (commandée → en cours → prête),
-  temps écoulé, notifications visuelle + sonore.
-- **Admin** : gestion stock (+ recettes), menu, utilisateurs ; alertes de stock faible.
-- **Dashboard** : KPIs, ventes par heure, top plats, modes de paiement, export PDF/CSV.
-- **Temps réel** : WebSocket (rooms par rôle) pour commandes, statuts et alertes stock.
-- **Hors-ligne** : cache du menu (IndexedDB) et file de commandes synchronisée à la reconnexion.
-- **Service à table (serveurs & tables)** : rôle **serveur**, plan de **Salle** (tables libres/occupées,
-  serveur affecté, addition en cours), prise de commande **rattachée à une table** avec choix
-  **encaisser maintenant** ou **régler à la caisse plus tard** (paiement différé), puis **règlement de
-  l'addition** à la caisse qui libère la table.
+## 🚢 Déploiement
 
-## Notes d'implémentation
+Pour la production : héberger PostgreSQL sur un service gratuit (ex. **Neon**), déployer le **backend**
+sur Render/Railway et le **frontend** sur Vercel/Netlify. Renseigner les variables d'environnement
+correspondantes (`DATABASE_URL`, secrets JWT, `CORS_ORIGIN`, `VITE_API_URL`, `VITE_WS_URL`).
 
-- La logique métier (numéro de commande `YYYYMMDD-NNN`, décrément de stock, transitions de statut)
-  est implémentée en TypeScript dans des transactions Prisma plutôt qu'en fonctions PL/pgSQL,
-  pour une source de vérité unique et testable.
-- Montants en entiers (FCFA, sans centimes) ; quantités de stock en flottants arrondis à 2 décimales.
-- Auth par Bearer token (header `Authorization`) : pas de CSRF (non applicable) ; sécurité assurée
-  par helmet, CORS strict, rate-limiting et sanitization des entrées.
+---
 
-## Déploiement (plus tard)
-
-Pour la production, héberger PostgreSQL sur un service gratuit (ex. **Neon** — réveil automatique,
-sans carte) et renseigner `DATABASE_URL`. Build : `npm run build` (frontend + backend).
+<p align="center">Construit avec ❤️ — MVP de gestion de restaurant.</p>
