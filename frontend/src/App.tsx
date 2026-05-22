@@ -4,6 +4,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { WebSocketProvider } from './contexts/WebSocketContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Layout } from './components/Layout';
 
 const LoginPage = lazy(() => import('./pages/LoginPage'));
@@ -32,10 +33,11 @@ function SimpleMessage({ title, message }: { title: string; message: string }) {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <WebSocketProvider>
-        <NotificationProvider>
-          <BrowserRouter>
+    <ErrorBoundary>
+      <AuthProvider>
+        <WebSocketProvider>
+          <NotificationProvider>
+            <BrowserRouter>
             <Suspense fallback={<Loading />}>
               <Routes>
                 <Route path="/" element={<LoginPage />} />
@@ -109,8 +111,9 @@ export default function App() {
               </Routes>
             </Suspense>
           </BrowserRouter>
-        </NotificationProvider>
-      </WebSocketProvider>
-    </AuthProvider>
+          </NotificationProvider>
+        </WebSocketProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

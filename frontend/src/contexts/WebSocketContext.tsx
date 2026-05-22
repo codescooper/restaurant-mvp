@@ -31,9 +31,15 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       s.emit('join_room', { role: currentUser.role });
     });
     s.on('disconnect', () => setConnected(false));
+    // Échec de connexion : socket.io retente automatiquement ; on évite juste une erreur non gérée.
+    s.on('connect_error', (err) => {
+      setConnected(false);
+      console.warn('WebSocket indisponible, nouvelle tentative…', err.message);
+    });
     setSocket(s);
 
     return () => {
+      s.removeAllListeners();
       disconnectSocket();
     };
   }, [currentUser]);
