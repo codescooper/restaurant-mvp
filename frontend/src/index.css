@@ -12,6 +12,11 @@
 }
 
 @media print {
+  /* Format ticket thermique 80 mm. */
+  @page {
+    size: 80mm auto;
+    margin: 4mm;
+  }
   body * {
     visibility: hidden;
   }
@@ -23,7 +28,25 @@
     position: absolute;
     left: 0;
     top: 0;
-    width: 100%;
+    width: 72mm; /* 80mm - marges */
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff;
+    color: #000;
+    font-family: "Courier New", ui-monospace, monospace;
+    font-size: 11px;
+    line-height: 1.35;
+  }
+  /* Titres compacts pour ne pas déborder de la largeur du ticket. */
+  .print-area h3 {
+    font-size: 14px;
+  }
+  .print-area .text-xl,
+  .print-area .text-lg,
+  .print-area .text-base {
+    font-size: 13px;
   }
   .no-print {
     display: none !important;

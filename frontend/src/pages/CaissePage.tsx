@@ -21,6 +21,8 @@ import {
   RotateCcw,
   Ban,
   ShieldCheck,
+  Coins,
+  Search,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useClock } from '../hooks/useClock';
@@ -108,6 +110,7 @@ export default function CaissePage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [variantPick, setVariantPick] = useState<MenuDish | null>(null);
   const [category, setCategory] = useState('Tout');
+  const [search, setSearch] = useState('');
   const [discountType, setDiscountType] = useState<DiscountType>('none');
   const [discountValue, setDiscountValue] = useState('');
   const [happyHour, setHappyHour] = useState<{ name: string; discountType: 'percent' | 'amount'; discountValue: number } | null>(null);
@@ -282,7 +285,11 @@ export default function CaissePage() {
     promotionApi.activeHappyHour().then(setHappyHour).catch(() => setHappyHour(null));
   }, []);
 
-  const filtered = dishes.filter((d) => category === 'Tout' || d.category === category);
+  const filtered = dishes.filter(
+    (d) =>
+      (category === 'Tout' || d.category === category) &&
+      (!search.trim() || d.name.toLowerCase().includes(search.trim().toLowerCase()))
+  );
 
   // Sous-total = lignes NON offertes. Les articles offerts sont gratuits.
   const subtotal = useMemo(() => cart.reduce((s, i) => s + (i.offered ? 0 : i.price * i.quantity), 0), [cart]);
@@ -697,6 +704,23 @@ export default function CaissePage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
+            <div className="relative mb-3">
+              <Search className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Rechercher un plat…"
+                className={`${INPUT} pl-9`}
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
             <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
               {CATEGORIES.map((cat) => (
                 <button
@@ -727,7 +751,15 @@ export default function CaissePage() {
                         : 'opacity-40 cursor-not-allowed'
                     }`}
                   >
-                    <div className="text-4xl mb-2">{EMOJI[dish.category ?? ''] ?? '🍽️'}</div>
+                    {dish.imageUrl ? (
+                      <img
+                        src={dish.imageUrl}
+                        alt={dish.name}
+                        className="w-full h-24 object-cover rounded-lg mb-2 border border-neutral-800"
+                      />
+                    ) : (
+                      <div className="text-4xl mb-2">{EMOJI[dish.category ?? ''] ?? '🍽️'}</div>
+                    )}
                     <div className="font-semibold text-neutral-100 leading-tight">{dish.name}</div>
                     {hasVariants ? (
                       <div className="text-gold-400 font-bold mt-1 text-sm">
@@ -1174,6 +1206,15 @@ export default function CaissePage() {
                   <span className="text-gold-400">{formatFCFA(expectedCash)}</span>
                 </div>
               </div>
+              {(session?.cashTips ?? 0) > 0 && (
+                <div className="flex items-start gap-2 bg-gold-400/10 border border-gold-400/25 text-gold-300 rounded-lg px-3 py-2 mb-3 text-xs">
+                  <Coins className="w-4 h-4 mt-0.5 shrink-0" />
+                  <span>
+                    Pourboires espèces à sortir du tiroir : <strong>{formatFCFA(session!.cashTips!)}</strong>
+                    {' '}— non comptés dans le théorique. À remettre au personnel avant de compter la caisse.
+                  </span>
+                </div>
+              )}
               <label className="block text-sm text-neutral-400 mb-1">Montant réel compté (FCFA)</label>
               <input
                 type="number"

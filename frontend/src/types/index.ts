@@ -268,6 +268,7 @@ export interface CashSessionSummary {
   openedAt: string;
   closedAt?: string | null;
   expectedCash?: number | null;
+  cashTips?: number | null;
   countedCash?: number | null;
   discrepancy?: number | null;
   discrepancyReason?: string | null;

@@ -117,6 +117,16 @@ export async function openDrawer(userId: number | undefined, reason?: string) {
   return { ok: true };
 }
 
+// Pourboires espèces encaissés sur la session : physiquement dans le tiroir mais HORS théorique
+// (le personnel les récupère). Sert à rappeler le montant à sortir à la fermeture.
+export async function cashTipsForSession(sessionId: number): Promise<number> {
+  const agg = await prisma.order.aggregate({
+    _sum: { tipAmount: true },
+    where: { cashSessionId: sessionId, tipMethod: 'espèces', isRefunded: false, status: { not: 'annulée' } },
+  });
+  return agg._sum.tipAmount ?? 0;
+}
+
 // Répartition des ventes payées de la session par moyen de paiement.
 async function salesByMethod(sessionId: number) {
   const grouped = await prisma.order.groupBy({
@@ -137,7 +147,12 @@ export async function getCurrentSessionReport(cashierId: number) {
   const session = await getOpenSession(cashierId);
   if (!session) return null;
   const expectedCash = await computeExpectedCash(session);
-  return { ...session, expectedCash, salesByMethod: await salesByMethod(session.id) };
+  return {
+    ...session,
+    expectedCash,
+    cashTips: await cashTipsForSession(session.id),
+    salesByMethod: await salesByMethod(session.id),
+  };
 }
 
 export async function listSessions(limit = 50) {
@@ -175,5 +190,11 @@ export async function getSessionReport(id: number) {
       paidAt: true,
     },
   });
-  return { ...session, expectedCash, salesByMethod: await salesByMethod(id), orders };
+  return {
+    ...session,
+    expectedCash,
+    cashTips: await cashTipsForSession(id),
+    salesByMethod: await salesByMethod(id),
+    orders,
+  };
 }
