@@ -899,7 +899,7 @@ export default function CaissePage() {
         {/* Modal paiement / validation */}
         {showPayment && (
           <div className={OVERLAY}>
-            <div className={`${MODAL} max-w-md p-6`}>
+            <div className={`${MODAL} max-w-md p-6 max-h-[90vh] overflow-y-auto`}>
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold text-neutral-100">{tableName ? `Commande ${tableName}` : 'Paiement'}</h3>
                 <button onClick={() => setShowPayment(false)} className="text-neutral-500 hover:text-neutral-300">
@@ -1154,7 +1154,7 @@ export default function CaissePage() {
         {/* Modal fermeture de caisse */}
         {cashModal === 'close' && (
           <div className={OVERLAY}>
-            <div className={`${MODAL} max-w-sm p-6`}>
+            <div className={`${MODAL} max-w-sm p-6 max-h-[90vh] overflow-y-auto`}>
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold flex items-center gap-2 text-neutral-100">
                   <Lock className="w-5 h-5 text-rose-400" /> Fermer la caisse
