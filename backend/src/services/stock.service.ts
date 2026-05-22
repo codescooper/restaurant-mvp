@@ -89,6 +89,43 @@ export async function addQuantity(id: number, quantity: number, userId?: number)
   return updated;
 }
 
+// Déclaration d'une perte / gaspillage : décrémente le stock + mouvement 'perte' avec cause (§D).
+export async function recordLoss(
+  id: number,
+  quantity: number,
+  cause: string,
+  note: string | undefined,
+  userId?: number
+) {
+  const item = await getStock(id);
+  if (quantity > item.quantity) {
+    throw new AppError(400, 'STOCK_001', 'Quantité de perte supérieure au stock disponible');
+  }
+  const newQuantity = roundQty(item.quantity - quantity);
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const result = await tx.stockItem.update({
+      where: { id },
+      data: { quantity: newQuantity, lastUpdated: new Date() },
+    });
+    await tx.stockMovement.create({
+      data: {
+        stockItemId: id,
+        movementType: 'perte',
+        quantity: roundQty(-quantity),
+        previousQuantity: item.quantity,
+        newQuantity,
+        cause,
+        note,
+        createdBy: userId,
+      },
+    });
+    return result;
+  });
+  await checkLowStock(updated);
+  return updated;
+}
+
 export async function listMovements(stockItemId?: number) {
   return prisma.stockMovement.findMany({
     where: stockItemId ? { stockItemId } : undefined,

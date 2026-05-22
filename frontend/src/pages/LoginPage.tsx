@@ -62,18 +62,18 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 to-purple-700 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[450px] p-8">
+    <div className="min-h-screen flex items-center justify-center bg-black bg-[radial-gradient(50rem_40rem_at_50%_-10%,rgba(212,175,55,0.12),transparent)] p-4">
+      <div className="bg-neutral-950 border border-neutral-800 ring-1 ring-white/5 rounded-2xl shadow-2xl shadow-black/60 w-full max-w-[450px] p-8">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
-            <ChefHat className="w-9 h-9 text-blue-600" />
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gold-400/10 ring-1 ring-gold-400/25 rounded-full mb-4">
+            <ChefHat className="w-9 h-9 text-gold-400" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-800">Restaurant Pilote</h1>
-          <p className="text-gray-500">Connexion à l'application</p>
+          <h1 className="text-2xl font-bold text-neutral-100">Restaurant Pilote</h1>
+          <p className="text-neutral-400">Connexion à l'application</p>
         </div>
 
         {error && (
-          <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mb-4 text-sm">
+          <div className="flex items-center gap-2 bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-lg p-3 mb-4 text-sm">
             <AlertCircle className="w-5 h-5 flex-shrink-0" />
             <span>{error}</span>
           </div>
@@ -81,15 +81,15 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nom d'utilisateur</label>
+            <label className="block text-sm font-medium text-neutral-300 mb-1">Nom d'utilisateur</label>
             <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
               <input
                 ref={usernameRef}
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                className="w-full pl-10 pr-3 py-2.5 bg-neutral-900 border border-neutral-700 rounded-lg text-neutral-100 placeholder-neutral-500 focus:ring-2 focus:ring-gold-400/60 focus:border-gold-400 outline-none"
                 placeholder="admin"
                 autoComplete="username"
               />
@@ -97,21 +97,21 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
+            <label className="block text-sm font-medium text-neutral-300 mb-1">Mot de passe</label>
             <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                className="w-full pl-10 pr-10 py-2.5 bg-neutral-900 border border-neutral-700 rounded-lg text-neutral-100 placeholder-neutral-500 focus:ring-2 focus:ring-gold-400/60 focus:border-gold-400 outline-none"
                 placeholder="••••••••"
                 autoComplete="current-password"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300"
               >
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
@@ -121,26 +121,26 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg transition"
+            className="w-full flex items-center justify-center gap-2 bg-gold-400 hover:bg-gold-300 disabled:opacity-50 text-black font-bold py-2.5 rounded-lg transition"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogIn className="w-5 h-5" />}
             Se connecter
           </button>
         </form>
 
-        <div className="mt-6 pt-6 border-t">
-          <p className="text-xs text-gray-500 text-center mb-3">Comptes de démonstration</p>
+        <div className="mt-6 pt-6 border-t border-neutral-800">
+          <p className="text-xs text-neutral-500 text-center mb-3">Comptes de démonstration</p>
           <div className="space-y-2">
             {DEMO_ACCOUNTS.map((acc) => (
               <button
                 key={acc.username}
                 onClick={() => fillDemo(acc.username, acc.password)}
-                className="w-full flex items-center gap-3 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-left text-sm transition"
+                className="w-full flex items-center gap-3 px-3 py-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-lg text-left text-sm transition"
               >
                 <span className="text-xl">{acc.emoji}</span>
                 <div>
-                  <div className="font-medium text-gray-800">{acc.label}</div>
-                  <div className="text-xs text-gray-500">
+                  <div className="font-medium text-neutral-100">{acc.label}</div>
+                  <div className="text-xs text-neutral-400">
                     {acc.username} / {acc.password}
                   </div>
                 </div>

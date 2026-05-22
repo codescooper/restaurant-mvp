@@ -146,17 +146,17 @@ export default function CuisinePage() {
     });
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white -mt-px">
+    <div className="min-h-screen bg-black text-white -mt-px">
       <div className="max-w-7xl mx-auto p-4">
         <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
           <div className="flex items-center gap-3">
-            <ChefHat className="w-8 h-8 text-orange-500" />
+            <ChefHat className="w-8 h-8 text-gold-400" />
             <div>
               <h1 className="text-2xl font-bold">Cuisine</h1>
-              <p className="text-sm text-gray-400">{currentUser?.username}</p>
+              <p className="text-sm text-neutral-400">{currentUser?.username}</p>
             </div>
           </div>
-          <div className="text-orange-400 font-mono">{formatTime(clock)}</div>
+          <div className="text-gold-400 font-mono">{formatTime(clock)}</div>
         </div>
 
         <div className="grid grid-cols-3 gap-3 mb-4">
@@ -185,7 +185,7 @@ export default function CuisinePage() {
               key={f}
               onClick={() => setFilter(f)}
               className={`px-4 py-2 rounded-lg whitespace-nowrap font-medium ${
-                filter === f ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'
+                filter === f ? 'bg-gold-400 text-black' : 'bg-neutral-800 hover:bg-neutral-700'
               }`}
             >
               {label} ({n})
@@ -200,7 +200,7 @@ export default function CuisinePage() {
             return (
               <div
                 key={order.id}
-                className="bg-gray-800 rounded-xl overflow-hidden shadow-lg transition hover:scale-[1.02] hover:shadow-2xl"
+                className="bg-neutral-800 rounded-xl overflow-hidden shadow-lg transition hover:scale-[1.02] hover:shadow-2xl"
               >
                 <div className={`${style.header} p-3 flex justify-between items-center`}>
                   <span className="text-xl font-bold">{order.orderNumber}</span>
@@ -210,16 +210,16 @@ export default function CuisinePage() {
                   </span>
                 </div>
                 <div className="p-3">
-                  <div className="flex items-center gap-1 text-sm text-gray-400 mb-2">
+                  <div className="flex items-center gap-1 text-sm text-neutral-400 mb-2">
                     <Clock className="w-4 h-4" />
                     {getElapsedTime(order.createdAt)}
                   </div>
                   <div className="space-y-2 mb-3">
                     {order.items.map((item) => (
-                      <div key={item.id} className="bg-gray-700 rounded-lg p-2">
+                      <div key={item.id} className="bg-neutral-700 rounded-lg p-2">
                         <div className="flex justify-between items-center">
                           <span className="font-semibold">{item.name}</span>
-                          <span className="bg-gray-600 px-3 rounded-full text-sm">x{item.quantity}</span>
+                          <span className="bg-neutral-600 px-3 rounded-full text-sm">x{item.quantity}</span>
                         </div>
                         {item.notes && (
                           <div className="flex items-center gap-1 text-yellow-400 text-xs mt-1">
@@ -250,7 +250,7 @@ export default function CuisinePage() {
             );
           })}
           {visible.length === 0 && (
-            <p className="col-span-full text-center text-gray-500 py-12">Aucune commande</p>
+            <p className="col-span-full text-center text-neutral-500 py-12">Aucune commande</p>
           )}
         </div>
       </div>
@@ -258,9 +258,9 @@ export default function CuisinePage() {
       <button
         onClick={() => setSoundEnabled((v) => !v)}
         title={soundEnabled ? 'Désactiver le son' : 'Activer le son'}
-        className="fixed bottom-6 right-6 p-4 bg-gray-700 hover:bg-gray-600 rounded-full shadow-lg"
+        className="fixed bottom-6 right-6 p-4 bg-neutral-700 hover:bg-neutral-600 rounded-full shadow-lg"
       >
-        {soundEnabled ? <Bell className="w-6 h-6" /> : <BellOff className="w-6 h-6 text-gray-400" />}
+        {soundEnabled ? <Bell className="w-6 h-6" /> : <BellOff className="w-6 h-6 text-neutral-400" />}
       </button>
     </div>
   );

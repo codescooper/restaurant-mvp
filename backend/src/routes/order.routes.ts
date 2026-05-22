@@ -1,7 +1,13 @@
 import { Router } from 'express';
 import { authenticate, requireRole } from '../middlewares/auth';
 import { validate } from '../middlewares/validate';
-import { createOrderSchema, updateStatusSchema, cancelOrderSchema, payOrderSchema } from '../validators/schemas';
+import {
+  createOrderSchema,
+  updateStatusSchema,
+  cancelOrderSchema,
+  payOrderSchema,
+  refundOrderSchema,
+} from '../validators/schemas';
 import {
   listOrdersController,
   getOrderController,
@@ -9,6 +15,7 @@ import {
   updateStatusController,
   cancelOrderController,
   payOrderController,
+  refundOrderController,
 } from '../controllers/order.controller';
 
 const router = Router();
@@ -25,5 +32,6 @@ router.patch(
 );
 router.post('/:id/cancel', requireRole('caissier', 'administrateur'), validate(cancelOrderSchema), cancelOrderController);
 router.post('/:id/pay', requireRole('caissier', 'administrateur'), validate(payOrderSchema), payOrderController);
+router.post('/:id/refund', requireRole('caissier', 'administrateur'), validate(refundOrderSchema), refundOrderController);
 
 export default router;

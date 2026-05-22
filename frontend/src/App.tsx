@@ -63,7 +63,7 @@ export default function App() {
                 <Route
                   path="/service"
                   element={
-                    <ProtectedRoute allowedRoles={['caissier', 'administrateur']}>
+                    <ProtectedRoute allowedRoles={['serveur', 'caissier', 'administrateur']}>
                       <Layout>
                         <ServicePage />
                       </Layout>

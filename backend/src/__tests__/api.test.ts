@@ -27,4 +27,14 @@ describe('API smoke', () => {
     const res = await request(app).get('/api/inconnu');
     expect(res.status).toBe(404);
   });
+
+  it('GET /api/cash/current sans token renvoie 401', async () => {
+    const res = await request(app).get('/api/cash/current');
+    expect(res.status).toBe(401);
+  });
+
+  it('GET /api/audit sans token renvoie 401', async () => {
+    const res = await request(app).get('/api/audit');
+    expect(res.status).toBe(401);
+  });
 });

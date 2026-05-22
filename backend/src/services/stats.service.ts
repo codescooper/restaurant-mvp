@@ -124,6 +124,22 @@ export async function getDashboard(period: Period) {
     percentage: paidCount ? Math.round((v.count / paidCount) * 100) : 0,
   }));
 
+  // Répartition des ventes par canal (sur place / emporter / livraison).
+  const channelAgg = new Map<string, { count: number; amount: number }>();
+  for (const o of orders) {
+    const ch = o.channel ?? 'sur_place';
+    const cur = channelAgg.get(ch) ?? { count: 0, amount: 0 };
+    cur.count += 1;
+    cur.amount += o.finalTotal;
+    channelAgg.set(ch, cur);
+  }
+  const salesByChannel = [...channelAgg.entries()].map(([channel, v]) => ({
+    channel,
+    count: v.count,
+    amount: v.amount,
+    percentage: current.count ? Math.round((v.count / current.count) * 100) : 0,
+  }));
+
   // Commandes recentes (toutes, y compris annulees, 5 dernieres).
   const recent = await prisma.order.findMany({
     orderBy: { createdAt: 'desc' },
@@ -153,6 +169,7 @@ export async function getDashboard(period: Period) {
     salesByHour,
     topDishes,
     paymentMethods,
+    salesByChannel,
     recentOrders,
   };
 }

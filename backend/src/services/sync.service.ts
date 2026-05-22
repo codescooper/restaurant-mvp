@@ -15,10 +15,15 @@ export async function syncOrders(orders: OfflineOrder[], userId?: number) {
       const created = await createOrder(
         {
           items: o.items,
+          couponCode: o.couponCode,
           discountAmount: o.discountAmount,
           discountPercent: o.discountPercent,
           paymentMethod: o.paymentMethod,
           paymentDetails: o.paymentDetails,
+          channel: o.channel,
+          deliveryPlatform: o.deliveryPlatform,
+          customerName: o.customerName,
+          customerPhone: o.customerPhone,
         },
         userId
       );

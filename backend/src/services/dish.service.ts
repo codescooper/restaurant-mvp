@@ -7,6 +7,14 @@ interface IngredientInput {
   quantityNeeded: number;
 }
 
+interface VariantInput {
+  name: string;
+  price: number;
+  isActive?: boolean;
+  sortOrder?: number;
+  ingredients?: IngredientInput[];
+}
+
 interface DishInput {
   name: string;
   description?: string;
@@ -15,10 +23,16 @@ interface DishInput {
   preparationTime?: number;
   isActive?: boolean;
   ingredients?: IngredientInput[];
+  variants?: VariantInput[];
 }
 
+const stockSelect = { select: { id: true, name: true, unit: true, quantity: true } } as const;
 const dishInclude = {
-  ingredients: { include: { stockItem: { select: { id: true, name: true, unit: true, quantity: true } } } },
+  ingredients: { include: { stockItem: stockSelect } },
+  variants: {
+    orderBy: { sortOrder: 'asc' as const },
+    include: { ingredients: { include: { stockItem: stockSelect } } },
+  },
 } as const;
 
 export async function listDishes() {
@@ -45,15 +59,31 @@ export async function isDishAvailable(dishId: number, quantity = 1): Promise<boo
   return true;
 }
 
-// Menu pour la caisse : plats actifs annotes d'un flag de disponibilite.
+// Menu pour la caisse : plats actifs + variantes, annotes d'un flag de disponibilite.
 export async function listMenuWithAvailability() {
   const dishes = await prisma.dish.findMany({
     where: { isActive: true },
     orderBy: { name: 'asc' },
-    include: { ingredients: { include: { stockItem: true } } },
+    include: {
+      ingredients: { include: { stockItem: true } },
+      variants: {
+        where: { isActive: true },
+        orderBy: { sortOrder: 'asc' },
+        include: { ingredients: { include: { stockItem: true } } },
+      },
+    },
   });
   return dishes.map((dish) => {
-    const available = dish.ingredients.every((ing) => ing.stockItem.quantity >= ing.quantityNeeded);
+    const variants = dish.variants.map((v) => ({
+      id: v.id,
+      name: v.name,
+      price: v.price,
+      available: v.ingredients.every((ing) => ing.stockItem.quantity >= ing.quantityNeeded),
+    }));
+    const hasVariants = variants.length > 0;
+    const available = hasVariants
+      ? variants.some((v) => v.available)
+      : dish.ingredients.every((ing) => ing.stockItem.quantity >= ing.quantityNeeded);
     return {
       id: dish.id,
       name: dish.name,
@@ -62,8 +92,21 @@ export async function listMenuWithAvailability() {
       category: dish.category,
       imageUrl: dish.imageUrl,
       available,
+      variants,
     };
   });
+}
+
+function variantCreateData(variants: VariantInput[]) {
+  return variants.map((v, idx) => ({
+    name: v.name,
+    price: v.price,
+    isActive: v.isActive ?? true,
+    sortOrder: v.sortOrder ?? idx,
+    ingredients: v.ingredients?.length
+      ? { create: v.ingredients.map((i) => ({ stockItemId: i.stockItemId, quantityNeeded: i.quantityNeeded })) }
+      : undefined,
+  }));
 }
 
 export async function createDish(data: DishInput) {
@@ -78,6 +121,7 @@ export async function createDish(data: DishInput) {
       ingredients: data.ingredients
         ? { create: data.ingredients.map((i) => ({ stockItemId: i.stockItemId, quantityNeeded: i.quantityNeeded })) }
         : undefined,
+      variants: data.variants ? { create: variantCreateData(data.variants) } : undefined,
     },
     include: dishInclude,
   });
@@ -91,6 +135,24 @@ export async function updateDish(id: number, data: DishInput) {
       await tx.dishIngredient.createMany({
         data: data.ingredients.map((i) => ({ dishId: id, stockItemId: i.stockItemId, quantityNeeded: i.quantityNeeded })),
       });
+    }
+    if (data.variants) {
+      // Remplace les variantes (les anciennes commandes gardent variantName ; variantId passe à null).
+      await tx.dishVariant.deleteMany({ where: { dishId: id } });
+      for (const [idx, v] of data.variants.entries()) {
+        await tx.dishVariant.create({
+          data: {
+            dishId: id,
+            name: v.name,
+            price: v.price,
+            isActive: v.isActive ?? true,
+            sortOrder: v.sortOrder ?? idx,
+            ingredients: v.ingredients?.length
+              ? { create: v.ingredients.map((i) => ({ stockItemId: i.stockItemId, quantityNeeded: i.quantityNeeded })) }
+              : undefined,
+          },
+        });
+      }
     }
     return tx.dish.update({
       where: { id },
@@ -121,6 +183,7 @@ export async function deleteDish(id: number) {
     throw new AppError(400, 'DISH_002', 'Plat présent dans une commande en cours, suppression impossible');
   }
   await prisma.dishIngredient.deleteMany({ where: { dishId: id } });
+  await prisma.dishVariant.deleteMany({ where: { dishId: id } });
   await prisma.dish.delete({ where: { id } });
   return { id };
 }

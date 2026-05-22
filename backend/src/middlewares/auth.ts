@@ -14,7 +14,9 @@ interface AccessTokenPayload {
 export async function authenticate(req: Request, res: Response, next: NextFunction) {
   try {
     const header = req.headers.authorization;
-    const token = header?.startsWith('Bearer ') ? header.slice(7) : undefined;
+    // Token via header (préféré) OU query param (pour les téléchargements navigateur natifs).
+    const queryToken = typeof req.query.token === 'string' ? req.query.token : undefined;
+    const token = header?.startsWith('Bearer ') ? header.slice(7) : queryToken;
 
     if (!token) {
       return sendError(res, 401, 'AUTH_003', 'Token manquant');

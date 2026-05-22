@@ -1,8 +1,11 @@
+import { startOfDay, endOfDay } from 'date-fns';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { AppError } from '../utils/errors';
 import { PaymentMethod, MobileMoneyProvider, TableStatus } from '../constants';
-import { emitStatsUpdated, emitToRole } from '../websocket';
+import { resolveCashSessionForPayment } from './cash.service';
+import { logAudit } from './audit.service';
+import { emitStatsUpdated, emitToRole, emitToAll } from '../websocket';
 
 // Une commande "occupe" sa table si elle n'est ni annulée, ni (servie ET payée).
 const OCCUPYING_WHERE: Prisma.OrderWhereInput = {
@@ -35,9 +38,23 @@ export async function listTablesWithStatus() {
     byTable.set(o.tableId, arr);
   }
 
+  // Réservations actives du jour (pour le statut « réservée »).
+  const reservations = await prisma.reservation.findMany({
+    where: { status: 'active', reservedAt: { gte: startOfDay(new Date()), lte: endOfDay(new Date()) } },
+    orderBy: { reservedAt: 'asc' },
+  });
+  const resByTable = new Map<number, (typeof reservations)[number]>();
+  for (const r of reservations) {
+    if (!resByTable.has(r.tableId)) resByTable.set(r.tableId, r); // 1re réservation du jour
+  }
+
   return tables.map((t) => {
     const orders = byTable.get(t.id) ?? [];
-    const status: TableStatus = orders.length ? 'occupée' : 'libre';
+    const reservation = resByTable.get(t.id) ?? null;
+    let status: TableStatus;
+    if (orders.length) status = t.billRequested ? 'addition_demandée' : 'occupée';
+    else if (reservation) status = 'réservée';
+    else status = 'libre';
     const total = orders.reduce((s, o) => s + o.finalTotal, 0);
     const unpaidTotal = orders.filter((o) => !o.isPaid).reduce((s, o) => s + o.finalTotal, 0);
     const last = orders[orders.length - 1];
@@ -46,10 +63,14 @@ export async function listTablesWithStatus() {
       name: t.name,
       capacity: t.capacity,
       status,
+      billRequested: t.billRequested,
       server: last?.server ?? null,
       total,
       unpaidTotal,
       hasUnpaid: orders.some((o) => !o.isPaid),
+      reservation: reservation
+        ? { id: reservation.id, customerName: reservation.customerName, reservedAt: reservation.reservedAt, partySize: reservation.partySize }
+        : null,
       orders: orders.map((o) => ({
         id: o.id,
         orderNumber: o.orderNumber,
@@ -116,6 +137,8 @@ export async function settleTable(
   if (paymentMethod === 'mobile_money' && !paymentDetails?.mobileMoneyProvider) {
     throw new AppError(400, 'VALIDATION_001', 'Service mobile money requis');
   }
+  // Espèces : une caisse doit être ouverte ; on lie les commandes réglées à la session.
+  const cashSessionId = await resolveCashSessionForPayment(userId, paymentMethod);
   const change = paymentMethod === 'espèces' ? Math.max(0, (paymentDetails?.cashGiven ?? 0) - total) : 0;
 
   await prisma.$transaction(
@@ -126,6 +149,7 @@ export async function settleTable(
           isPaid: true,
           paidAt: new Date(),
           paymentMethod,
+          cashSessionId,
           mobileMoneyProvider: paymentMethod === 'mobile_money' ? paymentDetails?.mobileMoneyProvider : undefined,
           // Le détail espèces (remis/monnaie) est porté par la 1re commande du lot.
           cashGiven: paymentMethod === 'espèces' && idx === 0 ? paymentDetails?.cashGiven : undefined,
@@ -135,8 +159,101 @@ export async function settleTable(
     )
   );
 
-  void userId;
+  // L'addition est réglée : on retombe la demande d'addition.
+  if (table.billRequested) await prisma.table.update({ where: { id }, data: { billRequested: false } });
+
+  await logAudit({
+    userId,
+    action: 'paiement',
+    entityType: 'table',
+    entityId: id,
+    details: { tableName: table.name, amount: total, method: paymentMethod, orderCount: unpaid.length },
+  });
   emitStatsUpdated({ settledTable: table.name, total });
   emitToRole('caissier', 'table_settled', { tableId: id, tableName: table.name, total });
   return { tableId: id, paidCount: unpaid.length, total, change, paymentMethod };
+}
+
+// Le serveur signale (ou annule) une demande d'addition ; la caisse est notifiée en temps réel.
+export async function setBillRequested(id: number, requested: boolean) {
+  const table = await prisma.table.findUnique({ where: { id } });
+  if (!table) throw new AppError(404, 'VALIDATION_001', 'Table introuvable');
+  const updated = await prisma.table.update({ where: { id }, data: { billRequested: requested } });
+  emitToAll('table_status_changed', { tableId: id });
+  if (requested) {
+    emitToRole('caissier', 'bill_requested', { tableId: id, tableName: table.name });
+  }
+  return { id: updated.id, billRequested: updated.billRequested };
+}
+
+// Fusion : déplace les commandes en cours d'une table source vers une table cible (addition commune).
+export async function mergeTable(sourceId: number, targetId: number, userId?: number) {
+  if (sourceId === targetId) throw new AppError(400, 'VALIDATION_001', 'Tables identiques');
+  const [source, target] = await Promise.all([
+    prisma.table.findUnique({ where: { id: sourceId } }),
+    prisma.table.findUnique({ where: { id: targetId } }),
+  ]);
+  if (!source || !target) throw new AppError(404, 'VALIDATION_001', 'Table introuvable');
+
+  const moved = await prisma.order.updateMany({
+    where: { tableId: sourceId, ...OCCUPYING_WHERE },
+    data: { tableId: targetId },
+  });
+  if (!moved.count) throw new AppError(400, 'ORDER_001', 'Aucune commande à déplacer sur cette table');
+  await prisma.table.update({ where: { id: sourceId }, data: { billRequested: false } });
+
+  await logAudit({
+    userId,
+    action: 'correction_commande',
+    entityType: 'table',
+    entityId: sourceId,
+    details: { fusion: true, source: source.name, cible: target.name, commandes: moved.count },
+  });
+  emitToAll('table_status_changed', { tableId: sourceId, targetId });
+  return { sourceId, targetId, moved: moved.count };
+}
+
+// --- Réservations ---
+export interface ReservationInput {
+  tableId: number;
+  customerName: string;
+  customerPhone?: string;
+  partySize?: number;
+  reservedAt: string;
+  note?: string;
+}
+
+export async function createReservation(input: ReservationInput, userId?: number) {
+  const table = await prisma.table.findUnique({ where: { id: input.tableId } });
+  if (!table) throw new AppError(404, 'VALIDATION_001', 'Table introuvable');
+  const reservation = await prisma.reservation.create({
+    data: {
+      tableId: input.tableId,
+      customerName: input.customerName,
+      customerPhone: input.customerPhone,
+      partySize: input.partySize,
+      reservedAt: new Date(input.reservedAt),
+      note: input.note,
+      createdBy: userId,
+    },
+  });
+  emitToAll('table_status_changed', { tableId: input.tableId });
+  return reservation;
+}
+
+export async function listReservations() {
+  return prisma.reservation.findMany({
+    where: { status: 'active', reservedAt: { gte: startOfDay(new Date()) } },
+    orderBy: { reservedAt: 'asc' },
+    take: 100,
+    include: { table: { select: { id: true, name: true } } },
+  });
+}
+
+export async function setReservationStatus(id: number, status: 'annulée' | 'honorée') {
+  const reservation = await prisma.reservation.findUnique({ where: { id } });
+  if (!reservation) throw new AppError(404, 'VALIDATION_001', 'Réservation introuvable');
+  const updated = await prisma.reservation.update({ where: { id }, data: { status } });
+  emitToAll('table_status_changed', { tableId: reservation.tableId });
+  return updated;
 }

@@ -6,6 +6,8 @@ const router = Router();
 router.use(authenticate, requireRole('administrateur', 'caissier'));
 
 router.get('/dashboard', dashboardController);
+// POST (fetch + blob) et GET (téléchargement natif du navigateur, token en query) supportés.
 router.post('/export', exportController);
+router.get('/export', exportController);
 
 export default router;

@@ -15,6 +15,13 @@ export interface AuthResponse {
   refreshToken: string;
 }
 
+export interface MenuVariant {
+  id: number;
+  name: string;
+  price: number;
+  available: boolean;
+}
+
 export interface MenuDish {
   id: number;
   name: string;
@@ -23,6 +30,7 @@ export interface MenuDish {
   category?: string | null;
   imageUrl?: string | null;
   available: boolean;
+  variants?: MenuVariant[];
 }
 
 export interface DishIngredient {
@@ -30,6 +38,15 @@ export interface DishIngredient {
   stockItemId: number;
   quantityNeeded: number;
   stockItem: { id: number; name: string; unit: string; quantity: number };
+}
+
+export interface DishVariant {
+  id: number;
+  name: string;
+  price: number;
+  isActive: boolean;
+  sortOrder?: number;
+  ingredients: DishIngredient[];
 }
 
 export interface Dish {
@@ -42,14 +59,33 @@ export interface Dish {
   isActive: boolean;
   preparationTime?: number | null;
   ingredients: DishIngredient[];
+  variants?: DishVariant[];
 }
 
 export interface CartItem {
-  id: number;
+  id: number; // dishId
+  variantId?: number;
+  variantName?: string;
   name: string;
   price: number;
   quantity: number;
   notes?: string;
+  offered?: boolean;
+}
+
+export interface Promotion {
+  id: number;
+  name: string;
+  kind: 'happy_hour' | 'coupon';
+  discountType: 'percent' | 'amount';
+  discountValue: number;
+  isActive: boolean;
+  startHour?: number | null;
+  endHour?: number | null;
+  days?: string | null;
+  code?: string | null;
+  maxUses?: number | null;
+  usedCount: number;
 }
 
 export interface StockItem {
@@ -66,6 +102,9 @@ export interface OrderLineItem {
   dishId: number;
   dishName: string;
   dishPrice: number;
+  variantId?: number | null;
+  variantName?: string | null;
+  isOffered?: boolean;
   quantity: number;
   subtotal: number;
   notes?: string | null;
@@ -85,6 +124,14 @@ export interface Order {
   cashGiven?: number | null;
   changeReturned?: number | null;
   isPaid: boolean;
+  isRefunded?: boolean;
+  refundedAt?: string | null;
+  refundReason?: string | null;
+  promoLabel?: string | null;
+  channel?: string;
+  deliveryPlatform?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
   tableId?: number | null;
   serverId?: number | null;
   paidAt?: string | null;
@@ -105,16 +152,39 @@ export interface TableOrderSummary {
   items: { id: number; dishName: string; quantity: number }[];
 }
 
+export type TableStatus = 'libre' | 'occupée' | 'addition_demandée' | 'réservée';
+
+export interface TableReservationInfo {
+  id: number;
+  customerName: string;
+  reservedAt: string;
+  partySize?: number | null;
+}
+
 export interface RestaurantTable {
   id: number;
   name: string;
   capacity: number;
-  status: 'libre' | 'occupée';
+  status: TableStatus;
+  billRequested: boolean;
   server: { id: number; username: string } | null;
   total: number;
   unpaidTotal: number;
   hasUnpaid: boolean;
+  reservation?: TableReservationInfo | null;
   orders: TableOrderSummary[];
+}
+
+export interface Reservation {
+  id: number;
+  tableId: number;
+  customerName: string;
+  customerPhone?: string | null;
+  partySize?: number | null;
+  reservedAt: string;
+  note?: string | null;
+  status: 'active' | 'annulée' | 'honorée';
+  table?: { id: number; name: string };
 }
 
 export interface KitchenOrderItem {
@@ -140,6 +210,91 @@ export interface AppNotification {
   timestamp: string;
 }
 
+export interface Supplier {
+  id: number;
+  name: string;
+  phone?: string | null;
+  contact?: string | null;
+  note?: string | null;
+  createdAt?: string;
+  debt?: number;
+  purchases?: Purchase[];
+}
+
+export interface Purchase {
+  id: number;
+  supplierId: number;
+  stockItemId: number;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  dueDate?: string | null;
+  isPaid: boolean;
+  paidAt?: string | null;
+  note?: string | null;
+  createdAt: string;
+  supplier?: { id: number; name: string };
+  stockItem?: { id?: number; name: string; unit: string };
+}
+
+export interface InventoryLine {
+  id: number;
+  inventoryId: number;
+  stockItemId: number;
+  theoreticalQty: number;
+  countedQty?: number | null;
+  stockItem?: { name: string; unit: string };
+}
+
+export interface Inventory {
+  id: number;
+  type: string;
+  status: 'en_cours' | 'validé';
+  note?: string | null;
+  createdAt: string;
+  validatedAt?: string | null;
+  creator?: { username: string } | null;
+  lines?: InventoryLine[];
+  _count?: { lines: number };
+}
+
+export interface CashSessionSummary {
+  id: number;
+  cashierId: number;
+  openingFloat: number;
+  status: 'ouverte' | 'fermée';
+  openedAt: string;
+  closedAt?: string | null;
+  expectedCash?: number | null;
+  countedCash?: number | null;
+  discrepancy?: number | null;
+  discrepancyReason?: string | null;
+  notes?: string | null;
+  salesByMethod?: { method: string; count: number; amount: number }[];
+  orders?: {
+    id: number;
+    orderNumber: string;
+    finalTotal: number;
+    paymentMethod: string | null;
+    isRefunded: boolean;
+    refundReason?: string | null;
+    paidAt: string | null;
+  }[];
+  cashier?: { id: number; username: string };
+  closer?: { id: number; username: string } | null;
+}
+
+export interface AuditLogEntry {
+  id: number;
+  userId: number | null;
+  action: string;
+  entityType: string;
+  entityId: number | null;
+  details?: Record<string, unknown> | null;
+  createdAt: string;
+  user?: { id: number; username: string; role: string } | null;
+}
+
 export interface DashboardData {
   totalSales: number;
   totalOrders: number;
@@ -155,5 +310,6 @@ export interface DashboardData {
   salesByHour: { hour: string; amount: number; orders: number }[];
   topDishes: { name: string; quantity: number; revenue: number; percentage: number }[];
   paymentMethods: { method: string; count: number; amount: number; percentage: number }[];
+  salesByChannel: { channel: string; count: number; amount: number; percentage: number }[];
   recentOrders: { orderNumber: string; time: string; amount: number; items: number; status: string }[];
 }

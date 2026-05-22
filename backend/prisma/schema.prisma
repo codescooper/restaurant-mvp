@@ -23,8 +23,16 @@ model User {
 
   createdOrders     Order[]            @relation("CreatedOrders")
   servedOrders      Order[]            @relation("ServerOrders")
+  cancelledOrders   Order[]            @relation("CancelledOrders")
+  refundedOrders    Order[]            @relation("RefundedOrders")
   stockMovements    StockMovement[]
   notificationReads NotificationRead[]
+  cashSessions      CashSession[]      @relation("CashierSessions")
+  closedSessions    CashSession[]      @relation("ClosedSessions")
+  auditLogs         AuditLog[]
+  purchases         Purchase[]
+  inventories       Inventory[]
+  reservations      Reservation[]
 
   @@map("users")
 }
@@ -38,9 +46,12 @@ model StockItem {
   lastUpdated    DateTime @default(now()) @map("last_updated")
   createdAt      DateTime @default(now()) @map("created_at")
 
-  dishIngredients DishIngredient[]
-  movements       StockMovement[]
-  notifications   Notification[]
+  dishIngredients    DishIngredient[]
+  variantIngredients VariantIngredient[]
+  movements          StockMovement[]
+  notifications      Notification[]
+  purchases          Purchase[]
+  inventoryLines     InventoryLine[]
 
   @@index([quantity, alertThreshold], map: "idx_stock_items_alert")
   @@map("stock_items")
@@ -59,6 +70,7 @@ model Dish {
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   ingredients DishIngredient[]
+  variants    DishVariant[]
   orderItems  OrderItem[]
 
   @@index([isActive], map: "idx_dishes_active")
@@ -78,6 +90,37 @@ model DishIngredient {
   @@map("dish_ingredients")
 }
 
+// Déclinaison d'un plat (ex. Petit / Grand) avec son propre prix et sa propre recette.
+model DishVariant {
+  id        Int     @id @default(autoincrement())
+  dishId    Int     @map("dish_id")
+  name      String  @db.VarChar(50)
+  price     Int
+  isActive  Boolean @default(true) @map("is_active")
+  sortOrder Int     @default(0) @map("sort_order")
+
+  dish        Dish                @relation(fields: [dishId], references: [id], onDelete: Cascade)
+  ingredients VariantIngredient[]
+  orderItems  OrderItem[]
+
+  @@index([dishId], map: "idx_dish_variants_dish")
+  @@map("dish_variants")
+}
+
+// Recette propre à une variante (§ recette par variante).
+model VariantIngredient {
+  id             Int   @id @default(autoincrement())
+  variantId      Int   @map("variant_id")
+  stockItemId    Int   @map("stock_item_id")
+  quantityNeeded Float @map("quantity_needed")
+
+  variant   DishVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  stockItem StockItem   @relation(fields: [stockItemId], references: [id], onDelete: Restrict)
+
+  @@unique([variantId, stockItemId])
+  @@map("variant_ingredients")
+}
+
 model Order {
   id                  Int       @id @default(autoincrement())
   orderNumber         String    @unique @map("order_number") @db.VarChar(20)
@@ -90,23 +133,41 @@ model Order {
   mobileMoneyProvider String?   @map("mobile_money_provider") @db.VarChar(20)
   cashGiven           Int?      @map("cash_given")
   changeReturned      Int?      @map("change_returned")
+  channel             String    @default("sur_place") @db.VarChar(20)
+  deliveryPlatform    String?   @map("delivery_platform") @db.VarChar(20)
+  customerName        String?   @map("customer_name") @db.VarChar(100)
+  customerPhone       String?   @map("customer_phone") @db.VarChar(30)
+  taxRate             Float     @default(0) @map("tax_rate")
+  taxAmount           Int       @default(0) @map("tax_amount")
+  promotionId         Int?      @map("promotion_id")
+  promoLabel          String?   @map("promo_label") @db.VarChar(60)
   isPaid              Boolean   @default(false) @map("is_paid")
   paidAt              DateTime? @map("paid_at")
   status              String    @default("commandée") @db.VarChar(30)
   tableId             Int?      @map("table_id")
   serverId            Int?      @map("server_id")
   createdBy           Int?      @map("created_by")
+  cashSessionId       Int?      @map("cash_session_id")
   createdAt           DateTime  @default(now()) @map("created_at")
   preparedAt          DateTime? @map("prepared_at")
   readyAt             DateTime? @map("ready_at")
   servedAt            DateTime? @map("served_at")
   cancelledAt         DateTime? @map("cancelled_at")
+  cancelledBy         Int?      @map("cancelled_by")
   cancellationReason  String?   @map("cancellation_reason") @db.Text
+  isRefunded          Boolean   @default(false) @map("is_refunded")
+  refundedAt          DateTime? @map("refunded_at")
+  refundedBy          Int?      @map("refunded_by")
+  refundReason        String?   @map("refund_reason") @db.Text
   isSynced            Boolean   @default(false) @map("is_synced")
 
   creator        User?           @relation("CreatedOrders", fields: [createdBy], references: [id])
   server         User?           @relation("ServerOrders", fields: [serverId], references: [id])
+  canceller      User?           @relation("CancelledOrders", fields: [cancelledBy], references: [id])
+  refunder       User?           @relation("RefundedOrders", fields: [refundedBy], references: [id])
   table          Table?          @relation(fields: [tableId], references: [id])
+  cashSession    CashSession?    @relation(fields: [cashSessionId], references: [id])
+  promotion      Promotion?      @relation(fields: [promotionId], references: [id])
   items          OrderItem[]
   stockMovements StockMovement[]
   notifications  Notification[]
@@ -115,21 +176,26 @@ model Order {
   @@index([createdAt], map: "idx_orders_created_at")
   @@index([orderNumber], map: "idx_orders_number")
   @@index([tableId], map: "idx_orders_table")
+  @@index([cashSessionId], map: "idx_orders_cash_session")
   @@map("orders")
 }
 
 model OrderItem {
-  id        Int     @id @default(autoincrement())
-  orderId   Int     @map("order_id")
-  dishId    Int     @map("dish_id")
-  dishName  String  @map("dish_name") @db.VarChar(100)
-  dishPrice Int     @map("dish_price")
-  quantity  Int     @default(1)
-  subtotal  Int
-  notes     String? @db.Text
+  id          Int     @id @default(autoincrement())
+  orderId     Int     @map("order_id")
+  dishId      Int     @map("dish_id")
+  dishName    String  @map("dish_name") @db.VarChar(100)
+  dishPrice   Int     @map("dish_price")
+  variantId   Int?    @map("variant_id")
+  variantName String? @map("variant_name") @db.VarChar(50)
+  isOffered   Boolean @default(false) @map("is_offered")
+  quantity    Int     @default(1)
+  subtotal    Int
+  notes       String? @db.Text
 
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  dish  Dish  @relation(fields: [dishId], references: [id])
+  order   Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  dish    Dish         @relation(fields: [dishId], references: [id])
+  variant DishVariant? @relation(fields: [variantId], references: [id])
 
   @@map("order_items")
 }
@@ -142,6 +208,7 @@ model StockMovement {
   previousQuantity Float    @map("previous_quantity")
   newQuantity      Float    @map("new_quantity")
   orderId          Int?     @map("order_id")
+  cause            String?  @db.VarChar(30)
   note             String?  @db.Text
   createdBy        Int?     @map("created_by")
   createdAt        DateTime @default(now()) @map("created_at")
@@ -196,14 +263,98 @@ model AppSetting {
 }
 
 model Table {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique @db.VarChar(50)
-  capacity  Int      @default(4)
-  createdAt DateTime @default(now()) @map("created_at")
+  id            Int      @id @default(autoincrement())
+  name          String   @unique @db.VarChar(50)
+  capacity      Int      @default(4)
+  billRequested Boolean  @default(false) @map("bill_requested")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  orders       Order[]
+  reservations Reservation[]
+
+  @@map("tables")
+}
+
+// Réservation d'une table (§D).
+model Reservation {
+  id            Int      @id @default(autoincrement())
+  tableId       Int      @map("table_id")
+  customerName  String   @map("customer_name") @db.VarChar(100)
+  customerPhone String?  @map("customer_phone") @db.VarChar(30)
+  partySize     Int?     @map("party_size")
+  reservedAt    DateTime @map("reserved_at")
+  note          String?  @db.Text
+  status        String   @default("active") @db.VarChar(20)
+  createdBy     Int?     @map("created_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  table   Table @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  creator User? @relation(fields: [createdBy], references: [id])
+
+  @@index([tableId, status], map: "idx_reservations_table")
+  @@index([reservedAt], map: "idx_reservations_date")
+  @@map("reservations")
+}
+
+// Session de caisse : ouverture/fermeture avec fond, total théorique/réel et écart (§B).
+model CashSession {
+  id                Int       @id @default(autoincrement())
+  cashierId         Int       @map("cashier_id")
+  openingFloat      Int       @map("opening_float")
+  status            String    @default("ouverte") @db.VarChar(20)
+  openedAt          DateTime  @default(now()) @map("opened_at")
+  closedAt          DateTime? @map("closed_at")
+  closedBy          Int?      @map("closed_by")
+  expectedCash      Int?      @map("expected_cash")
+  countedCash       Int?      @map("counted_cash")
+  discrepancy       Int?
+  discrepancyReason String?   @map("discrepancy_reason") @db.Text
+  notes             String?   @db.Text
+
+  cashier User    @relation("CashierSessions", fields: [cashierId], references: [id])
+  closer  User?   @relation("ClosedSessions", fields: [closedBy], references: [id])
+  orders  Order[]
+
+  @@index([cashierId, status], map: "idx_cash_sessions_cashier")
+  @@map("cash_sessions")
+}
+
+// Promotions : happy hour (auto, par plage horaire) ou coupon (code) (§F).
+model Promotion {
+  id            Int      @id @default(autoincrement())
+  name          String   @db.VarChar(100)
+  kind          String   @db.VarChar(20) // 'happy_hour' | 'coupon'
+  discountType  String   @map("discount_type") @db.VarChar(10) // 'percent' | 'amount'
+  discountValue Int      @map("discount_value")
+  isActive      Boolean  @default(true) @map("is_active")
+  startHour     Int?     @map("start_hour")
+  endHour       Int?     @map("end_hour")
+  days          String?  @db.VarChar(30) // jours (CSV "1,2,3", 1=lundi) ; null = tous les jours
+  code          String?  @unique @db.VarChar(30)
+  maxUses       Int?     @map("max_uses")
+  usedCount     Int      @default(0) @map("used_count")
+  createdAt     DateTime @default(now()) @map("created_at")
 
   orders Order[]
 
-  @@map("tables")
+  @@map("promotions")
+}
+
+// Journal d'actions sensibles : qui a fait quoi, quand (§C).
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int?     @map("user_id")
+  action     String   @db.VarChar(40)
+  entityType String   @map("entity_type") @db.VarChar(30)
+  entityId   Int?     @map("entity_id")
+  details    Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([action], map: "idx_audit_action")
+  @@index([createdAt], map: "idx_audit_created_at")
+  @@map("audit_logs")
 }
 
 model SyncQueue {
@@ -217,4 +368,71 @@ model SyncQueue {
   isSynced   Boolean   @default(false) @map("is_synced")
 
   @@map("sync_queue")
+}
+
+// Fournisseur (§E).
+model Supplier {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(100)
+  phone     String?  @db.VarChar(30)
+  contact   String?  @db.VarChar(100)
+  note      String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  purchases Purchase[]
+
+  @@map("suppliers")
+}
+
+// Achat fournisseur (un article par achat) ; suivi dette/échéance (§E).
+model Purchase {
+  id          Int       @id @default(autoincrement())
+  supplierId  Int       @map("supplier_id")
+  stockItemId Int       @map("stock_item_id")
+  quantity    Float
+  unitPrice   Int       @map("unit_price")
+  totalPrice  Int       @map("total_price")
+  dueDate     DateTime? @map("due_date")
+  isPaid      Boolean   @default(false) @map("is_paid")
+  paidAt      DateTime? @map("paid_at")
+  note        String?   @db.Text
+  createdBy   Int?      @map("created_by")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  supplier  Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  stockItem StockItem @relation(fields: [stockItemId], references: [id])
+  creator   User?     @relation(fields: [createdBy], references: [id])
+
+  @@index([supplierId], map: "idx_purchases_supplier")
+  @@map("purchases")
+}
+
+// Session d'inventaire : théorique (système) vs réel (compté) (§C).
+model Inventory {
+  id          Int       @id @default(autoincrement())
+  type        String    @db.VarChar(20)
+  status      String    @default("en_cours") @db.VarChar(20)
+  note        String?   @db.Text
+  createdBy   Int?      @map("created_by")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  validatedAt DateTime? @map("validated_at")
+
+  creator User?           @relation(fields: [createdBy], references: [id])
+  lines   InventoryLine[]
+
+  @@map("inventories")
+}
+
+model InventoryLine {
+  id             Int    @id @default(autoincrement())
+  inventoryId    Int    @map("inventory_id")
+  stockItemId    Int    @map("stock_item_id")
+  theoreticalQty Float  @map("theoretical_qty")
+  countedQty     Float? @map("counted_qty")
+
+  inventory Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  stockItem StockItem @relation(fields: [stockItemId], references: [id])
+
+  @@unique([inventoryId, stockItemId])
+  @@map("inventory_lines")
 }

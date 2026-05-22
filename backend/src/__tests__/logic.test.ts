@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { computeFinalTotal, formatOrderNumber } from '../services/order.service';
 import { roundQty } from '../services/stock.service';
-import { STATUS_TRANSITIONS } from '../constants';
+import { computeDiscrepancy } from '../services/cash.service';
+import { STATUS_TRANSITIONS, isCashPaymentMethod } from '../constants';
 
 describe('computeFinalTotal', () => {
   it('applique une réduction en montant', () => {
@@ -41,5 +42,28 @@ describe('STATUS_TRANSITIONS', () => {
   });
   it('servie est un état terminal', () => {
     expect(STATUS_TRANSITIONS['servie']).toEqual([]);
+  });
+});
+
+describe('computeDiscrepancy (écart de caisse)', () => {
+  it('caisse juste = écart nul', () => {
+    expect(computeDiscrepancy(50000, 50000)).toBe(0);
+  });
+  it('excédent = écart positif', () => {
+    expect(computeDiscrepancy(50000, 52000)).toBe(2000);
+  });
+  it('manquant = écart négatif', () => {
+    expect(computeDiscrepancy(50000, 48500)).toBe(-1500);
+  });
+});
+
+describe('isCashPaymentMethod', () => {
+  it('espèces nécessite une caisse', () => {
+    expect(isCashPaymentMethod('espèces')).toBe(true);
+  });
+  it('carte et mobile_money ne nécessitent pas de caisse', () => {
+    expect(isCashPaymentMethod('carte')).toBe(false);
+    expect(isCashPaymentMethod('mobile_money')).toBe(false);
+    expect(isCashPaymentMethod(null)).toBe(false);
   });
 });

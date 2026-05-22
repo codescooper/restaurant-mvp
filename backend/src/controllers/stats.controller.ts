@@ -15,8 +15,11 @@ export const dashboardController = asyncHandler(async (req, res) => {
 });
 
 export const exportController = asyncHandler(async (req, res) => {
-  const period = parsePeriod(req.body.period);
-  const format = req.body.format === 'csv' ? 'csv' : 'pdf';
+  // Params depuis le body (POST) ou la query (GET / téléchargement natif).
+  const periodRaw = req.body?.period ?? req.query.period;
+  const formatRaw = req.body?.format ?? req.query.format;
+  const period = parsePeriod(periodRaw);
+  const format = formatRaw === 'csv' ? 'csv' : 'pdf';
   const data = await statsService.getDashboard(period);
 
   if (format === 'csv') {

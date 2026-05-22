@@ -4,24 +4,38 @@ import { prisma } from '../config/prisma';
 import { AppError } from '../utils/errors';
 import { roundQty, checkLowStock } from './stock.service';
 import { createNotification } from './notification.service';
+import { resolveCashSessionForPayment } from './cash.service';
+import { logAudit } from './audit.service';
+import { findActiveHappyHour, findValidCoupon } from './promotion.service';
+import { getMaxDiscountPercent, verifyManagerApproval } from './settings.service';
 import {
   emitNewOrder,
   emitOrderReady,
   emitOrderStatusChanged,
   emitStatsUpdated,
 } from '../websocket';
-import { STATUS_TRANSITIONS, PaymentMethod, MobileMoneyProvider } from '../constants';
+import {
+  STATUS_TRANSITIONS,
+  PaymentMethod,
+  MobileMoneyProvider,
+  SalesChannel,
+  DeliveryPlatform,
+  Role,
+} from '../constants';
 
 const orderInclude = { items: true } as const;
 
 export interface OrderItemInput {
   dishId: number;
+  variantId?: number;
+  offered?: boolean;
   quantity: number;
   notes?: string;
 }
 
 export interface CreateOrderInput {
   items: OrderItemInput[];
+  couponCode?: string;
   discountAmount?: number;
   discountPercent?: number;
   // Paiement optionnel : si absent, la commande est créée non payée (réglée plus tard à la caisse).
@@ -33,6 +47,10 @@ export interface CreateOrderInput {
   };
   tableId?: number;
   serverId?: number;
+  channel?: SalesChannel;
+  deliveryPlatform?: DeliveryPlatform;
+  customerName?: string;
+  customerPhone?: string;
 }
 
 // Formatage pur du numero de commande YYYYMMDD-NNN (§13.2 regle 1).
@@ -76,7 +94,7 @@ export async function createOrder(input: CreateOrderInput, userId?: number, mark
   const dishIds = [...new Set(input.items.map((i) => i.dishId))];
   const dishes = await prisma.dish.findMany({
     where: { id: { in: dishIds } },
-    include: { ingredients: true },
+    include: { ingredients: true, variants: { include: { ingredients: true } } },
   });
   const dishMap = new Map(dishes.map((d) => [d.id, d]));
 
@@ -87,15 +105,38 @@ export async function createOrder(input: CreateOrderInput, userId?: number, mark
     const dish = dishMap.get(item.dishId);
     if (!dish) throw new AppError(404, 'DISH_001', `Plat ${item.dishId} introuvable`);
     if (!dish.isActive) throw new AppError(400, 'DISH_002', `${dish.name} indisponible`);
-    for (const ing of dish.ingredients) {
+
+    // Prix et recette : selon la variante choisie, sinon le plat lui-même.
+    let unitPrice = dish.price;
+    let variantId: number | undefined;
+    let variantName: string | undefined;
+    let recipe: { stockItemId: number; quantityNeeded: number }[] = dish.ingredients;
+    const activeVariants = dish.variants.filter((v) => v.isActive);
+    if (item.variantId) {
+      const variant = dish.variants.find((v) => v.id === item.variantId);
+      if (!variant) throw new AppError(404, 'DISH_001', `Variante introuvable pour ${dish.name}`);
+      if (!variant.isActive) throw new AppError(400, 'DISH_002', `${dish.name} (${variant.name}) indisponible`);
+      unitPrice = variant.price;
+      variantId = variant.id;
+      variantName = variant.name;
+      recipe = variant.ingredients;
+    } else if (activeVariants.length > 0) {
+      throw new AppError(400, 'VALIDATION_001', `Variante requise pour ${dish.name}`);
+    }
+
+    for (const ing of recipe) {
       required.set(ing.stockItemId, (required.get(ing.stockItemId) ?? 0) + ing.quantityNeeded * item.quantity);
     }
-    const sub = dish.price * item.quantity;
+    // Produit offert : sous-total 0 (gratuit) mais le stock est quand même décompté.
+    const sub = item.offered ? 0 : unitPrice * item.quantity;
     subtotal += sub;
     return {
       dishId: dish.id,
       dishName: dish.name,
-      dishPrice: dish.price,
+      dishPrice: unitPrice,
+      variantId,
+      variantName,
+      isOffered: !!item.offered,
       quantity: item.quantity,
       subtotal: sub,
       notes: item.notes,
@@ -114,9 +155,48 @@ export async function createOrder(input: CreateOrderInput, userId?: number, mark
   }
 
   const total = subtotal;
-  const discountAmount = input.discountAmount ?? 0;
-  const discountPercent = input.discountPercent ?? 0;
+
+  // Remise : coupon > happy hour > remise manuelle (pas de cumul).
+  let discountAmount = 0;
+  let discountPercent = 0;
+  let promotionId: number | undefined;
+  let promoLabel: string | undefined;
+  let couponToConsume: number | undefined;
+
+  if (input.couponCode) {
+    const coupon = await findValidCoupon(input.couponCode.trim());
+    if (coupon.discountType === 'percent') discountPercent = coupon.discountValue;
+    else discountAmount = coupon.discountValue;
+    promotionId = coupon.id;
+    promoLabel = `Coupon ${coupon.code}`;
+    couponToConsume = coupon.id;
+  } else {
+    const hh = await findActiveHappyHour();
+    if (hh) {
+      if (hh.discountType === 'percent') discountPercent = hh.discountValue;
+      else discountAmount = hh.discountValue;
+      promotionId = hh.id;
+      promoLabel = `Happy hour (${hh.name})`;
+    } else {
+      // Remise manuelle : soumise au plafond configurable.
+      discountAmount = input.discountAmount ?? 0;
+      discountPercent = input.discountPercent ?? 0;
+      if (discountAmount > 0 || discountPercent > 0) {
+        const cap = await getMaxDiscountPercent();
+        const effectivePct = discountPercent > 0 ? discountPercent : total > 0 ? (discountAmount / total) * 100 : 0;
+        if (effectivePct > cap) {
+          throw new AppError(400, 'VALIDATION_001', `Remise supérieure au plafond autorisé (${cap}%)`);
+        }
+      }
+    }
+  }
+
   const finalTotal = computeFinalTotal(total, discountAmount, discountPercent);
+
+  // Paiement immédiat en espèces : une caisse ouverte est requise ; on lie la session.
+  const cashSessionId = input.paymentMethod
+    ? await resolveCashSessionForPayment(userId, input.paymentMethod)
+    : null;
 
   const order = await prisma.$transaction(async (tx) => {
     const orderNumber = await generateOrderNumber(tx);
@@ -132,8 +212,15 @@ export async function createOrder(input: CreateOrderInput, userId?: number, mark
         mobileMoneyProvider: input.paymentDetails?.mobileMoneyProvider,
         cashGiven: input.paymentDetails?.cashGiven,
         changeReturned: input.paymentDetails?.changeReturned,
+        channel: input.channel ?? 'sur_place',
+        deliveryPlatform: input.channel === 'livraison' ? input.deliveryPlatform ?? null : null,
+        customerName: input.customerName?.trim() || null,
+        customerPhone: input.customerPhone?.trim() || null,
+        promotionId: promotionId ?? null,
+        promoLabel: promoLabel ?? null,
         isPaid: !!input.paymentMethod,
         paidAt: input.paymentMethod ? new Date() : null,
+        cashSessionId,
         status: 'commandée',
         tableId: input.tableId ?? null,
         serverId: input.serverId ?? null,
@@ -143,6 +230,11 @@ export async function createOrder(input: CreateOrderInput, userId?: number, mark
       },
       include: orderInclude,
     });
+
+    // Comptabilise l'utilisation du coupon.
+    if (couponToConsume) {
+      await tx.promotion.update({ where: { id: couponToConsume }, data: { usedCount: { increment: 1 } } });
+    }
 
     // Decrement automatique du stock + mouvements (§13.1 regle 1).
     for (const [stockItemId, qty] of required) {
@@ -183,7 +275,37 @@ export async function createOrder(input: CreateOrderInput, userId?: number, mark
     type: 'nouvelle_commande',
     relatedOrderId: order.id,
   });
+  // Commande prise par un serveur (non payée) : prévenir la caisse qu'il y a une addition à encaisser.
+  if (order.serverId && !order.isPaid) {
+    await createNotification({
+      userRole: 'caissier',
+      title: 'Commande à encaisser',
+      message: `Commande ${order.orderNumber} (serveur) à régler à la caisse`,
+      type: 'nouvelle_commande',
+      relatedOrderId: order.id,
+    });
+  }
   emitStatsUpdated({ lastOrderNumber: order.orderNumber, finalTotal: order.finalTotal });
+
+  // Journal d'audit : remise appliquée à la création, puis paiement immédiat (§C).
+  if (discountAmount > 0 || discountPercent > 0) {
+    await logAudit({
+      userId,
+      action: 'remise',
+      entityType: 'order',
+      entityId: order.id,
+      details: { orderNumber: order.orderNumber, discountAmount, discountPercent, finalTotal },
+    });
+  }
+  if (input.paymentMethod) {
+    await logAudit({
+      userId,
+      action: 'paiement',
+      entityType: 'order',
+      entityId: order.id,
+      details: { orderNumber: order.orderNumber, amount: order.finalTotal, method: input.paymentMethod },
+    });
+  }
 
   // Alertes de stock faible apres decrement.
   for (const stockItemId of required.keys()) {
@@ -236,12 +358,14 @@ export async function updateStatus(id: number, newStatus: string, _userId?: numb
   return updated;
 }
 
-// Annulation : restaure le stock (§13.2 regle 4).
-export async function cancelOrder(id: number, reason: string, userId?: number) {
+// Annulation : restaure le stock (§13.2 regle 4). Validation manager (PIN) exigée pour le caissier.
+export async function cancelOrder(id: number, reason: string, userId?: number, role?: Role, pin?: string) {
   const order = await prisma.order.findUnique({ where: { id } });
   if (!order) throw new AppError(404, 'ORDER_001');
   if (order.status === 'servie') throw new AppError(400, 'ORDER_002', 'Commande déjà servie');
   if (order.status === 'annulée') throw new AppError(400, 'ORDER_002', 'Commande déjà annulée');
+
+  const validatedByPin = await verifyManagerApproval(role, pin);
 
   await prisma.$transaction(async (tx) => {
     const movements = await tx.stockMovement.findMany({
@@ -271,8 +395,16 @@ export async function cancelOrder(id: number, reason: string, userId?: number) {
     }
     await tx.order.update({
       where: { id },
-      data: { status: 'annulée', cancelledAt: new Date(), cancellationReason: reason },
+      data: { status: 'annulée', cancelledAt: new Date(), cancelledBy: userId ?? null, cancellationReason: reason },
     });
+  });
+
+  await logAudit({
+    userId,
+    action: 'annulation',
+    entityType: 'order',
+    entityId: id,
+    details: { orderNumber: order.orderNumber, reason, wasPaid: order.isPaid, validatedByPin },
   });
 
   emitOrderStatusChanged({
@@ -288,7 +420,8 @@ export async function cancelOrder(id: number, reason: string, userId?: number) {
 export async function payOrder(
   id: number,
   paymentMethod: PaymentMethod,
-  paymentDetails?: { mobileMoneyProvider?: MobileMoneyProvider; cashGiven?: number; changeReturned?: number }
+  paymentDetails?: { mobileMoneyProvider?: MobileMoneyProvider; cashGiven?: number; changeReturned?: number },
+  userId?: number
 ) {
   const order = await prisma.order.findUnique({ where: { id } });
   if (!order) throw new AppError(404, 'ORDER_001');
@@ -301,6 +434,8 @@ export async function payOrder(
   if (paymentMethod === 'mobile_money' && !paymentDetails?.mobileMoneyProvider) {
     throw new AppError(400, 'VALIDATION_001', 'Service mobile money requis');
   }
+  // Espèces : une caisse doit être ouverte ; on lie la commande à la session.
+  const cashSessionId = await resolveCashSessionForPayment(userId, paymentMethod);
   const change =
     paymentMethod === 'espèces' ? Math.max(0, (paymentDetails?.cashGiven ?? 0) - order.finalTotal) : 0;
 
@@ -310,12 +445,51 @@ export async function payOrder(
       isPaid: true,
       paidAt: new Date(),
       paymentMethod,
+      cashSessionId,
       mobileMoneyProvider: paymentMethod === 'mobile_money' ? paymentDetails?.mobileMoneyProvider : undefined,
       cashGiven: paymentMethod === 'espèces' ? paymentDetails?.cashGiven : undefined,
       changeReturned: paymentMethod === 'espèces' ? change : undefined,
     },
     include: orderInclude,
   });
+  await logAudit({
+    userId,
+    action: 'paiement',
+    entityType: 'order',
+    entityId: id,
+    details: { orderNumber: updated.orderNumber, amount: updated.finalTotal, method: paymentMethod },
+  });
   emitStatsUpdated({ orderNumber: updated.orderNumber, paid: true });
+  return updated;
+}
+
+// Remboursement d'une commande déjà payée (§G). Ne restaure pas le stock (plat consommé).
+// Validation manager (PIN) exigée pour le caissier.
+export async function refundOrder(id: number, reason: string, userId?: number, role?: Role, pin?: string) {
+  const order = await prisma.order.findUnique({ where: { id } });
+  if (!order) throw new AppError(404, 'ORDER_001');
+  if (!order.isPaid) throw new AppError(400, 'ORDER_003');
+  if (order.isRefunded) throw new AppError(400, 'ORDER_004');
+
+  const validatedByPin = await verifyManagerApproval(role, pin);
+
+  const updated = await prisma.order.update({
+    where: { id },
+    data: {
+      isRefunded: true,
+      refundedAt: new Date(),
+      refundedBy: userId ?? null,
+      refundReason: reason,
+    },
+    include: orderInclude,
+  });
+  await logAudit({
+    userId,
+    action: 'remboursement',
+    entityType: 'order',
+    entityId: id,
+    details: { orderNumber: updated.orderNumber, amount: updated.finalTotal, method: updated.paymentMethod, reason, validatedByPin },
+  });
+  emitStatsUpdated({ orderNumber: updated.orderNumber, refunded: true });
   return updated;
 }

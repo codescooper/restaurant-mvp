@@ -8,6 +8,12 @@ import tableRoutes from './table.routes';
 import statsRoutes from './stats.routes';
 import notificationRoutes from './notification.routes';
 import syncRoutes from './sync.routes';
+import cashRoutes from './cash.routes';
+import auditRoutes from './audit.routes';
+import supplierRoutes from './supplier.routes';
+import inventoryRoutes from './inventory.routes';
+import promotionRoutes from './promotion.routes';
+import settingsRoutes from './settings.routes';
 
 const router = Router();
 
@@ -22,5 +28,11 @@ router.use('/tables', tableRoutes);
 router.use('/stats', statsRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/sync', syncRoutes);
+router.use('/cash', cashRoutes);
+router.use('/audit', auditRoutes);
+router.use('/suppliers', supplierRoutes);
+router.use('/inventory', inventoryRoutes);
+router.use('/promotions', promotionRoutes);
+router.use('/settings', settingsRoutes);
 
 export default router;
