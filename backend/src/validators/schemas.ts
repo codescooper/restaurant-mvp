@@ -151,6 +151,8 @@ export const createOrderSchema = z
         changeReturned: z.number().min(0).optional(),
       })
       .optional(),
+    tipAmount: z.number().int().min(0).optional(),
+    tipMethod: z.enum(PAYMENT_METHODS).optional(),
     tableId: z.number().int().positive().optional(),
     channel: z.enum(SALES_CHANNELS).default('sur_place'),
     deliveryPlatform: z.enum(DELIVERY_PLATFORMS).optional(),
@@ -171,6 +173,8 @@ export const payOrderSchema = z.object({
       changeReturned: z.number().min(0).optional(),
     })
     .optional(),
+  tipAmount: z.number().int().min(0).optional(),
+  tipMethod: z.enum(PAYMENT_METHODS).optional(),
 });
 
 export const createTableSchema = z.object({

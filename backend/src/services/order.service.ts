@@ -45,6 +45,9 @@ export interface CreateOrderInput {
     cashGiven?: number;
     changeReturned?: number;
   };
+  // Pourboire (hors total / hors CA / hors caisse) : enregistré seulement à l'encaissement.
+  tipAmount?: number;
+  tipMethod?: PaymentMethod;
   tableId?: number;
   serverId?: number;
   channel?: SalesChannel;
@@ -193,6 +196,10 @@ export async function createOrder(input: CreateOrderInput, userId?: number, mark
 
   const finalTotal = computeFinalTotal(total, discountAmount, discountPercent);
 
+  // Pourboire : uniquement si la commande est encaissée maintenant ; jamais ajouté au total.
+  const tipAmount = input.paymentMethod ? Math.max(0, Math.round(input.tipAmount ?? 0)) : 0;
+  const tipMethod = tipAmount > 0 ? input.tipMethod ?? input.paymentMethod ?? null : null;
+
   // Paiement immédiat en espèces : une caisse ouverte est requise ; on lie la session.
   const cashSessionId = input.paymentMethod
     ? await resolveCashSessionForPayment(userId, input.paymentMethod)
@@ -218,6 +225,8 @@ export async function createOrder(input: CreateOrderInput, userId?: number, mark
         customerPhone: input.customerPhone?.trim() || null,
         promotionId: promotionId ?? null,
         promoLabel: promoLabel ?? null,
+        tipAmount,
+        tipMethod,
         isPaid: !!input.paymentMethod,
         paidAt: input.paymentMethod ? new Date() : null,
         cashSessionId,
@@ -421,14 +430,20 @@ export async function payOrder(
   id: number,
   paymentMethod: PaymentMethod,
   paymentDetails?: { mobileMoneyProvider?: MobileMoneyProvider; cashGiven?: number; changeReturned?: number },
-  userId?: number
+  userId?: number,
+  tip?: { amount?: number; method?: PaymentMethod }
 ) {
   const order = await prisma.order.findUnique({ where: { id } });
   if (!order) throw new AppError(404, 'ORDER_001');
   if (order.status === 'annulée') throw new AppError(400, 'ORDER_002', 'Commande annulée');
   if (order.isPaid) throw new AppError(400, 'ORDER_002', 'Commande déjà payée');
 
-  if (paymentMethod === 'espèces' && (paymentDetails?.cashGiven ?? 0) < order.finalTotal) {
+  // Pourboire (hors total) : le montant dû en espèces inclut le pourboire pour le rendu de monnaie.
+  const tipAmount = Math.max(0, Math.round(tip?.amount ?? 0));
+  const tipMethod = tipAmount > 0 ? tip?.method ?? paymentMethod : null;
+  const due = order.finalTotal + tipAmount;
+
+  if (paymentMethod === 'espèces' && (paymentDetails?.cashGiven ?? 0) < due) {
     throw new AppError(400, 'VALIDATION_001', 'Montant remis insuffisant');
   }
   if (paymentMethod === 'mobile_money' && !paymentDetails?.mobileMoneyProvider) {
@@ -436,8 +451,7 @@ export async function payOrder(
   }
   // Espèces : une caisse doit être ouverte ; on lie la commande à la session.
   const cashSessionId = await resolveCashSessionForPayment(userId, paymentMethod);
-  const change =
-    paymentMethod === 'espèces' ? Math.max(0, (paymentDetails?.cashGiven ?? 0) - order.finalTotal) : 0;
+  const change = paymentMethod === 'espèces' ? Math.max(0, (paymentDetails?.cashGiven ?? 0) - due) : 0;
 
   const updated = await prisma.order.update({
     where: { id },
@@ -446,6 +460,8 @@ export async function payOrder(
       paidAt: new Date(),
       paymentMethod,
       cashSessionId,
+      tipAmount,
+      tipMethod,
       mobileMoneyProvider: paymentMethod === 'mobile_money' ? paymentDetails?.mobileMoneyProvider : undefined,
       cashGiven: paymentMethod === 'espèces' ? paymentDetails?.cashGiven : undefined,
       changeReturned: paymentMethod === 'espèces' ? change : undefined,

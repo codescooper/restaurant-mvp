@@ -49,6 +49,7 @@ export default function SallePage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('');
   const [provider, setProvider] = useState<Provider>('');
   const [cashGiven, setCashGiven] = useState('');
+  const [tip, setTip] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   // Reçu imprimable après encaissement d'une table : indique le serveur assigné (handoff caisse → serveur).
@@ -57,6 +58,7 @@ export default function SallePage() {
     serverName?: string;
     paidCount: number;
     total: number;
+    tip: number;
     change: number;
     paymentMethod: string;
     cashGiven?: number;
@@ -101,7 +103,9 @@ export default function SallePage() {
 
   const selected = tables.find((t) => t.id === selectedId) ?? null;
   const total = selected?.unpaidTotal ?? 0;
-  const change = (Number(cashGiven) || 0) - total;
+  // Pourboire (hors total) : pour les espèces, le montant remis couvre total + pourboire.
+  const tipNum = Math.max(0, Number(tip) || 0);
+  const change = (Number(cashGiven) || 0) - total - tipNum;
 
   const closePanel = () => {
     setSelectedId(null);
@@ -109,6 +113,7 @@ export default function SallePage() {
     setPaymentMethod('');
     setProvider('');
     setCashGiven('');
+    setTip('');
     setResOpen(false);
     setMergeMode(false);
     setResForm({ customerName: '', customerPhone: '', partySize: '', reservedAt: '' });
@@ -210,16 +215,22 @@ export default function SallePage() {
     const sName = selected.server?.username;
     const given = paymentMethod === 'espèces' ? Number(cashGiven) || 0 : undefined;
     try {
-      const res = await tableApi.settle(selected.id, paymentMethod || 'espèces', {
-        mobileMoneyProvider: paymentMethod === 'mobile_money' ? provider || undefined : undefined,
-        cashGiven: paymentMethod === 'espèces' ? Number(cashGiven) || 0 : undefined,
-        changeReturned: paymentMethod === 'espèces' ? Math.max(0, change) : undefined,
-      });
+      const res = await tableApi.settle(
+        selected.id,
+        paymentMethod || 'espèces',
+        {
+          mobileMoneyProvider: paymentMethod === 'mobile_money' ? provider || undefined : undefined,
+          cashGiven: paymentMethod === 'espèces' ? Number(cashGiven) || 0 : undefined,
+          changeReturned: paymentMethod === 'espèces' ? Math.max(0, change) : undefined,
+        },
+        tipNum > 0 ? { tipAmount: tipNum, tipMethod: paymentMethod || 'espèces' } : undefined
+      );
       setSettleReceipt({
         tableName: tName,
         serverName: sName,
         paidCount: res.paidCount,
         total: res.total,
+        tip: res.tip,
         change: res.change,
         paymentMethod: res.paymentMethod,
         cashGiven: given,
@@ -509,6 +520,18 @@ export default function SallePage() {
                     </button>
                   ))}
                 </div>
+                <div className="mb-3">
+                  <label className="block text-xs text-neutral-400 mb-1">Pourboire (optionnel)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={tip}
+                    onChange={(e) => setTip(e.target.value)}
+                    placeholder="0"
+                    className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-neutral-100 placeholder-neutral-500 outline-none focus:ring-2 focus:ring-gold-400/60 focus:border-gold-400"
+                  />
+                  {tipNum > 0 && <p className="text-emerald-400 text-xs mt-1">Total encaissé : {formatFCFA(total + tipNum)}</p>}
+                </div>
                 {paymentMethod === 'espèces' && (
                   <div className="mb-3">
                     <input
@@ -603,6 +626,18 @@ export default function SallePage() {
                   <span>Paiement</span>
                   <span>{SETTLE_LABELS[settleReceipt.paymentMethod] ?? settleReceipt.paymentMethod}</span>
                 </div>
+                {settleReceipt.tip > 0 && (
+                  <>
+                    <div className="flex justify-between">
+                      <span>Pourboire</span>
+                      <span>{formatFCFA(settleReceipt.tip)}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold">
+                      <span>Total encaissé</span>
+                      <span>{formatFCFA(settleReceipt.total + settleReceipt.tip)}</span>
+                    </div>
+                  </>
+                )}
                 {settleReceipt.cashGiven !== undefined && (
                   <>
                     <div className="flex justify-between">

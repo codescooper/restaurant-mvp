@@ -76,6 +76,7 @@ interface Receipt {
   change?: number;
   offline: boolean;
   deferred: boolean;
+  tip?: number;
   tableName?: string | null;
   serverName?: string;
   channelLabel?: string;
@@ -120,6 +121,7 @@ export default function CaissePage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('');
   const [provider, setProvider] = useState<Provider>('');
   const [cashGiven, setCashGiven] = useState('');
+  const [tip, setTip] = useState('');
   const [channel, setChannel] = useState<Channel>('sur_place');
   const [deliveryPlatform, setDeliveryPlatform] = useState<DeliveryPlatform>('');
   const [customerName, setCustomerName] = useState('');
@@ -305,7 +307,9 @@ export default function CaissePage() {
   const discountLabel = coupon ? `Coupon ${coupon.code}` : happyHour ? `Happy hour` : 'Réduction';
   const finalTotal = Math.max(0, subtotal - discount);
   const totalItems = cart.reduce((s, i) => s + i.quantity, 0);
-  const change = (Number(cashGiven) || 0) - finalTotal;
+  // Pourboire (hors total) : pour les espèces, le montant remis doit couvrir total + pourboire.
+  const tipNum = Math.max(0, Number(tip) || 0);
+  const change = (Number(cashGiven) || 0) - finalTotal - tipNum;
 
   const applyCoupon = async () => {
     const code = couponInput.trim();
@@ -380,6 +384,7 @@ export default function CaissePage() {
     setPaymentMethod('');
     setProvider('');
     setCashGiven('');
+    setTip('');
     setChannel('sur_place');
     setDeliveryPlatform('');
     setCustomerName('');
@@ -411,6 +416,10 @@ export default function CaissePage() {
         cashGiven: paymentMethod === 'espèces' ? Number(cashGiven) || 0 : undefined,
         changeReturned: paymentMethod === 'espèces' ? Math.max(0, change) : undefined,
       };
+      if (tipNum > 0) {
+        payload.tipAmount = tipNum;
+        payload.tipMethod = paymentMethod || 'espèces';
+      }
     }
     return payload;
   };
@@ -432,6 +441,7 @@ export default function CaissePage() {
       subtotal,
       discount,
       finalTotal,
+      tip: payNow && tipNum > 0 ? tipNum : undefined,
       deferred: !payNow,
       tableName,
       serverName: isServer ? currentUser?.username : undefined,
@@ -541,6 +551,18 @@ export default function CaissePage() {
                 <span>Paiement</span>
                 <span className="capitalize">{receipt.paymentLabel}</span>
               </div>
+              {receipt.tip ? (
+                <>
+                  <div className="flex justify-between">
+                    <span>Pourboire</span>
+                    <span>{formatFCFA(receipt.tip)}</span>
+                  </div>
+                  <div className="flex justify-between font-semibold">
+                    <span>Total encaissé</span>
+                    <span>{formatFCFA(receipt.finalTotal + receipt.tip)}</span>
+                  </div>
+                </>
+              ) : null}
               {receipt.cashGiven !== undefined && (
                 <>
                   <div className="flex justify-between">
@@ -982,6 +1004,21 @@ export default function CaissePage() {
                         {PAYMENT_LABELS[m]}
                       </button>
                     ))}
+                  </div>
+
+                  <div className="mb-4">
+                    <label className="block text-sm text-neutral-400 mb-1">Pourboire (optionnel)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={tip}
+                      onChange={(e) => setTip(e.target.value)}
+                      className={INPUT}
+                      placeholder="0"
+                    />
+                    {tipNum > 0 && (
+                      <p className="text-emerald-400 text-xs mt-1">Total encaissé : {formatFCFA(finalTotal + tipNum)}</p>
+                    )}
                   </div>
 
                   {paymentMethod === 'espèces' && (

@@ -119,7 +119,8 @@ export async function settleTable(
   id: number,
   paymentMethod: PaymentMethod,
   paymentDetails: PaymentDetails | undefined,
-  userId?: number
+  userId?: number,
+  tip?: { amount?: number; method?: PaymentMethod }
 ) {
   const table = await prisma.table.findUnique({ where: { id } });
   if (!table) throw new AppError(404, 'VALIDATION_001', 'Table introuvable');
@@ -130,16 +131,20 @@ export async function settleTable(
   if (!unpaid.length) throw new AppError(400, 'ORDER_001', 'Aucune commande à régler pour cette table');
 
   const total = unpaid.reduce((s, o) => s + o.finalTotal, 0);
+  // Pourboire (hors total) attribué au serveur de la table ; le dû espèces l'inclut.
+  const tipAmount = Math.max(0, Math.round(tip?.amount ?? 0));
+  const tipMethod = tipAmount > 0 ? tip?.method ?? paymentMethod : null;
+  const due = total + tipAmount;
   if (paymentMethod === 'espèces') {
     const cash = paymentDetails?.cashGiven ?? 0;
-    if (cash < total) throw new AppError(400, 'VALIDATION_001', 'Montant remis insuffisant');
+    if (cash < due) throw new AppError(400, 'VALIDATION_001', 'Montant remis insuffisant');
   }
   if (paymentMethod === 'mobile_money' && !paymentDetails?.mobileMoneyProvider) {
     throw new AppError(400, 'VALIDATION_001', 'Service mobile money requis');
   }
   // Espèces : une caisse doit être ouverte ; on lie les commandes réglées à la session.
   const cashSessionId = await resolveCashSessionForPayment(userId, paymentMethod);
-  const change = paymentMethod === 'espèces' ? Math.max(0, (paymentDetails?.cashGiven ?? 0) - total) : 0;
+  const change = paymentMethod === 'espèces' ? Math.max(0, (paymentDetails?.cashGiven ?? 0) - due) : 0;
 
   await prisma.$transaction(
     unpaid.map((o, idx) =>
@@ -151,9 +156,11 @@ export async function settleTable(
           paymentMethod,
           cashSessionId,
           mobileMoneyProvider: paymentMethod === 'mobile_money' ? paymentDetails?.mobileMoneyProvider : undefined,
-          // Le détail espèces (remis/monnaie) est porté par la 1re commande du lot.
+          // Le détail espèces (remis/monnaie) et le pourboire sont portés par la 1re commande du lot.
           cashGiven: paymentMethod === 'espèces' && idx === 0 ? paymentDetails?.cashGiven : undefined,
           changeReturned: paymentMethod === 'espèces' && idx === 0 ? change : undefined,
+          tipAmount: idx === 0 ? tipAmount : undefined,
+          tipMethod: idx === 0 ? tipMethod : undefined,
         },
       })
     )
@@ -167,11 +174,11 @@ export async function settleTable(
     action: 'paiement',
     entityType: 'table',
     entityId: id,
-    details: { tableName: table.name, amount: total, method: paymentMethod, orderCount: unpaid.length },
+    details: { tableName: table.name, amount: total, tip: tipAmount, method: paymentMethod, orderCount: unpaid.length },
   });
   emitStatsUpdated({ settledTable: table.name, total });
   emitToRole('caissier', 'table_settled', { tableId: id, tableName: table.name, total });
-  return { tableId: id, paidCount: unpaid.length, total, change, paymentMethod };
+  return { tableId: id, paidCount: unpaid.length, total, tip: tipAmount, change, paymentMethod };
 }
 
 // Le serveur signale (ou annule) une demande d'addition ; la caisse est notifiée en temps réel.

@@ -58,7 +58,7 @@ export async function getDashboard(period: Period) {
 
   const orders = await prisma.order.findMany({
     where: { ...NON_CANCELLED, createdAt: { gte: start, lt: end } },
-    include: { items: true },
+    include: { items: true, server: { select: { username: true } } },
     orderBy: { createdAt: 'desc' },
   });
 
@@ -140,6 +140,23 @@ export async function getDashboard(period: Period) {
     percentage: current.count ? Math.round((v.count / current.count) * 100) : 0,
   }));
 
+  // Pourboires (hors CA) : total + répartition par serveur (« Maison » = sans serveur) et par méthode.
+  const tipped = orders.filter((o) => (o.tipAmount ?? 0) > 0);
+  const tipsTotal = tipped.reduce((s, o) => s + o.tipAmount, 0);
+  const tipByServer = new Map<string, number>();
+  const tipByMethod = new Map<string, number>();
+  for (const o of tipped) {
+    const who = o.server?.username ?? 'Maison';
+    tipByServer.set(who, (tipByServer.get(who) ?? 0) + o.tipAmount);
+    const m = o.tipMethod ?? 'inconnu';
+    tipByMethod.set(m, (tipByMethod.get(m) ?? 0) + o.tipAmount);
+  }
+  const tips = {
+    total: tipsTotal,
+    byServer: [...tipByServer.entries()].map(([server, amount]) => ({ server, amount })).sort((a, b) => b.amount - a.amount),
+    byMethod: [...tipByMethod.entries()].map(([method, amount]) => ({ method, amount })).sort((a, b) => b.amount - a.amount),
+  };
+
   // Commandes recentes (toutes, y compris annulees, 5 dernieres).
   const recent = await prisma.order.findMany({
     orderBy: { createdAt: 'desc' },
@@ -170,6 +187,7 @@ export async function getDashboard(period: Period) {
     topDishes,
     paymentMethods,
     salesByChannel,
+    tips,
     recentOrders,
   };
 }

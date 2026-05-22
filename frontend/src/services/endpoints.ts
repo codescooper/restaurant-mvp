@@ -50,6 +50,8 @@ export interface CreateOrderPayload {
   discountPercent: number;
   paymentMethod?: string; // absent = commande différée (réglée à la caisse)
   paymentDetails?: PaymentInput;
+  tipAmount?: number;
+  tipMethod?: string;
   tableId?: number;
   channel?: string;
   deliveryPlatform?: string;
@@ -124,8 +126,8 @@ export const orderApi = {
     api.patch(`/orders/${id}/status`, { status }).then((r) => r.data.data.order as Order),
   cancel: (id: number, reason: string, pin?: string) =>
     api.post(`/orders/${id}/cancel`, { reason, pin }).then((r) => r.data.data as Order),
-  pay: (id: number, paymentMethod: string, paymentDetails?: PaymentInput) =>
-    api.post(`/orders/${id}/pay`, { paymentMethod, paymentDetails }).then((r) => r.data.data as Order),
+  pay: (id: number, paymentMethod: string, paymentDetails?: PaymentInput, tip?: { tipAmount?: number; tipMethod?: string }) =>
+    api.post(`/orders/${id}/pay`, { paymentMethod, paymentDetails, ...tip }).then((r) => r.data.data as Order),
   refund: (id: number, reason: string, pin?: string) =>
     api.post(`/orders/${id}/refund`, { reason, pin }).then((r) => r.data.data as Order),
 };
@@ -135,10 +137,10 @@ export const tableApi = {
   create: (data: { name: string; capacity?: number }) => api.post('/tables', data).then((r) => r.data.data),
   update: (id: number, data: { name?: string; capacity?: number }) => api.put(`/tables/${id}`, data).then((r) => r.data.data),
   remove: (id: number) => api.delete(`/tables/${id}`).then((r) => r.data.data),
-  settle: (id: number, paymentMethod: string, paymentDetails?: PaymentInput) =>
+  settle: (id: number, paymentMethod: string, paymentDetails?: PaymentInput, tip?: { tipAmount?: number; tipMethod?: string }) =>
     api
-      .post(`/tables/${id}/settle`, { paymentMethod, paymentDetails })
-      .then((r) => r.data.data as { tableId: number; paidCount: number; total: number; change: number; paymentMethod: string }),
+      .post(`/tables/${id}/settle`, { paymentMethod, paymentDetails, ...tip })
+      .then((r) => r.data.data as { tableId: number; paidCount: number; total: number; tip: number; change: number; paymentMethod: string }),
   billRequest: (id: number, requested: boolean) =>
     api.patch(`/tables/${id}/bill-request`, { requested }).then((r) => r.data.data),
   merge: (id: number, targetTableId: number) =>

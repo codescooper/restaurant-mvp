@@ -139,6 +139,8 @@ model Order {
   customerPhone       String?   @map("customer_phone") @db.VarChar(30)
   taxRate             Float     @default(0) @map("tax_rate")
   taxAmount           Int       @default(0) @map("tax_amount")
+  tipAmount           Int       @default(0) @map("tip_amount")
+  tipMethod           String?   @map("tip_method") @db.VarChar(20)
   promotionId         Int?      @map("promotion_id")
   promoLabel          String?   @map("promo_label") @db.VarChar(60)
   isPaid              Boolean   @default(false) @map("is_paid")

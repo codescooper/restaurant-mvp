@@ -127,6 +127,8 @@ export interface Order {
   isRefunded?: boolean;
   refundedAt?: string | null;
   refundReason?: string | null;
+  tipAmount?: number;
+  tipMethod?: string | null;
   promoLabel?: string | null;
   channel?: string;
   deliveryPlatform?: string | null;
@@ -311,5 +313,10 @@ export interface DashboardData {
   topDishes: { name: string; quantity: number; revenue: number; percentage: number }[];
   paymentMethods: { method: string; count: number; amount: number; percentage: number }[];
   salesByChannel: { channel: string; count: number; amount: number; percentage: number }[];
+  tips: {
+    total: number;
+    byServer: { server: string; amount: number }[];
+    byMethod: { method: string; amount: number }[];
+  };
   recentOrders: { orderNumber: string; time: string; amount: number; items: number; status: string }[];
 }
