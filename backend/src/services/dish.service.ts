@@ -22,6 +22,7 @@ interface DishInput {
   category?: DishCategory;
   preparationTime?: number;
   isActive?: boolean;
+  imageUrl?: string;
   ingredients?: IngredientInput[];
   variants?: VariantInput[];
 }
@@ -118,6 +119,7 @@ export async function createDish(data: DishInput) {
       category: data.category,
       preparationTime: data.preparationTime,
       isActive: data.isActive ?? true,
+      imageUrl: data.imageUrl || null,
       ingredients: data.ingredients
         ? { create: data.ingredients.map((i) => ({ stockItemId: i.stockItemId, quantityNeeded: i.quantityNeeded })) }
         : undefined,
@@ -163,6 +165,7 @@ export async function updateDish(id: number, data: DishInput) {
         ...(data.category !== undefined ? { category: data.category } : {}),
         ...(data.preparationTime !== undefined ? { preparationTime: data.preparationTime } : {}),
         ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+        ...(data.imageUrl !== undefined ? { imageUrl: data.imageUrl || null } : {}),
       },
       include: dishInclude,
     });

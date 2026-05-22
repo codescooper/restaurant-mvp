@@ -33,6 +33,7 @@ export interface DishInput {
   category?: string;
   preparationTime?: number;
   isActive?: boolean;
+  imageUrl?: string;
   ingredients?: { stockItemId: number; quantityNeeded: number }[];
   variants?: VariantInput[];
 }

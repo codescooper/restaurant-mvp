@@ -106,6 +106,8 @@ export const createDishSchema = z.object({
   category: z.enum(DISH_CATEGORIES).optional(),
   preparationTime: z.number().int().positive().optional(),
   isActive: z.boolean().optional(),
+  // Photo : data URL compressée côté client (ou vide pour retirer). Bornée pour éviter les abus.
+  imageUrl: z.string().max(1_000_000).optional(),
   ingredients: z.array(ingredientSchema).optional(),
   variants: z.array(variantSchema).optional(),
 });

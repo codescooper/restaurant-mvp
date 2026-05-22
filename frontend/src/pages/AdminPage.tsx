@@ -20,6 +20,7 @@ import {
   ClipboardCheck,
   TriangleAlert,
   Tag,
+  ImagePlus,
 } from 'lucide-react';
 import { stockApi, dishApi, userApi, cashApi, auditApi, orderApi } from '../services/endpoints';
 import { getApiError } from '../services/api';
@@ -28,6 +29,32 @@ import { formatFCFA, formatDateTime } from '../utils/format';
 import SuppliersTab from './admin/SuppliersTab';
 import InventoryTab from './admin/InventoryTab';
 import PromotionsTab from './admin/PromotionsTab';
+
+// Redimensionne et compresse une image côté navigateur en data URL JPEG (stockée en base, sans service externe).
+function compressImage(file: File, maxSize = 500, quality = 0.7): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Lecture du fichier impossible'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Image invalide'));
+      img.onload = () => {
+        const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error('Canvas indisponible'));
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 type Tab = 'stock' | 'menu' | 'users' | 'caisse' | 'journal' | 'fournisseurs' | 'inventaire' | 'promotions';
 type CrudTab = 'stock' | 'menu' | 'users';
@@ -159,7 +186,7 @@ export default function AdminPage() {
     setIngredients([]);
     setVariants([]);
     if (t === 'stock') setForm({ name: '', quantity: 0, unit: 'kg', alertThreshold: 10 });
-    if (t === 'menu') setForm({ name: '', description: '', price: 0, category: 'Plat', isActive: true });
+    if (t === 'menu') setForm({ name: '', description: '', price: 0, category: 'Plat', isActive: true, imageUrl: '' });
     if (t === 'users') setForm({ username: '', password: '', role: 'caissier' });
   };
 
@@ -172,7 +199,7 @@ export default function AdminPage() {
     }
     if (t === 'menu') {
       const d = item as Dish;
-      setForm({ name: d.name, description: d.description ?? '', price: d.price, category: d.category ?? 'Plat', isActive: d.isActive });
+      setForm({ name: d.name, description: d.description ?? '', price: d.price, category: d.category ?? 'Plat', isActive: d.isActive, imageUrl: d.imageUrl ?? '' });
       setIngredients(d.ingredients.map((i) => ({ stockItemId: i.stockItemId, quantityNeeded: i.quantityNeeded })));
       setVariants(
         (d.variants ?? []).map((v) => ({
@@ -216,6 +243,7 @@ export default function AdminPage() {
           price: Number(form.price),
           category: String(form.category),
           isActive: Boolean(form.isActive),
+          imageUrl: form.imageUrl !== undefined ? String(form.imageUrl ?? '') : undefined,
           ingredients: ingredients.filter((i) => i.stockItemId && i.quantityNeeded > 0),
           variants: variants
             .filter((v) => v.name.trim())
@@ -800,6 +828,43 @@ export default function AdminPage() {
                   <select className="input" value={String(form.category ?? 'Plat')} onChange={(e) => setForm({ ...form, category: e.target.value })}>
                     {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
+                </Field>
+                <Field label="Photo (optionnel)">
+                  <div className="flex items-center gap-3">
+                    {form.imageUrl ? (
+                      <img src={String(form.imageUrl)} alt="" className="w-16 h-16 rounded-lg object-cover border border-neutral-700" />
+                    ) : (
+                      <span className="w-16 h-16 rounded-lg border border-dashed border-neutral-700 flex items-center justify-center text-neutral-600">
+                        <ImagePlus className="w-6 h-6" />
+                      </span>
+                    )}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-100 px-3 py-1.5 rounded-lg cursor-pointer w-fit">
+                        {form.imageUrl ? 'Changer la photo' : 'Choisir une photo'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            try {
+                              const dataUrl = await compressImage(file);
+                              setForm((f) => ({ ...f, imageUrl: dataUrl }));
+                            } catch {
+                              setError('Image invalide');
+                            }
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                      {form.imageUrl ? (
+                        <button type="button" onClick={() => setForm({ ...form, imageUrl: '' })} className="text-xs text-rose-400 w-fit">
+                          Retirer
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
                 </Field>
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={Boolean(form.isActive)} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
