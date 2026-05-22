@@ -1,3 +1,4 @@
+import bcrypt from 'bcrypt';
 import { prisma } from '../config/prisma';
 import { AppError } from '../utils/errors';
 import { SETTING_MAX_DISCOUNT, SETTING_MANAGER_PIN, Role } from '../constants';
@@ -22,32 +23,44 @@ export async function getMaxDiscountPercent(): Promise<number> {
   return Number.isFinite(n) ? n : 100;
 }
 
-// PIN manager : renvoie le code configuré (non vide) ou null si aucun.
-export async function getManagerPin(): Promise<string | null> {
+// PIN manager : renvoie le HASH bcrypt configuré (non vide) ou null si aucun. Jamais le code en clair.
+export async function getManagerPinHash(): Promise<string | null> {
   const v = await getSetting(SETTING_MANAGER_PIN);
-  return v && v.trim() ? v.trim() : null;
+  return v && v.trim() ? v : null;
 }
 
 // Un PIN est-il configuré (protection active) ?
 export async function isManagerPinSet(): Promise<boolean> {
-  return (await getManagerPin()) !== null;
+  return (await getManagerPinHash()) !== null;
 }
 
-// Définit (ou efface si vide) le PIN manager.
+// Définit (haché bcrypt) ou efface (chaîne vide) le PIN manager. Le code n'est jamais stocké en clair.
 export async function setManagerPin(pin: string): Promise<void> {
-  await setSetting(SETTING_MANAGER_PIN, pin.trim(), 'Code manager (annulation / remboursement)');
+  const trimmed = pin.trim();
+  const value = trimmed ? bcrypt.hashSync(trimmed, 10) : '';
+  await setSetting(SETTING_MANAGER_PIN, value, 'Code manager haché (annulation / remboursement)');
 }
 
-// Autorisation manager pour une action sensible (annulation / remboursement).
+// Décision pure (testable sans DB) de l'autorisation manager pour une action sensible.
 // - Administrateur : exempt (il EST le manager).
 // - Caissier : doit fournir le PIN si un PIN est configuré (sinon libre, opt-in).
-// Renvoie true si un PIN a effectivement été validé (pour tracer l'audit).
-export async function verifyManagerApproval(role?: Role, pin?: string): Promise<boolean> {
+// `verify` compare le PIN saisi au hash stocké (bcrypt en production).
+// Renvoie true si un PIN a effectivement été validé ; lève PIN_001 si requis et incorrect/absent.
+export function evaluateManagerApproval(
+  role: Role | undefined,
+  configuredHash: string | null,
+  providedPin: string | undefined,
+  verify: (pin: string, hash: string) => boolean
+): boolean {
   if (role === 'administrateur') return false;
-  const configured = await getManagerPin();
-  if (!configured) return false;
-  if (!pin || pin.trim() !== configured) {
+  if (!configuredHash) return false;
+  if (!providedPin || !verify(providedPin.trim(), configuredHash)) {
     throw new AppError(403, 'PIN_001');
   }
   return true;
+}
+
+// Autorisation manager (annulation / remboursement) : lit le hash configuré puis applique la décision.
+export async function verifyManagerApproval(role?: Role, pin?: string): Promise<boolean> {
+  return evaluateManagerApproval(role, await getManagerPinHash(), pin, (p, h) => bcrypt.compareSync(p, h));
 }

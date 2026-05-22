@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { computeFinalTotal, formatOrderNumber } from '../services/order.service';
 import { roundQty } from '../services/stock.service';
 import { computeDiscrepancy } from '../services/cash.service';
+import { evaluateManagerApproval } from '../services/settings.service';
 import { STATUS_TRANSITIONS, isCashPaymentMethod } from '../constants';
 
 describe('computeFinalTotal', () => {
@@ -65,5 +66,27 @@ describe('isCashPaymentMethod', () => {
     expect(isCashPaymentMethod('carte')).toBe(false);
     expect(isCashPaymentMethod('mobile_money')).toBe(false);
     expect(isCashPaymentMethod(null)).toBe(false);
+  });
+});
+
+describe('evaluateManagerApproval (PIN annulation/remboursement)', () => {
+  // Comparateur factice : simule bcrypt en testant l'égalité « pin === hash » (hash = "HASH:" + pin).
+  const verify = (pin: string, hash: string) => hash === `HASH:${pin}`;
+  it("l'administrateur est exempt (aucun PIN requis)", () => {
+    expect(evaluateManagerApproval('administrateur', 'HASH:1234', undefined, verify)).toBe(false);
+    expect(evaluateManagerApproval('administrateur', null, undefined, verify)).toBe(false);
+  });
+  it('opt-in : libre tant qu\'aucun PIN n\'est configuré', () => {
+    expect(evaluateManagerApproval('caissier', null, undefined, verify)).toBe(false);
+  });
+  it('caissier avec le bon PIN : validé', () => {
+    expect(evaluateManagerApproval('caissier', 'HASH:1234', '1234', verify)).toBe(true);
+    expect(evaluateManagerApproval('caissier', 'HASH:1234', ' 1234 ', verify)).toBe(true);
+  });
+  it('caissier avec un mauvais PIN : refusé (PIN_001)', () => {
+    expect(() => evaluateManagerApproval('caissier', 'HASH:1234', '0000', verify)).toThrowError(/Code manager/);
+  });
+  it('caissier sans PIN alors qu\'un PIN est requis : refusé', () => {
+    expect(() => evaluateManagerApproval('caissier', 'HASH:1234', undefined, verify)).toThrowError(/Code manager/);
   });
 });
