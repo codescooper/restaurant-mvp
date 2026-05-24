@@ -49,8 +49,12 @@ export const updateReservationController = asyncHandler(async (req, res) => {
   sendSuccess(res, await tableService.updateReservation(Number(req.params.id), req.body, req.user?.id));
 });
 
+export const arriveReservationController = asyncHandler(async (req, res) => {
+  sendSuccess(res, await tableService.arriveReservation(Number(req.params.id), req.user?.id));
+});
+
 export const cancelReservationController = asyncHandler(async (req, res) => {
-  sendSuccess(res, await tableService.setReservationStatus(Number(req.params.id), 'annulée'));
+  sendSuccess(res, await tableService.cancelReservation(Number(req.params.id), req.body?.refundDeposit === true, req.user?.id));
 });
 
 export const honorReservationController = asyncHandler(async (req, res) => {

@@ -146,7 +146,19 @@ export const tableApi = {
   settle: (id: number, paymentMethod: string, paymentDetails?: PaymentInput, tip?: { tipAmount?: number; tipMethod?: string }) =>
     api
       .post(`/tables/${id}/settle`, { paymentMethod, paymentDetails, ...tip })
-      .then((r) => r.data.data as { tableId: number; paidCount: number; total: number; tip: number; change: number; paymentMethod: string }),
+      .then(
+        (r) =>
+          r.data.data as {
+            tableId: number;
+            paidCount: number;
+            total: number;
+            depositApplied: number;
+            due: number;
+            tip: number;
+            change: number;
+            paymentMethod: string;
+          }
+      ),
   billRequest: (id: number, requested: boolean) =>
     api.patch(`/tables/${id}/bill-request`, { requested }).then((r) => r.data.data),
   merge: (id: number, targetTableId: number) =>
@@ -156,7 +168,9 @@ export const tableApi = {
     api.post('/tables/reservations', data).then((r) => r.data.data as Reservation),
   updateReservation: (id: number, data: ReservationPayload) =>
     api.put(`/tables/reservations/${id}`, data).then((r) => r.data.data as Reservation),
-  cancelReservation: (id: number) => api.patch(`/tables/reservations/${id}/cancel`).then((r) => r.data.data),
+  arriveReservation: (id: number) => api.post(`/tables/reservations/${id}/arrive`).then((r) => r.data.data),
+  cancelReservation: (id: number, refundDeposit = false) =>
+    api.patch(`/tables/reservations/${id}/cancel`, { refundDeposit }).then((r) => r.data.data),
   honorReservation: (id: number) => api.patch(`/tables/reservations/${id}/honor`).then((r) => r.data.data),
 };
 

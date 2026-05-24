@@ -118,6 +118,7 @@ export default function SallePage() {
     serverName?: string;
     paidCount: number;
     total: number;
+    deposit: number;
     tip: number;
     change: number;
     paymentMethod: string;
@@ -174,9 +175,13 @@ export default function SallePage() {
 
   const selected = tables.find((t) => t.id === selectedId) ?? null;
   const total = selected?.unpaidTotal ?? 0;
-  // Pourboire (hors total) : pour les espèces, le montant remis couvre total + pourboire.
+  // Acompte de réservation à déduire au règlement (plafonné au total de l'addition).
+  const resDeposit = Math.min(selected?.reservation?.depositAmount ?? 0, total);
+  // Pourboire (hors total) : pour les espèces, le montant remis couvre (net + pourboire).
   const tipNum = Math.max(0, Number(tip) || 0);
-  const change = (Number(cashGiven) || 0) - total - tipNum;
+  // Net à encaisser = addition − acompte déjà versé + pourboire.
+  const due = total - resDeposit + tipNum;
+  const change = (Number(cashGiven) || 0) - due;
 
   const closePanel = () => {
     setSelectedId(null);
@@ -359,9 +364,31 @@ export default function SallePage() {
     }
   };
 
-  const cancelRes = async (id: number) => {
+  const arriveRes = async (id: number) => {
+    setBusy(true);
+    setError('');
     try {
-      await tableApi.cancelReservation(id);
+      await tableApi.arriveReservation(id);
+      load();
+    } catch (e) {
+      setError(getApiError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancelRes = async (id: number, depositAmount = 0) => {
+    let refund = false;
+    if (depositAmount > 0) {
+      // Acompte non consommé : rembourser (argent rendu) ou conserver (pénalité no-show).
+      refund = window.confirm(
+        `Acompte de ${formatFCFA(depositAmount)} versé.\n\nOK = REMBOURSER au client (l'argent ressort de la caisse)\nAnnuler = CONSERVER comme pénalité (reste en caisse)`
+      );
+    } else if (!window.confirm('Annuler cette réservation ?')) {
+      return;
+    }
+    try {
+      await tableApi.cancelReservation(id, refund);
       load();
     } catch (e) {
       setError(getApiError(e));
@@ -405,6 +432,7 @@ export default function SallePage() {
         serverName: sName,
         paidCount: res.paidCount,
         total: res.total,
+        deposit: res.depositApplied ?? 0,
         tip: res.tip,
         change: res.change,
         paymentMethod: res.paymentMethod,
@@ -563,6 +591,11 @@ export default function SallePage() {
                   </div>
                 )}
                 <div className="flex flex-wrap gap-2 mt-2">
+                  {canOrder && selected.reservation.hasPreOrder && selected.orders.length === 0 && (
+                    <button onClick={() => arriveRes(selected.reservation!.id)} disabled={busy} className="text-xs bg-gold-400 hover:bg-gold-300 text-black font-semibold px-3 py-1 rounded-lg flex items-center gap-1 disabled:opacity-40">
+                      <CheckCircle className="w-3 h-3" /> Client arrivé (envoyer en cuisine)
+                    </button>
+                  )}
                   {canOrder && (
                     <button onClick={() => editFromSummary(selected.reservation!.id)} className="text-xs bg-sky-500 hover:bg-sky-400 text-black font-semibold px-3 py-1 rounded-lg flex items-center gap-1">
                       <Pencil className="w-3 h-3" /> Modifier
@@ -571,7 +604,7 @@ export default function SallePage() {
                   <button onClick={() => honorRes(selected.reservation!.id)} className="text-xs bg-emerald-500 hover:bg-emerald-400 text-black font-semibold px-3 py-1 rounded-lg">
                     Marquer honorée
                   </button>
-                  <button onClick={() => cancelRes(selected.reservation!.id)} className="text-xs bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 px-3 py-1 rounded-lg">
+                  <button onClick={() => cancelRes(selected.reservation!.id, selected.reservation!.depositAmount ?? 0)} className="text-xs bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 px-3 py-1 rounded-lg">
                     Annuler
                   </button>
                 </div>
@@ -886,6 +919,12 @@ export default function SallePage() {
                 <div className="text-center bg-neutral-900 border border-neutral-800 rounded-xl py-2 mb-3">
                   <div className="text-xs text-neutral-400">Addition</div>
                   <div className="text-2xl font-bold text-gold-400">{formatFCFA(total)}</div>
+                  {resDeposit > 0 && (
+                    <div className="mt-1 text-xs space-y-0.5 border-t border-neutral-800 pt-1">
+                      <div className="flex justify-between px-4 text-emerald-300"><span>Acompte déjà versé</span><span>− {formatFCFA(resDeposit)}</span></div>
+                      <div className="flex justify-between px-4 font-semibold text-neutral-100"><span>Net à encaisser</span><span>{formatFCFA(total - resDeposit)}</span></div>
+                    </div>
+                  )}
                 </div>
                 <div className="grid grid-cols-3 gap-2 mb-3">
                   {(['espèces', 'mobile_money', 'carte', 'virement', 'qr_code'] as PaymentMethod[]).map((m) => (
@@ -910,7 +949,7 @@ export default function SallePage() {
                     placeholder="0"
                     className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-neutral-100 placeholder-neutral-500 outline-none focus:ring-2 focus:ring-gold-400/60 focus:border-gold-400"
                   />
-                  {tipNum > 0 && <p className="text-emerald-400 text-xs mt-1">Total encaissé : {formatFCFA(total + tipNum)}</p>}
+                  {tipNum > 0 && <p className="text-emerald-400 text-xs mt-1">Total encaissé : {formatFCFA(due)}</p>}
                 </div>
                 {paymentMethod === 'espèces' && (
                   <div className="mb-3">
@@ -1000,6 +1039,12 @@ export default function SallePage() {
                   <span>Total</span>
                   <span>{formatFCFA(settleReceipt.total)}</span>
                 </div>
+                {settleReceipt.deposit > 0 && (
+                  <div className="flex justify-between text-gray-600">
+                    <span>Acompte déjà versé</span>
+                    <span>− {formatFCFA(settleReceipt.deposit)}</span>
+                  </div>
+                )}
               </div>
               <div className="pt-2 text-gray-600">
                 <div className="flex justify-between">
@@ -1007,16 +1052,16 @@ export default function SallePage() {
                   <span>{SETTLE_LABELS[settleReceipt.paymentMethod] ?? settleReceipt.paymentMethod}</span>
                 </div>
                 {settleReceipt.tip > 0 && (
-                  <>
-                    <div className="flex justify-between">
-                      <span>Pourboire</span>
-                      <span>{formatFCFA(settleReceipt.tip)}</span>
-                    </div>
-                    <div className="flex justify-between font-semibold">
-                      <span>Total encaissé</span>
-                      <span>{formatFCFA(settleReceipt.total + settleReceipt.tip)}</span>
-                    </div>
-                  </>
+                  <div className="flex justify-between">
+                    <span>Pourboire</span>
+                    <span>{formatFCFA(settleReceipt.tip)}</span>
+                  </div>
+                )}
+                {(settleReceipt.tip > 0 || settleReceipt.deposit > 0) && (
+                  <div className="flex justify-between font-semibold">
+                    <span>Net encaissé</span>
+                    <span>{formatFCFA(settleReceipt.total - settleReceipt.deposit + settleReceipt.tip)}</span>
+                  </div>
                 )}
                 {settleReceipt.cashGiven !== undefined && (
                   <>
@@ -1109,7 +1154,7 @@ export default function SallePage() {
                     <button onClick={() => honorRes(r.id)} className="text-xs bg-emerald-500 hover:bg-emerald-400 text-black font-semibold px-3 py-1 rounded-lg">
                       Honorée
                     </button>
-                    <button onClick={() => cancelRes(r.id)} className="text-xs bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 px-3 py-1 rounded-lg">
+                    <button onClick={() => cancelRes(r.id, r.depositAmount ?? 0)} className="text-xs bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 px-3 py-1 rounded-lg">
                       Annuler
                     </button>
                   </div>

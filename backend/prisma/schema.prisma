@@ -195,6 +195,9 @@ model Order {
   discountAmount      Int       @default(0) @map("discount_amount")
   discountPercent     Float     @default(0) @map("discount_percent")
   finalTotal          Int       @map("final_total")
+  // Acompte de réservation déduit lors du règlement de cette commande (l'argent a déjà été encaissé
+  // à la réservation). La caisse compte (finalTotal − depositApplied) pour ne pas double-compter.
+  depositApplied      Int       @default(0) @map("deposit_applied")
   paymentMethod       String?   @map("payment_method") @db.VarChar(20)
   paymentDetails      Json?     @map("payment_details")
   mobileMoneyProvider String?   @map("mobile_money_provider") @db.VarChar(20)
@@ -366,6 +369,11 @@ model Reservation {
   depositCashSessionId Int? @map("deposit_cash_session_id")
   // Statut de paiement : 'aucun' | 'avance' | 'réglé' (dérivé des montants).
   paymentStatus String   @default("aucun") @map("payment_status") @db.VarChar(15)
+  // Acompte appliqué (déduit) lors du règlement de la table → évite de le déduire deux fois.
+  depositConsumed Boolean @default(false) @map("deposit_consumed")
+  // Acompte remboursé au client (ex. annulation) : l'argent ressort, donc retiré du théorique de caisse.
+  depositRefunded Boolean @default(false) @map("deposit_refunded")
+  depositRefundedAt DateTime? @map("deposit_refunded_at")
   note          String?  @db.Text
   status        String   @default("active") @db.VarChar(20)
   createdBy     Int?     @map("created_by")

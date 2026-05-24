@@ -50,18 +50,21 @@ export function computeDiscrepancy(expectedCash: number, countedCash: number): n
 }
 
 // Acomptes de réservation encaissés EN ESPÈCES sur la session (argent physiquement dans le tiroir).
+// Les acomptes remboursés sont exclus (l'argent est ressorti du tiroir).
 export async function reservationDepositsForSession(sessionId: number): Promise<number> {
   const agg = await prisma.reservation.aggregate({
     _sum: { depositAmount: true },
-    where: { depositCashSessionId: sessionId, depositMethod: 'espèces' },
+    where: { depositCashSessionId: sessionId, depositMethod: 'espèces', depositRefunded: false },
   });
   return agg._sum.depositAmount ?? 0;
 }
 
-// Total théorique en caisse = fond + ventes espèces + acomptes réservation espèces de la session.
+// Total théorique en caisse = fond + ventes espèces encaissées (net des acomptes déjà versés)
+// + acomptes réservation espèces de la session. On soustrait depositApplied pour ne pas compter
+// deux fois l'acompte (déjà encaissé à la réservation, puis déduit du règlement).
 export async function computeExpectedCash(session: { id: number; openingFloat: number }): Promise<number> {
   const agg = await prisma.order.aggregate({
-    _sum: { finalTotal: true },
+    _sum: { finalTotal: true, depositApplied: true },
     where: {
       cashSessionId: session.id,
       paymentMethod: 'espèces',
@@ -71,7 +74,7 @@ export async function computeExpectedCash(session: { id: number; openingFloat: n
     },
   });
   const deposits = await reservationDepositsForSession(session.id);
-  return session.openingFloat + (agg._sum.finalTotal ?? 0) + deposits;
+  return session.openingFloat + (agg._sum.finalTotal ?? 0) - (agg._sum.depositApplied ?? 0) + deposits;
 }
 
 export async function closeSession(

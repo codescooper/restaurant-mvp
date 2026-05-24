@@ -21,6 +21,7 @@ import {
   createReservationController,
   listReservationsController,
   updateReservationController,
+  arriveReservationController,
   cancelReservationController,
   honorReservationController,
 } from '../controllers/table.controller';
@@ -35,6 +36,7 @@ const CAISSE = ['caissier', 'administrateur'] as const;
 router.get('/reservations', requireRole(...SERVICE), listReservationsController);
 router.post('/reservations', requireRole(...SERVICE), validate(createReservationSchema), createReservationController);
 router.put('/reservations/:id', requireRole(...SERVICE), validate(updateReservationSchema), updateReservationController);
+router.post('/reservations/:id/arrive', requireRole(...SERVICE), arriveReservationController);
 router.patch('/reservations/:id/cancel', requireRole(...SERVICE), cancelReservationController);
 router.patch('/reservations/:id/honor', requireRole(...SERVICE), honorReservationController);
 

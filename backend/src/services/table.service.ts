@@ -12,6 +12,7 @@ import {
   isCashPaymentMethod,
 } from '../constants';
 import { resolveCashSessionForPayment, getOpenSession } from './cash.service';
+import { createOrder } from './order.service';
 import { logAudit } from './audit.service';
 import { emitStatsUpdated, emitToRole, emitToAll } from '../websocket';
 
@@ -53,12 +54,13 @@ export async function listTablesWithStatus() {
     orderBy: { reservedAt: 'asc' },
     include: { items: { orderBy: { id: 'asc' } } },
   });
-  // 1re réservation du jour encore pertinente : table pas encore libérée (marges nettoyage incluses).
+  // 1re réservation du jour encore pertinente : table pas encore libérée (marges incluses),
+  // OU portant un acompte non encore déduit (à montrer/déduire au règlement).
   const resByTable = new Map<number, (typeof reservations)[number]>();
   for (const r of reservations) {
     if (resByTable.has(r.tableId)) continue;
     const { availableAgainAt } = reservationWindow(r.reservedAt, r.durationMinutes);
-    if (availableAgainAt > now) resByTable.set(r.tableId, r);
+    if (availableAgainAt > now || (r.depositAmount > 0 && !r.depositConsumed)) resByTable.set(r.tableId, r);
   }
 
   return tables.map((t) => {
@@ -167,10 +169,19 @@ export async function settleTable(
   if (!unpaid.length) throw new AppError(400, 'ORDER_001', 'Aucune commande à régler pour cette table');
 
   const total = unpaid.reduce((s, o) => s + o.finalTotal, 0);
+
+  // Acompte de réservation déjà encaissé → déduit du dû (plafonné au total). Marqué consommé ensuite.
+  const depositRes = await prisma.reservation.findFirst({
+    where: { tableId: id, depositAmount: { gt: 0 }, depositConsumed: false, status: { not: 'annulée' } },
+    orderBy: { reservedAt: 'desc' },
+  });
+  const depositApplied = depositRes ? Math.min(depositRes.depositAmount, total) : 0;
+
   // Pourboire (hors total) attribué au serveur de la table ; le dû espèces l'inclut.
   const tipAmount = Math.max(0, Math.round(tip?.amount ?? 0));
   const tipMethod = tipAmount > 0 ? tip?.method ?? paymentMethod : null;
-  const due = total + tipAmount;
+  // Dû = total − acompte déjà versé + pourboire.
+  const due = total - depositApplied + tipAmount;
   if (paymentMethod === 'espèces') {
     const cash = paymentDetails?.cashGiven ?? 0;
     if (cash < due) throw new AppError(400, 'VALIDATION_001', 'Montant remis insuffisant');
@@ -182,9 +193,9 @@ export async function settleTable(
   const cashSessionId = await resolveCashSessionForPayment(userId, paymentMethod);
   const change = paymentMethod === 'espèces' ? Math.max(0, (paymentDetails?.cashGiven ?? 0) - due) : 0;
 
-  await prisma.$transaction(
-    unpaid.map((o, idx) =>
-      prisma.order.update({
+  await prisma.$transaction(async (tx) => {
+    for (const [idx, o] of unpaid.entries()) {
+      await tx.order.update({
         where: { id: o.id },
         data: {
           isPaid: true,
@@ -192,15 +203,20 @@ export async function settleTable(
           paymentMethod,
           cashSessionId,
           mobileMoneyProvider: paymentMethod === 'mobile_money' ? paymentDetails?.mobileMoneyProvider : undefined,
-          // Le détail espèces (remis/monnaie) et le pourboire sont portés par la 1re commande du lot.
+          // Le détail espèces (remis/monnaie), le pourboire et l'acompte déduit sont portés par la 1re commande du lot.
           cashGiven: paymentMethod === 'espèces' && idx === 0 ? paymentDetails?.cashGiven : undefined,
           changeReturned: paymentMethod === 'espèces' && idx === 0 ? change : undefined,
           tipAmount: idx === 0 ? tipAmount : undefined,
           tipMethod: idx === 0 ? tipMethod : undefined,
+          depositApplied: idx === 0 ? depositApplied : undefined,
         },
-      })
-    )
-  );
+      });
+    }
+    // L'acompte est consommé : on clôt la réservation (honorée) pour ne pas le déduire deux fois.
+    if (depositRes) {
+      await tx.reservation.update({ where: { id: depositRes.id }, data: { depositConsumed: true, status: 'honorée' } });
+    }
+  });
 
   // L'addition est réglée : on retombe la demande d'addition.
   if (table.billRequested) await prisma.table.update({ where: { id }, data: { billRequested: false } });
@@ -210,11 +226,11 @@ export async function settleTable(
     action: 'paiement',
     entityType: 'table',
     entityId: id,
-    details: { tableName: table.name, amount: total, tip: tipAmount, method: paymentMethod, orderCount: unpaid.length },
+    details: { tableName: table.name, amount: total, deposit: depositApplied, tip: tipAmount, method: paymentMethod, orderCount: unpaid.length },
   });
   emitStatsUpdated({ settledTable: table.name, total });
   emitToRole('caissier', 'table_settled', { tableId: id, tableName: table.name, total });
-  return { tableId: id, paidCount: unpaid.length, total, tip: tipAmount, change, paymentMethod };
+  return { tableId: id, paidCount: unpaid.length, total, depositApplied, due, tip: tipAmount, change, paymentMethod };
 }
 
 // Le serveur signale (ou annule) une demande d'addition ; la caisse est notifiée en temps réel.
@@ -488,4 +504,65 @@ export async function setReservationStatus(id: number, status: 'annulée' | 'hon
   const updated = await prisma.reservation.update({ where: { id }, data: { status } });
   emitToAll('table_status_changed', { tableId: reservation.tableId });
   return updated;
+}
+
+// Annule une réservation. Si un acompte non consommé a été versé, on peut le rembourser
+// (l'argent ressort → retiré du théorique de caisse) ou le conserver (pénalité no-show → reste compté).
+export async function cancelReservation(id: number, refundDeposit: boolean, userId?: number) {
+  const reservation = await prisma.reservation.findUnique({ where: { id } });
+  if (!reservation) throw new AppError(404, 'VALIDATION_001', 'Réservation introuvable');
+  const refundable = reservation.depositAmount > 0 && !reservation.depositConsumed && !reservation.depositRefunded;
+  const doRefund = refundDeposit && refundable;
+  const updated = await prisma.reservation.update({
+    where: { id },
+    data: {
+      status: 'annulée',
+      ...(doRefund ? { depositRefunded: true, depositRefundedAt: new Date() } : {}),
+    },
+  });
+  if (doRefund) {
+    await logAudit({
+      userId,
+      action: 'remboursement',
+      entityType: 'reservation',
+      entityId: id,
+      details: { customerName: reservation.customerName, deposit: reservation.depositAmount, method: reservation.depositMethod },
+    });
+  }
+  emitToAll('table_status_changed', { tableId: reservation.tableId });
+  return updated;
+}
+
+// Le client est arrivé : si une pré-commande existe, elle est envoyée en cuisine (vraie commande sur la table).
+// La réservation reste active (l'acompte reste rattaché à la table et sera déduit au règlement).
+// Sans pré-commande, rien n'est créé : le serveur prend la commande normalement ; l'acompte sera déduit à l'addition.
+export async function arriveReservation(id: number, userId?: number) {
+  const reservation = await prisma.reservation.findUnique({ where: { id }, include: { items: true } });
+  if (!reservation) throw new AppError(404, 'VALIDATION_001', 'Réservation introuvable');
+  if (reservation.status !== 'active') throw new AppError(400, 'VALIDATION_001', 'Réservation déjà clôturée');
+
+  const orderableItems = reservation.items.filter((it) => it.dishId != null);
+  let order = null;
+  if (reservation.hasPreOrder && orderableItems.length) {
+    order = await createOrder(
+      {
+        tableId: reservation.tableId,
+        serverId: userId,
+        channel: 'sur_place',
+        customerName: reservation.customerName,
+        customerPhone: reservation.customerPhone ?? undefined,
+        items: orderableItems.map((it) => ({
+          dishId: it.dishId as number,
+          variantId: it.variantId ?? undefined,
+          // Plat à prix libre : on réutilise le prix figé lors de la pré-commande.
+          customPrice: it.dishPrice,
+          quantity: it.quantity,
+          notes: it.notes ?? undefined,
+        })),
+      },
+      userId
+    );
+  }
+  emitToAll('table_status_changed', { tableId: reservation.tableId });
+  return { reservationId: id, orderCreated: !!order, order };
 }
