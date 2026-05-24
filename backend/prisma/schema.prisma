@@ -137,6 +137,7 @@ model Dish {
   ingredients DishIngredient[]
   variants    DishVariant[]
   orderItems  OrderItem[]
+  reservationItems ReservationItem[]
 
   @@index([isActive], map: "idx_dishes_active")
   @@map("dishes")
@@ -167,6 +168,7 @@ model DishVariant {
   dish        Dish                @relation(fields: [dishId], references: [id], onDelete: Cascade)
   ingredients VariantIngredient[]
   orderItems  OrderItem[]
+  reservationItems ReservationItem[]
 
   @@index([dishId], map: "idx_dish_variants_dish")
   @@map("dish_variants")
@@ -350,17 +352,55 @@ model Reservation {
   customerPhone String?  @map("customer_phone") @db.VarChar(30)
   partySize     Int?     @map("party_size")
   reservedAt    DateTime @map("reserved_at")
+  // Durée réservée du repas en minutes (heure de fin = reservedAt + durationMinutes).
+  // La libération de la table ajoute ensuite 30 min de marge client + 30 min de nettoyage (cf. constants.ts).
+  durationMinutes Int    @default(90) @map("duration_minutes")
+  // Pré-commande informative : nourriture/boisson réservées à l'avance (cf. hasPreOrder), SANS impact cuisine/stock.
+  hasPreOrder   Boolean  @default(false) @map("has_pre_order")
+  // Montants (FCFA) : coût total prévu, acompte versé. Le reste à payer = totalAmount - depositAmount (calculé à l'affichage).
+  totalAmount   Int      @default(0) @map("total_amount")
+  depositAmount Int      @default(0) @map("deposit_amount")
+  depositMethod String?  @map("deposit_method") @db.VarChar(20)
+  depositAt     DateTime? @map("deposit_at")
+  // Session de caisse ayant encaissé l'acompte en espèces → compté dans le théorique de caisse.
+  depositCashSessionId Int? @map("deposit_cash_session_id")
+  // Statut de paiement : 'aucun' | 'avance' | 'réglé' (dérivé des montants).
+  paymentStatus String   @default("aucun") @map("payment_status") @db.VarChar(15)
   note          String?  @db.Text
   status        String   @default("active") @db.VarChar(20)
   createdBy     Int?     @map("created_by")
   createdAt     DateTime @default(now()) @map("created_at")
 
-  table   Table @relation(fields: [tableId], references: [id], onDelete: Cascade)
-  creator User? @relation(fields: [createdBy], references: [id])
+  table              Table             @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  creator            User?             @relation(fields: [createdBy], references: [id])
+  depositCashSession CashSession?      @relation("ReservationDeposits", fields: [depositCashSessionId], references: [id])
+  items              ReservationItem[]
 
   @@index([tableId, status], map: "idx_reservations_table")
   @@index([reservedAt], map: "idx_reservations_date")
   @@map("reservations")
+}
+
+// Plat/boisson pré-commandé sur une réservation. Purement informatif (prix figé à l'ajout) :
+// aucune incidence cuisine ni stock tant que les clients ne sont pas arrivés.
+model ReservationItem {
+  id            Int     @id @default(autoincrement())
+  reservationId Int     @map("reservation_id")
+  dishId        Int?    @map("dish_id")
+  dishName      String  @map("dish_name") @db.VarChar(100)
+  dishPrice     Int     @map("dish_price")
+  variantId     Int?    @map("variant_id")
+  variantName   String? @map("variant_name") @db.VarChar(50)
+  quantity      Int     @default(1)
+  subtotal      Int
+  notes         String? @db.Text
+
+  reservation Reservation  @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  dish        Dish?        @relation(fields: [dishId], references: [id], onDelete: SetNull)
+  variant     DishVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([reservationId], map: "idx_reservation_items_res")
+  @@map("reservation_items")
 }
 
 // Session de caisse : ouverture/fermeture avec fond, total théorique/réel et écart (§B).
@@ -381,6 +421,7 @@ model CashSession {
   cashier User    @relation("CashierSessions", fields: [cashierId], references: [id])
   closer  User?   @relation("ClosedSessions", fields: [closedBy], references: [id])
   orders  Order[]
+  reservationDeposits Reservation[] @relation("ReservationDeposits")
 
   @@index([cashierId, status], map: "idx_cash_sessions_cashier")
   @@map("cash_sessions")

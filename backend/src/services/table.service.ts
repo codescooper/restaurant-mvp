@@ -2,8 +2,16 @@ import { startOfDay, endOfDay } from 'date-fns';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { AppError } from '../utils/errors';
-import { PaymentMethod, MobileMoneyProvider, TableStatus } from '../constants';
-import { resolveCashSessionForPayment } from './cash.service';
+import {
+  PaymentMethod,
+  MobileMoneyProvider,
+  TableStatus,
+  RESERVATION_GRACE_MINUTES,
+  RESERVATION_CLEANING_MINUTES,
+  RESERVATION_DEFAULT_DURATION_MINUTES,
+  isCashPaymentMethod,
+} from '../constants';
+import { resolveCashSessionForPayment, getOpenSession } from './cash.service';
 import { logAudit } from './audit.service';
 import { emitStatsUpdated, emitToRole, emitToAll } from '../websocket';
 
@@ -39,13 +47,18 @@ export async function listTablesWithStatus() {
   }
 
   // Réservations actives du jour (pour le statut « réservée »).
+  const now = new Date();
   const reservations = await prisma.reservation.findMany({
-    where: { status: 'active', reservedAt: { gte: startOfDay(new Date()), lte: endOfDay(new Date()) } },
+    where: { status: 'active', reservedAt: { gte: startOfDay(now), lte: endOfDay(now) } },
     orderBy: { reservedAt: 'asc' },
+    include: { items: { orderBy: { id: 'asc' } } },
   });
+  // 1re réservation du jour encore pertinente : table pas encore libérée (marges nettoyage incluses).
   const resByTable = new Map<number, (typeof reservations)[number]>();
   for (const r of reservations) {
-    if (!resByTable.has(r.tableId)) resByTable.set(r.tableId, r); // 1re réservation du jour
+    if (resByTable.has(r.tableId)) continue;
+    const { availableAgainAt } = reservationWindow(r.reservedAt, r.durationMinutes);
+    if (availableAgainAt > now) resByTable.set(r.tableId, r);
   }
 
   return tables.map((t) => {
@@ -69,7 +82,30 @@ export async function listTablesWithStatus() {
       unpaidTotal,
       hasUnpaid: orders.some((o) => !o.isPaid),
       reservation: reservation
-        ? { id: reservation.id, customerName: reservation.customerName, reservedAt: reservation.reservedAt, partySize: reservation.partySize }
+        ? (() => {
+            const w = reservationWindow(reservation.reservedAt, reservation.durationMinutes);
+            return {
+              id: reservation.id,
+              customerName: reservation.customerName,
+              reservedAt: reservation.reservedAt,
+              partySize: reservation.partySize,
+              durationMinutes: reservation.durationMinutes,
+              endAt: w.endAt,
+              availableAgainAt: w.availableAgainAt,
+              hasPreOrder: reservation.hasPreOrder,
+              totalAmount: reservation.totalAmount,
+              depositAmount: reservation.depositAmount,
+              remaining: Math.max(0, reservation.totalAmount - reservation.depositAmount),
+              paymentStatus: reservation.paymentStatus,
+              items: reservation.items.map((it) => ({
+                id: it.id,
+                dishName: it.dishName,
+                variantName: it.variantName,
+                quantity: it.quantity,
+                subtotal: it.subtotal,
+              })),
+            };
+          })()
         : null,
       orders: orders.map((o) => ({
         id: o.id,
@@ -221,40 +257,229 @@ export async function mergeTable(sourceId: number, targetId: number, userId?: nu
 }
 
 // --- Réservations ---
+export interface ReservationItemInput {
+  dishId: number;
+  variantId?: number;
+  quantity: number;
+  notes?: string;
+}
 export interface ReservationInput {
   tableId: number;
   customerName: string;
   customerPhone?: string;
   partySize?: number;
   reservedAt: string;
+  durationMinutes?: number;
   note?: string;
+  // Pré-commande (informative) + montants / acompte.
+  hasPreOrder?: boolean;
+  items?: ReservationItemInput[];
+  totalAmount?: number;
+  depositAmount?: number;
+  depositMethod?: string;
+}
+
+// Marge totale ajoutée après la fin du repas avant que la table soit de nouveau libre.
+const RESERVATION_BUFFER_MINUTES = RESERVATION_GRACE_MINUTES + RESERVATION_CLEANING_MINUTES;
+
+const reservationInclude = {
+  table: { select: { id: true, name: true } },
+  items: { orderBy: { id: 'asc' } },
+} as const;
+
+// Calcule les jalons d'une réservation à partir de l'heure de début et de la durée :
+//   endAt           = fin du repas (heure communiquée au client)
+//   availableAgainAt = endAt + marge client + nettoyage (table de nouveau libre)
+export function reservationWindow(reservedAt: Date, durationMinutes: number) {
+  const endAt = new Date(reservedAt.getTime() + durationMinutes * 60_000);
+  const availableAgainAt = new Date(endAt.getTime() + RESERVATION_BUFFER_MINUTES * 60_000);
+  return { endAt, availableAgainAt };
+}
+
+// Statut de paiement dérivé des montants.
+export function computePaymentStatus(totalAmount: number, depositAmount: number): 'aucun' | 'avance' | 'réglé' {
+  if (depositAmount <= 0) return 'aucun';
+  if (totalAmount > 0 && depositAmount >= totalAmount) return 'réglé';
+  return 'avance';
+}
+
+// Annote une réservation de ses jalons + reste à payer (pour les réponses API).
+function withComputed<T extends { reservedAt: Date; durationMinutes: number; totalAmount?: number; depositAmount?: number }>(r: T) {
+  const { endAt, availableAgainAt } = reservationWindow(r.reservedAt, r.durationMinutes);
+  const remaining = Math.max(0, (r.totalAmount ?? 0) - (r.depositAmount ?? 0));
+  return { ...r, endAt, availableAgainAt, remaining, graceMinutes: RESERVATION_GRACE_MINUTES, cleaningMinutes: RESERVATION_CLEANING_MINUTES };
+}
+
+// Construit les lignes de pré-commande avec prix figé (depuis la base, jamais le client) + total matière.
+async function buildReservationItems(items: ReservationItemInput[]) {
+  const dishIds = [...new Set(items.map((i) => i.dishId))];
+  const dishes = await prisma.dish.findMany({ where: { id: { in: dishIds } }, include: { variants: true } });
+  const dishMap = new Map(dishes.map((d) => [d.id, d]));
+
+  let itemsTotal = 0;
+  const data = items
+    .filter((i) => i.quantity > 0)
+    .map((i) => {
+      const dish = dishMap.get(i.dishId);
+      if (!dish) throw new AppError(404, 'DISH_001', `Plat ${i.dishId} introuvable`);
+      const variant = i.variantId ? dish.variants.find((v) => v.id === i.variantId) : undefined;
+      if (i.variantId && !variant) throw new AppError(404, 'DISH_001', `Variante introuvable pour ${dish.name}`);
+      const unitPrice = variant ? variant.price : dish.price;
+      const subtotal = unitPrice * i.quantity;
+      itemsTotal += subtotal;
+      return {
+        dishId: dish.id,
+        dishName: dish.name,
+        dishPrice: unitPrice,
+        variantId: variant?.id ?? null,
+        variantName: variant?.name ?? null,
+        quantity: i.quantity,
+        subtotal,
+        notes: i.notes ?? null,
+      };
+    });
+  return { data, itemsTotal };
+}
+
+// Résout l'acompte : un acompte en espèces exige une caisse ouverte et y est rattaché (compté au théorique).
+async function resolveDeposit(depositAmount: number, depositMethod: string | undefined, userId?: number) {
+  if (!depositAmount || depositAmount <= 0) {
+    return { depositAmount: 0, depositMethod: null, depositAt: null, depositCashSessionId: null };
+  }
+  const method = depositMethod ?? 'espèces';
+  let depositCashSessionId: number | null = null;
+  if (isCashPaymentMethod(method)) {
+    const session = userId ? await getOpenSession(userId) : null;
+    if (!session) throw new AppError(400, 'CASH_001');
+    depositCashSessionId = session.id;
+  }
+  return { depositAmount, depositMethod: method, depositAt: new Date(), depositCashSessionId };
+}
+
+// Anti-chevauchement : aucune autre réservation active de la table ne doit recouvrir
+// le créneau [début, table de nouveau libre] (marges incluses). excludeId : réservation en cours d'édition.
+async function assertNoOverlap(tableId: number, reservedAt: Date, availableAgainAt: Date, excludeId?: number) {
+  const sameDay = await prisma.reservation.findMany({
+    where: {
+      tableId,
+      status: 'active',
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+      reservedAt: { gte: startOfDay(reservedAt), lte: endOfDay(availableAgainAt) },
+    },
+  });
+  for (const r of sameDay) {
+    const w = reservationWindow(r.reservedAt, r.durationMinutes);
+    if (reservedAt < w.availableAgainAt && r.reservedAt < availableAgainAt) {
+      throw new AppError(
+        409,
+        'VALIDATION_001',
+        `Créneau indisponible : la table est déjà réservée jusqu'à ${w.availableAgainAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} (nettoyage inclus)`
+      );
+    }
+  }
 }
 
 export async function createReservation(input: ReservationInput, userId?: number) {
   const table = await prisma.table.findUnique({ where: { id: input.tableId } });
   if (!table) throw new AppError(404, 'VALIDATION_001', 'Table introuvable');
+
+  const reservedAt = new Date(input.reservedAt);
+  if (Number.isNaN(reservedAt.getTime())) throw new AppError(400, 'VALIDATION_001', 'Heure de réservation invalide');
+  const durationMinutes = input.durationMinutes ?? RESERVATION_DEFAULT_DURATION_MINUTES;
+  const { availableAgainAt } = reservationWindow(reservedAt, durationMinutes);
+
+  await assertNoOverlap(input.tableId, reservedAt, availableAgainAt);
+
+  const { data: itemsData, itemsTotal } = await buildReservationItems(input.items ?? []);
+  const hasPreOrder = input.hasPreOrder ?? itemsData.length > 0;
+  // Coût total : valeur saisie si fournie, sinon somme des plats pré-commandés.
+  const totalAmount = input.totalAmount != null ? input.totalAmount : itemsTotal;
+  const deposit = await resolveDeposit(input.depositAmount ?? 0, input.depositMethod, userId);
+  const paymentStatus = computePaymentStatus(totalAmount, deposit.depositAmount);
+
   const reservation = await prisma.reservation.create({
     data: {
       tableId: input.tableId,
       customerName: input.customerName,
       customerPhone: input.customerPhone,
       partySize: input.partySize,
-      reservedAt: new Date(input.reservedAt),
+      reservedAt,
+      durationMinutes,
       note: input.note,
+      hasPreOrder,
+      totalAmount,
+      paymentStatus,
+      ...deposit,
       createdBy: userId,
+      items: itemsData.length ? { create: itemsData } : undefined,
     },
+    include: reservationInclude,
   });
   emitToAll('table_status_changed', { tableId: input.tableId });
-  return reservation;
+  return withComputed(reservation);
+}
+
+export async function updateReservation(id: number, input: ReservationInput, userId?: number) {
+  const existing = await prisma.reservation.findUnique({ where: { id } });
+  if (!existing) throw new AppError(404, 'VALIDATION_001', 'Réservation introuvable');
+  if (existing.status !== 'active') throw new AppError(400, 'VALIDATION_001', 'Seule une réservation active peut être modifiée');
+
+  const tableId = input.tableId ?? existing.tableId;
+  const reservedAt = input.reservedAt ? new Date(input.reservedAt) : existing.reservedAt;
+  if (Number.isNaN(reservedAt.getTime())) throw new AppError(400, 'VALIDATION_001', 'Heure de réservation invalide');
+  const durationMinutes = input.durationMinutes ?? existing.durationMinutes;
+  const { availableAgainAt } = reservationWindow(reservedAt, durationMinutes);
+
+  await assertNoOverlap(tableId, reservedAt, availableAgainAt, id);
+
+  // Lignes de pré-commande : remplacées seulement si fournies.
+  const replaceItems = input.items !== undefined;
+  const { data: itemsData, itemsTotal } = replaceItems ? await buildReservationItems(input.items ?? []) : { data: [], itemsTotal: 0 };
+  const hasPreOrder = input.hasPreOrder ?? (replaceItems ? itemsData.length > 0 : existing.hasPreOrder);
+  const totalAmount = input.totalAmount != null ? input.totalAmount : replaceItems ? itemsTotal : existing.totalAmount;
+  const deposit = await resolveDeposit(
+    input.depositAmount ?? existing.depositAmount,
+    input.depositMethod ?? existing.depositMethod ?? undefined,
+    userId
+  );
+  const paymentStatus = computePaymentStatus(totalAmount, deposit.depositAmount);
+
+  const updated = await prisma.$transaction(async (tx) => {
+    if (replaceItems) {
+      await tx.reservationItem.deleteMany({ where: { reservationId: id } });
+    }
+    return tx.reservation.update({
+      where: { id },
+      data: {
+        tableId,
+        customerName: input.customerName ?? existing.customerName,
+        customerPhone: input.customerPhone !== undefined ? input.customerPhone : existing.customerPhone,
+        partySize: input.partySize !== undefined ? input.partySize : existing.partySize,
+        reservedAt,
+        durationMinutes,
+        note: input.note !== undefined ? input.note : existing.note,
+        hasPreOrder,
+        totalAmount,
+        paymentStatus,
+        ...deposit,
+        ...(replaceItems && itemsData.length ? { items: { create: itemsData } } : {}),
+      },
+      include: reservationInclude,
+    });
+  });
+  emitToAll('table_status_changed', { tableId });
+  if (tableId !== existing.tableId) emitToAll('table_status_changed', { tableId: existing.tableId });
+  return withComputed(updated);
 }
 
 export async function listReservations() {
-  return prisma.reservation.findMany({
+  const reservations = await prisma.reservation.findMany({
     where: { status: 'active', reservedAt: { gte: startOfDay(new Date()) } },
     orderBy: { reservedAt: 'asc' },
     take: 100,
-    include: { table: { select: { id: true, name: true } } },
+    include: reservationInclude,
   });
+  return reservations.map(withComputed);
 }
 
 export async function setReservationStatus(id: number, status: 'annulée' | 'honorée') {

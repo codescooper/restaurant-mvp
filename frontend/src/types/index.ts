@@ -169,11 +169,43 @@ export interface TableOrderSummary {
 
 export type TableStatus = 'libre' | 'occupée' | 'addition_demandée' | 'réservée';
 
+export interface ReservationItem {
+  id: number;
+  dishId?: number | null;
+  dishName: string;
+  dishPrice: number;
+  variantId?: number | null;
+  variantName?: string | null;
+  quantity: number;
+  subtotal: number;
+  notes?: string | null;
+}
+
+// Version compacte des items renvoyée dans le plan de salle.
+export interface ReservationItemSummary {
+  id: number;
+  dishName: string;
+  variantName?: string | null;
+  quantity: number;
+  subtotal: number;
+}
+
+export type ReservationPaymentStatus = 'aucun' | 'avance' | 'réglé';
+
 export interface TableReservationInfo {
   id: number;
   customerName: string;
   reservedAt: string;
   partySize?: number | null;
+  durationMinutes?: number;
+  endAt?: string;
+  availableAgainAt?: string;
+  hasPreOrder?: boolean;
+  totalAmount?: number;
+  depositAmount?: number;
+  remaining?: number;
+  paymentStatus?: ReservationPaymentStatus;
+  items?: ReservationItemSummary[];
 }
 
 export interface RestaurantTable {
@@ -197,6 +229,18 @@ export interface Reservation {
   customerPhone?: string | null;
   partySize?: number | null;
   reservedAt: string;
+  durationMinutes: number;
+  endAt?: string;
+  availableAgainAt?: string;
+  graceMinutes?: number;
+  cleaningMinutes?: number;
+  hasPreOrder: boolean;
+  totalAmount: number;
+  depositAmount: number;
+  depositMethod?: string | null;
+  remaining?: number;
+  paymentStatus: ReservationPaymentStatus;
+  items: ReservationItem[];
   note?: string | null;
   status: 'active' | 'annulée' | 'honorée';
   table?: { id: number; name: string };

@@ -75,6 +75,15 @@ export type InventoryStatus = (typeof INVENTORY_STATUSES)[number];
 export const CASH_SESSION_STATUSES = ['ouverte', 'fermée'] as const;
 export type CashSessionStatus = (typeof CASH_SESSION_STATUSES)[number];
 
+// Réservations : marges ajoutées APRÈS la fin du repas avant que la table soit de nouveau libre.
+// Heure de fin = reservedAt + durationMinutes. Puis :
+//   + RESERVATION_GRACE_MINUTES  : marge de tolérance laissée au client (« leste »)
+//   + RESERVATION_CLEANING_MINUTES : temps pour l'équipe de nettoyage / remise en place
+// Table de nouveau disponible = heure de fin + ces deux marges.
+export const RESERVATION_GRACE_MINUTES = 30;
+export const RESERVATION_CLEANING_MINUTES = 30;
+export const RESERVATION_DEFAULT_DURATION_MINUTES = 90;
+
 // Employés (RH).
 export const CONTRACT_TYPES = ['CDI', 'CDD', 'extra', 'stagiaire', 'autre'] as const;
 export type ContractType = (typeof CONTRACT_TYPES)[number];

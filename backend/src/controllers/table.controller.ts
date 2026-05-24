@@ -45,6 +45,10 @@ export const listReservationsController = asyncHandler(async (_req, res) => {
   sendSuccess(res, await tableService.listReservations());
 });
 
+export const updateReservationController = asyncHandler(async (req, res) => {
+  sendSuccess(res, await tableService.updateReservation(Number(req.params.id), req.body, req.user?.id));
+});
+
 export const cancelReservationController = asyncHandler(async (req, res) => {
   sendSuccess(res, await tableService.setReservationStatus(Number(req.params.id), 'annulée'));
 });

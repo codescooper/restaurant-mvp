@@ -263,14 +263,32 @@ export const mergeTableSchema = z.object({
   targetTableId: z.number().int().positive(),
 });
 
+const reservationItemSchema = z.object({
+  dishId: z.number().int().positive(),
+  variantId: z.number().int().positive().optional(),
+  quantity: z.number().int().positive(),
+  notes: z.string().max(255).optional(),
+});
+
 export const createReservationSchema = z.object({
   tableId: z.number().int().positive(),
   customerName: z.string().min(1).max(100),
   customerPhone: z.string().max(30).optional(),
   partySize: z.number().int().positive().optional(),
   reservedAt: z.string().min(1),
+  // Durée du repas en minutes (heure de fin calculée automatiquement). 15 min → 8 h.
+  durationMinutes: z.number().int().min(15).max(480).optional(),
   note: z.string().max(255).optional(),
+  // Pré-commande informative + montants / acompte.
+  hasPreOrder: z.boolean().optional(),
+  items: z.array(reservationItemSchema).optional(),
+  totalAmount: z.number().int().min(0).optional(),
+  depositAmount: z.number().int().min(0).optional(),
+  depositMethod: z.enum(PAYMENT_METHODS).optional(),
 });
+
+// Édition : tous les champs optionnels (on n'envoie que ce qui change ; les items remplacent s'ils sont fournis).
+export const updateReservationSchema = createReservationSchema.partial();
 
 // --- Promotions ---
 export const createPromotionSchema = z

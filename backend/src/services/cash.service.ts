@@ -49,7 +49,16 @@ export function computeDiscrepancy(expectedCash: number, countedCash: number): n
   return countedCash - expectedCash;
 }
 
-// Total théorique en caisse = fond + ventes espèces (payées, non remboursées, non annulées) de la session.
+// Acomptes de réservation encaissés EN ESPÈCES sur la session (argent physiquement dans le tiroir).
+export async function reservationDepositsForSession(sessionId: number): Promise<number> {
+  const agg = await prisma.reservation.aggregate({
+    _sum: { depositAmount: true },
+    where: { depositCashSessionId: sessionId, depositMethod: 'espèces' },
+  });
+  return agg._sum.depositAmount ?? 0;
+}
+
+// Total théorique en caisse = fond + ventes espèces + acomptes réservation espèces de la session.
 export async function computeExpectedCash(session: { id: number; openingFloat: number }): Promise<number> {
   const agg = await prisma.order.aggregate({
     _sum: { finalTotal: true },
@@ -61,7 +70,8 @@ export async function computeExpectedCash(session: { id: number; openingFloat: n
       status: { not: 'annulée' },
     },
   });
-  return session.openingFloat + (agg._sum.finalTotal ?? 0);
+  const deposits = await reservationDepositsForSession(session.id);
+  return session.openingFloat + (agg._sum.finalTotal ?? 0) + deposits;
 }
 
 export async function closeSession(
@@ -151,6 +161,7 @@ export async function getCurrentSessionReport(cashierId: number) {
     ...session,
     expectedCash,
     cashTips: await cashTipsForSession(session.id),
+    reservationDeposits: await reservationDepositsForSession(session.id),
     salesByMethod: await salesByMethod(session.id),
   };
 }
@@ -194,6 +205,7 @@ export async function getSessionReport(id: number) {
     ...session,
     expectedCash,
     cashTips: await cashTipsForSession(id),
+    reservationDeposits: await reservationDepositsForSession(id),
     salesByMethod: await salesByMethod(id),
     orders,
   };

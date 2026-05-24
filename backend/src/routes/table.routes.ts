@@ -8,6 +8,7 @@ import {
   billRequestSchema,
   mergeTableSchema,
   createReservationSchema,
+  updateReservationSchema,
 } from '../validators/schemas';
 import {
   listTablesController,
@@ -19,6 +20,7 @@ import {
   mergeTableController,
   createReservationController,
   listReservationsController,
+  updateReservationController,
   cancelReservationController,
   honorReservationController,
 } from '../controllers/table.controller';
@@ -32,6 +34,7 @@ const CAISSE = ['caissier', 'administrateur'] as const;
 // Réservations (avant /:id pour éviter toute collision de route)
 router.get('/reservations', requireRole(...SERVICE), listReservationsController);
 router.post('/reservations', requireRole(...SERVICE), validate(createReservationSchema), createReservationController);
+router.put('/reservations/:id', requireRole(...SERVICE), validate(updateReservationSchema), updateReservationController);
 router.patch('/reservations/:id/cancel', requireRole(...SERVICE), cancelReservationController);
 router.patch('/reservations/:id/honor', requireRole(...SERVICE), honorReservationController);
 

@@ -1,15 +1,36 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutGrid, Users, X, CreditCard, CheckCircle, Plus, Bell, Merge, CalendarDays, Clock, Printer } from 'lucide-react';
+import { LayoutGrid, Users, X, CreditCard, CheckCircle, Plus, Minus, Bell, Merge, CalendarDays, Clock, Printer, Pencil, Trash2, Wallet, Utensils } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useWebSocket } from '../contexts/WebSocketContext';
-import { tableApi, orderApi } from '../services/endpoints';
+import { tableApi, orderApi, dishApi, ReservationPayload } from '../services/endpoints';
 import { getApiError } from '../services/api';
-import { RestaurantTable, Reservation } from '../types';
-import { formatFCFA, formatDateTime } from '../utils/format';
+import { RestaurantTable, Reservation, MenuDish } from '../types';
+import { formatFCFA, formatDateTime, formatTime } from '../utils/format';
 
 type PaymentMethod = '' | 'espèces' | 'mobile_money' | 'carte' | 'virement' | 'qr_code';
 type Provider = '' | 'orange_money' | 'wave' | 'mtn';
+
+// Marges après la fin du repas avant que la table soit de nouveau libre (miroir de constants.ts backend).
+const GRACE_MINUTES = 30; // tolérance laissée au client
+const CLEANING_MINUTES = 30; // nettoyage + remise en place
+// Durées proposées pour le repas (minutes).
+const DURATION_OPTIONS = [60, 90, 120, 150, 180];
+
+// ISO → valeur pour <input type="datetime-local"> (heure locale, sans secondes).
+function toLocalInput(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// Calcule fin du repas + heure de libération de la table à partir du début et de la durée.
+function reservationTimes(reservedAt: string | Date, durationMinutes: number) {
+  const start = typeof reservedAt === 'string' ? new Date(reservedAt) : reservedAt;
+  const end = new Date(start.getTime() + durationMinutes * 60000);
+  const free = new Date(end.getTime() + (GRACE_MINUTES + CLEANING_MINUTES) * 60000);
+  return { start, end, free };
+}
 
 const SETTLE_LABELS: Record<string, string> = {
   espèces: 'Espèces',
@@ -37,6 +58,45 @@ const STATUS_BADGE: Record<string, string> = {
   addition_demandée: 'bg-gold-400/20 text-gold-300',
   réservée: 'bg-sky-500/20 text-sky-300',
 };
+// Modes de paiement de l'acompte (valeurs alignées sur PAYMENT_METHODS backend).
+const DEPOSIT_METHODS: { value: string; label: string }[] = [
+  { value: 'espèces', label: 'Espèces' },
+  { value: 'mobile_money', label: 'Mobile' },
+  { value: 'carte', label: 'Carte' },
+  { value: 'virement', label: 'Virement' },
+  { value: 'qr_code', label: 'QR Code' },
+];
+const PAY_STATUS_LABEL: Record<string, string> = { aucun: 'Non réglé', avance: 'Acompte versé', réglé: 'Réglé' };
+const PAY_STATUS_BADGE: Record<string, string> = {
+  aucun: 'bg-neutral-700/40 text-neutral-300',
+  avance: 'bg-amber-500/20 text-amber-300',
+  réglé: 'bg-emerald-500/20 text-emerald-300',
+};
+
+const EMPTY_RES = {
+  customerName: '',
+  customerPhone: '',
+  partySize: '',
+  reservedAt: '',
+  durationMinutes: '90',
+  hasPreOrder: false,
+  totalAmount: '',
+  depositAmount: '',
+  depositMethod: 'espèces',
+};
+
+const INPUT_CLS =
+  'w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-neutral-100 placeholder-neutral-500 outline-none focus:ring-2 focus:ring-gold-400/60 focus:border-gold-400';
+
+// Ligne de pré-commande côté formulaire (prix figé à l'ajout).
+interface ResItem {
+  dishId: number;
+  dishName: string;
+  variantId?: number;
+  variantName?: string;
+  unitPrice: number;
+  quantity: number;
+}
 
 export default function SallePage() {
   const { currentUser } = useAuth();
@@ -67,9 +127,15 @@ export default function SallePage() {
 
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [showReservations, setShowReservations] = useState(false);
-  const [resForm, setResForm] = useState({ customerName: '', customerPhone: '', partySize: '', reservedAt: '' });
+  const [resForm, setResForm] = useState({ ...EMPTY_RES });
+  const [resItems, setResItems] = useState<ResItem[]>([]);
   const [resOpen, setResOpen] = useState(false);
+  const [editingResId, setEditingResId] = useState<number | null>(null);
   const [mergeMode, setMergeMode] = useState(false);
+  const [menu, setMenu] = useState<MenuDish[]>([]);
+  // Sélecteur de plat pour la pré-commande.
+  const [pickDishId, setPickDishId] = useState('');
+  const [pickVariantId, setPickVariantId] = useState('');
 
   const role = currentUser?.role;
   const canSettle = role === 'caissier' || role === 'administrateur';
@@ -83,6 +149,11 @@ export default function SallePage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Menu chargé une fois (sélecteur de pré-commande).
+  useEffect(() => {
+    dishApi.menu().then(setMenu).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!socket) return;
@@ -115,8 +186,12 @@ export default function SallePage() {
     setCashGiven('');
     setTip('');
     setResOpen(false);
+    setEditingResId(null);
     setMergeMode(false);
-    setResForm({ customerName: '', customerPhone: '', partySize: '', reservedAt: '' });
+    setResForm({ ...EMPTY_RES });
+    setResItems([]);
+    setPickDishId('');
+    setPickVariantId('');
     setError('');
   };
 
@@ -159,22 +234,122 @@ export default function SallePage() {
     }
   };
 
+  // --- Pré-commande : sélecteur d'items ---
+  const itemsTotal = resItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
+
+  const addPickItem = () => {
+    const dish = menu.find((d) => d.id === Number(pickDishId));
+    if (!dish) return;
+    const hasVariants = !!dish.variants && dish.variants.length > 0;
+    const variant = hasVariants ? dish.variants!.find((v) => v.id === Number(pickVariantId)) : undefined;
+    if (hasVariants && !variant) {
+      setError('Choisissez une variante');
+      return;
+    }
+    const unitPrice = variant ? variant.price : dish.price;
+    const next = [...resItems];
+    // Regroupe si même plat+variante déjà présent.
+    const existing = next.find((i) => i.dishId === dish.id && i.variantId === (variant?.id ?? undefined));
+    if (existing) existing.quantity += 1;
+    else next.push({ dishId: dish.id, dishName: dish.name, variantId: variant?.id, variantName: variant?.name, unitPrice, quantity: 1 });
+    setResItems(next);
+    const newTotal = next.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
+    setResForm((f) => ({ ...f, totalAmount: String(newTotal) }));
+    setPickDishId('');
+    setPickVariantId('');
+    setError('');
+  };
+
+  const changeItemQty = (idx: number, delta: number) => {
+    const next = resItems.map((it, i) => (i === idx ? { ...it, quantity: Math.max(1, it.quantity + delta) } : it));
+    setResItems(next);
+    setResForm((f) => ({ ...f, totalAmount: String(next.reduce((s, i) => s + i.unitPrice * i.quantity, 0)) }));
+  };
+
+  const removeResItem = (idx: number) => {
+    const next = resItems.filter((_, i) => i !== idx);
+    setResItems(next);
+    setResForm((f) => ({ ...f, totalAmount: String(next.reduce((s, i) => s + i.unitPrice * i.quantity, 0)) }));
+  };
+
+  const openReserveForm = () => {
+    setEditingResId(null);
+    setResForm({ ...EMPTY_RES });
+    setResItems([]);
+    setResOpen(true);
+    setError('');
+  };
+
+  // Édition : ouvre le formulaire pré-rempli depuis une réservation complète (liste).
+  const openEditReservation = (r: Reservation) => {
+    setShowReservations(false);
+    setSelectedId(r.tableId);
+    setEditingResId(r.id);
+    setMergeMode(false);
+    setSettleOpen(false);
+    setResForm({
+      customerName: r.customerName,
+      customerPhone: r.customerPhone ?? '',
+      partySize: r.partySize ? String(r.partySize) : '',
+      reservedAt: toLocalInput(r.reservedAt),
+      durationMinutes: String(r.durationMinutes),
+      hasPreOrder: r.hasPreOrder,
+      totalAmount: String(r.totalAmount ?? 0),
+      depositAmount: r.depositAmount ? String(r.depositAmount) : '',
+      depositMethod: r.depositMethod || 'espèces',
+    });
+    setResItems(
+      (r.items ?? []).map((it) => ({
+        dishId: it.dishId ?? 0,
+        dishName: it.dishName,
+        variantId: it.variantId ?? undefined,
+        variantName: it.variantName ?? undefined,
+        unitPrice: it.dishPrice,
+        quantity: it.quantity,
+      }))
+    );
+    setResOpen(true);
+    setError('');
+  };
+
+  // Depuis le plan de salle (info compacte) → retrouve la réservation complète pour l'éditer.
+  const editFromSummary = (id: number) => {
+    const full = reservations.find((r) => r.id === id);
+    if (full) openEditReservation(full);
+    else setError('Réservation introuvable, rechargez la page');
+  };
+
   const submitReservation = async () => {
-    if (!selected) return;
+    const tableId = selected?.id;
+    if (!tableId) return;
     if (!resForm.customerName.trim() || !resForm.reservedAt) {
       setError('Nom du client et heure requis');
       return;
     }
+    const depositAmount = Number(resForm.depositAmount) || 0;
+    const totalAmount = Number(resForm.totalAmount) || 0;
+    if (depositAmount > 0 && totalAmount > 0 && depositAmount > totalAmount) {
+      setError("L'acompte ne peut pas dépasser le total");
+      return;
+    }
+    const payload: ReservationPayload = {
+      tableId,
+      customerName: resForm.customerName.trim(),
+      customerPhone: resForm.customerPhone || undefined,
+      partySize: resForm.partySize ? Number(resForm.partySize) : undefined,
+      reservedAt: new Date(resForm.reservedAt).toISOString(),
+      durationMinutes: Number(resForm.durationMinutes) || 90,
+      hasPreOrder: resForm.hasPreOrder,
+      items: resForm.hasPreOrder ? resItems.map((i) => ({ dishId: i.dishId, variantId: i.variantId, quantity: i.quantity })) : [],
+      totalAmount,
+      depositAmount,
+      depositMethod: depositAmount > 0 ? resForm.depositMethod : undefined,
+    };
     setBusy(true);
     setError('');
     try {
-      await tableApi.createReservation({
-        tableId: selected.id,
-        customerName: resForm.customerName.trim(),
-        customerPhone: resForm.customerPhone || undefined,
-        partySize: resForm.partySize ? Number(resForm.partySize) : undefined,
-        reservedAt: new Date(resForm.reservedAt).toISOString(),
-      });
+      if (editingResId) await tableApi.updateReservation(editingResId, payload);
+      else await tableApi.createReservation(payload);
       closePanel();
       load();
     } catch (e) {
@@ -302,8 +477,14 @@ export default function SallePage() {
                 </div>
               )}
               {t.status === 'réservée' && t.reservation && (
-                <div className="mt-2 text-xs text-sky-300 flex items-center gap-1">
-                  <Clock className="w-3 h-3" /> {formatDateTime(t.reservation.reservedAt)} · {t.reservation.customerName}
+                <div className="mt-2 text-xs text-sky-300">
+                  <div className="flex items-center gap-1">
+                    <Clock className="w-3 h-3" /> {formatTime(t.reservation.reservedAt)}
+                    {t.reservation.endAt ? `–${formatTime(t.reservation.endAt)}` : ''} · {t.reservation.customerName}
+                  </div>
+                  {t.reservation.availableAgainAt && (
+                    <div className="text-[11px] text-neutral-500 mt-0.5">Libre à {formatTime(t.reservation.availableAgainAt)} (nettoyage inclus)</div>
+                  )}
                 </div>
               )}
             </button>
@@ -333,17 +514,60 @@ export default function SallePage() {
             {error && <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-lg p-2 mb-3 text-sm">{error}</div>}
 
             {/* Réservation en cours sur cette table */}
-            {selected.reservation && (
+            {selected.reservation && !(resOpen && editingResId === selected.reservation.id) && (
               <div className="bg-sky-500/10 border border-sky-500/30 rounded-lg p-3 mb-3 text-sm">
-                <div className="flex items-center gap-1 text-sky-300 font-medium">
-                  <CalendarDays className="w-4 h-4" /> Réservée
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1 text-sky-300 font-medium">
+                    <CalendarDays className="w-4 h-4" /> Réservée
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${PAY_STATUS_BADGE[selected.reservation.paymentStatus ?? 'aucun']}`}>
+                    {PAY_STATUS_LABEL[selected.reservation.paymentStatus ?? 'aucun']}
+                  </span>
                 </div>
                 <div className="text-neutral-300 mt-1">
                   {selected.reservation.customerName}
-                  {selected.reservation.partySize ? ` · ${selected.reservation.partySize} pers.` : ''} ·{' '}
-                  {formatDateTime(selected.reservation.reservedAt)}
+                  {selected.reservation.partySize ? ` · ${selected.reservation.partySize} pers.` : ''}
                 </div>
-                <div className="flex gap-2 mt-2">
+                <div className="text-neutral-400 text-xs mt-1">
+                  {formatDateTime(selected.reservation.reservedAt)}
+                  {selected.reservation.endAt ? ` → fin ${formatTime(selected.reservation.endAt)}` : ''}
+                </div>
+                {selected.reservation.availableAgainAt && (
+                  <div className="text-neutral-500 text-xs mt-0.5">
+                    Table de nouveau libre à {formatTime(selected.reservation.availableAgainAt)} (+30 min marge, +30 min nettoyage)
+                  </div>
+                )}
+                {selected.reservation.hasPreOrder && selected.reservation.items && selected.reservation.items.length > 0 && (
+                  <div className="mt-2 border-t border-sky-500/20 pt-2">
+                    <div className="flex items-center gap-1 text-xs text-neutral-400 mb-1"><Utensils className="w-3 h-3" /> Pré-commande</div>
+                    {selected.reservation.items.map((it) => (
+                      <div key={it.id} className="flex justify-between text-xs text-neutral-300">
+                        <span>{it.quantity}× {it.dishName}{it.variantName ? ` (${it.variantName})` : ''}</span>
+                        <span className="text-neutral-400">{formatFCFA(it.subtotal)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {((selected.reservation.totalAmount ?? 0) > 0 || (selected.reservation.depositAmount ?? 0) > 0) && (
+                  <div className="mt-2 border-t border-sky-500/20 pt-2 text-xs space-y-0.5">
+                    <div className="flex justify-between text-neutral-300"><span>Coût total</span><span>{formatFCFA(selected.reservation.totalAmount ?? 0)}</span></div>
+                    {(selected.reservation.depositAmount ?? 0) > 0 && (
+                      <div className="flex justify-between text-neutral-300"><span>Acompte versé</span><span className="text-emerald-300">{formatFCFA(selected.reservation.depositAmount ?? 0)}</span></div>
+                    )}
+                    <div className="flex justify-between font-semibold text-neutral-100">
+                      <span>Reste à payer</span>
+                      <span className="text-gold-400">
+                        {formatFCFA(selected.reservation.remaining ?? Math.max(0, (selected.reservation.totalAmount ?? 0) - (selected.reservation.depositAmount ?? 0)))}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {canOrder && (
+                    <button onClick={() => editFromSummary(selected.reservation!.id)} className="text-xs bg-sky-500 hover:bg-sky-400 text-black font-semibold px-3 py-1 rounded-lg flex items-center gap-1">
+                      <Pencil className="w-3 h-3" /> Modifier
+                    </button>
+                  )}
                   <button onClick={() => honorRes(selected.reservation!.id)} className="text-xs bg-emerald-500 hover:bg-emerald-400 text-black font-semibold px-3 py-1 rounded-lg">
                     Marquer honorée
                   </button>
@@ -434,9 +658,9 @@ export default function SallePage() {
                   <Merge className="w-5 h-5" /> Fusionner avec une autre table
                 </button>
               )}
-              {canOrder && selected.status === 'libre' && (
+              {canOrder && selected.status === 'libre' && !resOpen && (
                 <button
-                  onClick={() => setResOpen((o) => !o)}
+                  onClick={openReserveForm}
                   className="w-full flex items-center justify-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-100 border border-neutral-700 py-2.5 rounded-xl font-semibold transition"
                 >
                   <CalendarDays className="w-5 h-5" /> Réserver cette table
@@ -468,35 +692,191 @@ export default function SallePage() {
             {/* Réservation : formulaire */}
             {resOpen && (
               <div className="mt-3 border-t border-neutral-800 pt-3 space-y-2">
+                <div className="flex items-center gap-2 text-sm font-semibold text-sky-300">
+                  <CalendarDays className="w-4 h-4" /> {editingResId ? 'Modifier la réservation' : 'Nouvelle réservation'}
+                </div>
                 <input
                   value={resForm.customerName}
                   onChange={(e) => setResForm({ ...resForm, customerName: e.target.value })}
                   placeholder="Nom du client"
                   className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-neutral-100 placeholder-neutral-500 outline-none focus:ring-2 focus:ring-gold-400/60 focus:border-gold-400"
                 />
-                <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs text-neutral-400 mb-1">Heure de réservation</label>
                   <input
                     type="datetime-local"
                     value={resForm.reservedAt}
                     onChange={(e) => setResForm({ ...resForm, reservedAt: e.target.value })}
                     className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-neutral-100 outline-none focus:ring-2 focus:ring-gold-400/60 focus:border-gold-400"
                   />
-                  <input
-                    type="number"
-                    min="1"
-                    value={resForm.partySize}
-                    onChange={(e) => setResForm({ ...resForm, partySize: e.target.value })}
-                    placeholder="Nb pers."
-                    className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-neutral-100 placeholder-neutral-500 outline-none focus:ring-2 focus:ring-gold-400/60 focus:border-gold-400"
-                  />
                 </div>
-                <button
-                  onClick={submitReservation}
-                  disabled={busy}
-                  className="w-full bg-sky-500 hover:bg-sky-400 text-black font-bold py-2.5 rounded-xl transition disabled:opacity-40"
-                >
-                  Confirmer la réservation
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs text-neutral-400 mb-1">Durée</label>
+                    <select
+                      value={resForm.durationMinutes}
+                      onChange={(e) => setResForm({ ...resForm, durationMinutes: e.target.value })}
+                      className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-neutral-100 outline-none focus:ring-2 focus:ring-gold-400/60 focus:border-gold-400"
+                    >
+                      {DURATION_OPTIONS.map((m) => (
+                        <option key={m} value={m}>
+                          {m % 60 === 0 ? `${m / 60} h` : `${Math.floor(m / 60)} h ${m % 60}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-neutral-400 mb-1">Nb pers.</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={resForm.partySize}
+                      onChange={(e) => setResForm({ ...resForm, partySize: e.target.value })}
+                      placeholder="Nb pers."
+                      className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-neutral-100 placeholder-neutral-500 outline-none focus:ring-2 focus:ring-gold-400/60 focus:border-gold-400"
+                    />
+                  </div>
+                </div>
+                {resForm.reservedAt && (
+                  <div className="bg-sky-500/5 border border-sky-500/20 rounded-lg p-2.5 text-xs space-y-0.5">
+                    <div className="flex justify-between text-neutral-200">
+                      <span>Fin du repas</span>
+                      <span className="font-semibold text-sky-300">
+                        {formatTime(reservationTimes(resForm.reservedAt, Number(resForm.durationMinutes) || 90).end)}
+                      </span>
+                    </div>
+                    <div className="text-neutral-500">+{GRACE_MINUTES} min de marge client · +{CLEANING_MINUTES} min nettoyage</div>
+                    <div className="flex justify-between text-neutral-200 pt-0.5 border-t border-neutral-800 mt-1">
+                      <span>Table de nouveau libre</span>
+                      <span className="font-semibold text-emerald-300">
+                        {formatTime(reservationTimes(resForm.reservedAt, Number(resForm.durationMinutes) || 90).free)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Pré-commande nourriture / boisson */}
+                <div className="border-t border-neutral-800 pt-2">
+                  <label className="flex items-center gap-2 text-sm text-neutral-200 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={resForm.hasPreOrder}
+                      onChange={(e) => setResForm({ ...resForm, hasPreOrder: e.target.checked })}
+                      className="accent-sky-500 w-4 h-4"
+                    />
+                    <Utensils className="w-4 h-4 text-sky-300" /> Nourriture / boisson commandées ici
+                  </label>
+                  {resForm.hasPreOrder && (
+                    <div className="mt-2 space-y-2">
+                      <div className="flex gap-2">
+                        <select
+                          value={pickDishId}
+                          onChange={(e) => { setPickDishId(e.target.value); setPickVariantId(''); }}
+                          className="flex-1 min-w-0 bg-neutral-900 border border-neutral-700 rounded-lg px-2 py-2 text-sm text-neutral-100 outline-none focus:ring-2 focus:ring-gold-400/60"
+                        >
+                          <option value="">Choisir un plat / boisson…</option>
+                          {menu.map((d) => (
+                            <option key={d.id} value={d.id}>{d.name}</option>
+                          ))}
+                        </select>
+                        {(() => {
+                          const d = menu.find((x) => x.id === Number(pickDishId));
+                          return d && d.variants && d.variants.length ? (
+                            <select
+                              value={pickVariantId}
+                              onChange={(e) => setPickVariantId(e.target.value)}
+                              className="w-28 bg-neutral-900 border border-neutral-700 rounded-lg px-2 py-2 text-sm text-neutral-100 outline-none focus:ring-2 focus:ring-gold-400/60"
+                            >
+                              <option value="">Variante…</option>
+                              {d.variants.map((v) => (
+                                <option key={v.id} value={v.id}>{v.name}</option>
+                              ))}
+                            </select>
+                          ) : null;
+                        })()}
+                        <button
+                          onClick={addPickItem}
+                          disabled={!pickDishId}
+                          className="bg-sky-500 hover:bg-sky-400 text-black px-3 rounded-lg disabled:opacity-40"
+                          title="Ajouter"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                      {resItems.length > 0 && (
+                        <div className="space-y-1">
+                          {resItems.map((it, idx) => (
+                            <div key={idx} className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 rounded-lg px-2 py-1.5 text-sm">
+                              <span className="flex-1 min-w-0 truncate text-neutral-200">
+                                {it.dishName}{it.variantName ? ` (${it.variantName})` : ''}
+                              </span>
+                              <button onClick={() => changeItemQty(idx, -1)} className="text-neutral-400 hover:text-neutral-200"><Minus className="w-4 h-4" /></button>
+                              <span className="w-5 text-center text-neutral-100">{it.quantity}</span>
+                              <button onClick={() => changeItemQty(idx, 1)} className="text-neutral-400 hover:text-neutral-200"><Plus className="w-4 h-4" /></button>
+                              <span className="w-20 text-right text-neutral-300">{formatFCFA(it.unitPrice * it.quantity)}</span>
+                              <button onClick={() => removeResItem(idx)} className="text-rose-400 hover:text-rose-300"><Trash2 className="w-4 h-4" /></button>
+                            </div>
+                          ))}
+                          <div className="flex justify-between text-xs text-neutral-400 px-1">
+                            <span>Total plats</span>
+                            <span className="text-neutral-200 font-semibold">{formatFCFA(itemsTotal)}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Paiement : coût total, acompte, reste */}
+                <div className="border-t border-neutral-800 pt-2 space-y-2">
+                  <div className="flex items-center gap-2 text-sm text-neutral-200"><Wallet className="w-4 h-4 text-gold-400" /> Paiement</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-neutral-400 mb-1">Coût total (FCFA)</label>
+                      <input type="number" min="0" value={resForm.totalAmount} onChange={(e) => setResForm({ ...resForm, totalAmount: e.target.value })} placeholder="0" className={INPUT_CLS} />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-neutral-400 mb-1">Acompte versé (FCFA)</label>
+                      <input type="number" min="0" value={resForm.depositAmount} onChange={(e) => setResForm({ ...resForm, depositAmount: e.target.value })} placeholder="0" className={INPUT_CLS} />
+                    </div>
+                  </div>
+                  {Number(resForm.depositAmount) > 0 && (
+                    <div>
+                      <label className="block text-xs text-neutral-400 mb-1">Mode de l'acompte</label>
+                      <select value={resForm.depositMethod} onChange={(e) => setResForm({ ...resForm, depositMethod: e.target.value })} className={INPUT_CLS}>
+                        {DEPOSIT_METHODS.map((m) => (
+                          <option key={m.value} value={m.value}>{m.label}</option>
+                        ))}
+                      </select>
+                      {resForm.depositMethod === 'espèces' && (
+                        <p className="text-[11px] text-neutral-500 mt-1">Acompte espèces : nécessite une caisse ouverte, ajouté au théorique de caisse.</p>
+                      )}
+                    </div>
+                  )}
+                  {(Number(resForm.totalAmount) > 0 || Number(resForm.depositAmount) > 0) && (
+                    <div className="flex justify-between items-center text-sm bg-neutral-900 border border-neutral-800 rounded-lg px-3 py-2">
+                      <span className="text-neutral-400">Reste à payer</span>
+                      <span className="font-bold text-gold-400">
+                        {formatFCFA(Math.max(0, (Number(resForm.totalAmount) || 0) - (Number(resForm.depositAmount) || 0)))}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  {editingResId && (
+                    <button onClick={closePanel} className="px-4 py-2.5 rounded-xl border border-neutral-700 text-neutral-200 hover:bg-neutral-800 transition">
+                      Annuler
+                    </button>
+                  )}
+                  <button
+                    onClick={submitReservation}
+                    disabled={busy}
+                    className="flex-1 bg-sky-500 hover:bg-sky-400 text-black font-bold py-2.5 rounded-xl transition disabled:opacity-40"
+                  >
+                    {editingResId ? 'Enregistrer les modifications' : 'Confirmer la réservation'}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -691,15 +1071,41 @@ export default function SallePage() {
             <div className="space-y-2">
               {reservations.map((r) => (
                 <div key={r.id} className="bg-neutral-900 border border-neutral-800 rounded-lg p-3 text-sm">
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center gap-2">
                     <span className="font-medium text-neutral-100">{r.customerName}</span>
-                    <span className="text-sky-300 text-xs">{r.table?.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[11px] px-2 py-0.5 rounded-full ${PAY_STATUS_BADGE[r.paymentStatus ?? 'aucun']}`}>
+                        {PAY_STATUS_LABEL[r.paymentStatus ?? 'aucun']}
+                      </span>
+                      <span className="text-sky-300 text-xs">{r.table?.name}</span>
+                    </div>
                   </div>
                   <div className="text-xs text-neutral-400 mt-0.5 flex items-center gap-1">
                     <Clock className="w-3 h-3" /> {formatDateTime(r.reservedAt)}
+                    {r.endAt ? ` → ${formatTime(r.endAt)}` : ''}
                     {r.partySize ? ` · ${r.partySize} pers.` : ''}
                   </div>
-                  <div className="flex gap-2 mt-2">
+                  {r.availableAgainAt && (
+                    <div className="text-[11px] text-neutral-500 mt-0.5">Table libre à {formatTime(r.availableAgainAt)} (nettoyage inclus)</div>
+                  )}
+                  {r.hasPreOrder && r.items && r.items.length > 0 && (
+                    <div className="text-[11px] text-neutral-400 mt-1 flex items-start gap-1">
+                      <Utensils className="w-3 h-3 mt-0.5 shrink-0" />
+                      <span>{r.items.map((it) => `${it.quantity}× ${it.dishName}`).join(', ')}</span>
+                    </div>
+                  )}
+                  {((r.totalAmount ?? 0) > 0 || (r.depositAmount ?? 0) > 0) && (
+                    <div className="text-[11px] text-neutral-400 mt-1">
+                      Total {formatFCFA(r.totalAmount ?? 0)} · Acompte {formatFCFA(r.depositAmount ?? 0)} ·{' '}
+                      <span className="text-gold-400 font-semibold">Reste {formatFCFA(r.remaining ?? Math.max(0, (r.totalAmount ?? 0) - (r.depositAmount ?? 0)))}</span>
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {canOrder && (
+                      <button onClick={() => openEditReservation(r)} className="text-xs bg-sky-500 hover:bg-sky-400 text-black font-semibold px-3 py-1 rounded-lg flex items-center gap-1">
+                        <Pencil className="w-3 h-3" /> Modifier
+                      </button>
+                    )}
                     <button onClick={() => honorRes(r.id)} className="text-xs bg-emerald-500 hover:bg-emerald-400 text-black font-semibold px-3 py-1 rounded-lg">
                       Honorée
                     </button>

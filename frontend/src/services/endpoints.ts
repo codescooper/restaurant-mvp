@@ -152,17 +152,34 @@ export const tableApi = {
   merge: (id: number, targetTableId: number) =>
     api.post(`/tables/${id}/merge`, { targetTableId }).then((r) => r.data.data),
   reservations: () => api.get('/tables/reservations').then((r) => r.data.data as Reservation[]),
-  createReservation: (data: {
-    tableId: number;
-    customerName: string;
-    customerPhone?: string;
-    partySize?: number;
-    reservedAt: string;
-    note?: string;
-  }) => api.post('/tables/reservations', data).then((r) => r.data.data as Reservation),
+  createReservation: (data: ReservationPayload) =>
+    api.post('/tables/reservations', data).then((r) => r.data.data as Reservation),
+  updateReservation: (id: number, data: ReservationPayload) =>
+    api.put(`/tables/reservations/${id}`, data).then((r) => r.data.data as Reservation),
   cancelReservation: (id: number) => api.patch(`/tables/reservations/${id}/cancel`).then((r) => r.data.data),
   honorReservation: (id: number) => api.patch(`/tables/reservations/${id}/honor`).then((r) => r.data.data),
 };
+
+export interface ReservationItemPayload {
+  dishId: number;
+  variantId?: number;
+  quantity: number;
+  notes?: string;
+}
+export interface ReservationPayload {
+  tableId?: number;
+  customerName?: string;
+  customerPhone?: string;
+  partySize?: number;
+  reservedAt?: string;
+  durationMinutes?: number;
+  note?: string;
+  hasPreOrder?: boolean;
+  items?: ReservationItemPayload[];
+  totalAmount?: number;
+  depositAmount?: number;
+  depositMethod?: string;
+}
 
 export const userApi = {
   list: () => api.get('/users').then((r) => r.data.data as User[]),
