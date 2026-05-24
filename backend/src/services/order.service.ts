@@ -28,6 +28,8 @@ const orderInclude = { items: true } as const;
 export interface OrderItemInput {
   dishId: number;
   variantId?: number;
+  // Prix saisi en caisse pour un plat à prix libre.
+  customPrice?: number;
   offered?: boolean;
   quantity: number;
   notes?: string;
@@ -81,6 +83,22 @@ export async function listOrders(statuses?: string[]) {
   });
 }
 
+// Résout le prix unitaire d'un plat à prix libre : montant exigé et validé contre les bornes.
+export function resolveLibrePrice(
+  dish: { name: string; priceMin: number | null; priceMax: number | null },
+  customPrice?: number
+): number {
+  if (customPrice == null) {
+    throw new AppError(400, 'VALIDATION_001', `Prix requis pour ${dish.name}`);
+  }
+  const min = dish.priceMin ?? 0;
+  const max = dish.priceMax ?? Number.MAX_SAFE_INTEGER;
+  if (customPrice < min || customPrice > max) {
+    throw new AppError(400, 'VALIDATION_001', `Prix de ${dish.name} hors limites (${min} – ${max})`);
+  }
+  return customPrice;
+}
+
 export function computeFinalTotal(total: number, discountAmount: number, discountPercent: number): number {
   let final = total;
   if (discountPercent > 0) {
@@ -109,13 +127,16 @@ export async function createOrder(input: CreateOrderInput, userId?: number, mark
     if (!dish) throw new AppError(404, 'DISH_001', `Plat ${item.dishId} introuvable`);
     if (!dish.isActive) throw new AppError(400, 'DISH_002', `${dish.name} indisponible`);
 
-    // Prix et recette : selon la variante choisie, sinon le plat lui-même.
+    // Prix et recette : prix libre saisi, sinon variante choisie, sinon le plat lui-même.
     let unitPrice = dish.price;
     let variantId: number | undefined;
     let variantName: string | undefined;
     let recipe: { stockItemId: number; quantityNeeded: number }[] = dish.ingredients;
     const activeVariants = dish.variants.filter((v) => v.isActive);
-    if (item.variantId) {
+    if (dish.priceType === 'libre') {
+      // Prix libre : re-validé contre les bornes (on ne fait pas confiance au prix envoyé par le client).
+      unitPrice = resolveLibrePrice(dish, item.customPrice);
+    } else if (item.variantId) {
       const variant = dish.variants.find((v) => v.id === item.variantId);
       if (!variant) throw new AppError(404, 'DISH_001', `Variante introuvable pour ${dish.name}`);
       if (!variant.isActive) throw new AppError(400, 'DISH_002', `${dish.name} (${variant.name}) indisponible`);

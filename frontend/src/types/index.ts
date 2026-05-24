@@ -22,11 +22,16 @@ export interface MenuVariant {
   available: boolean;
 }
 
+export type PriceType = 'fixe' | 'libre';
+
 export interface MenuDish {
   id: number;
   name: string;
   description?: string | null;
   price: number;
+  priceType?: PriceType;
+  priceMin?: number | null;
+  priceMax?: number | null;
   category?: string | null;
   imageUrl?: string | null;
   available: boolean;
@@ -37,7 +42,7 @@ export interface DishIngredient {
   id: number;
   stockItemId: number;
   quantityNeeded: number;
-  stockItem: { id: number; name: string; unit: string; quantity: number };
+  stockItem: { id: number; name: string; unit: string; quantity: number; unitCost?: number };
 }
 
 export interface DishVariant {
@@ -46,6 +51,7 @@ export interface DishVariant {
   price: number;
   isActive: boolean;
   sortOrder?: number;
+  costPrice?: number;
   ingredients: DishIngredient[];
 }
 
@@ -54,10 +60,14 @@ export interface Dish {
   name: string;
   description?: string | null;
   price: number;
+  priceType?: PriceType;
+  priceMin?: number | null;
+  priceMax?: number | null;
   category?: string | null;
   imageUrl?: string | null;
   isActive: boolean;
   preparationTime?: number | null;
+  costPrice?: number;
   ingredients: DishIngredient[];
   variants?: DishVariant[];
 }
@@ -68,6 +78,8 @@ export interface CartItem {
   variantName?: string;
   name: string;
   price: number;
+  // Renseigné pour les plats à prix libre (montant saisi en caisse) ; envoyé au backend.
+  customPrice?: number;
   quantity: number;
   notes?: string;
   offered?: boolean;
@@ -93,6 +105,7 @@ export interface StockItem {
   name: string;
   quantity: number;
   unit: string;
+  unitCost: number;
   alertThreshold: number;
   lastUpdated: string;
 }
@@ -212,6 +225,49 @@ export interface AppNotification {
   timestamp: string;
 }
 
+export type ContractType = 'CDI' | 'CDD' | 'extra' | 'stagiaire' | 'autre';
+export type SalaryPeriod = 'mensuel' | 'horaire' | 'journalier';
+export type SalaryPaymentMethod = 'espèces' | 'virement' | 'mobile_money';
+
+export interface Employee {
+  id: number;
+  firstName: string;
+  lastName: string;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  photoUrl?: string | null;
+  position?: string | null;
+  contractType?: ContractType | null;
+  hireDate?: string | null;
+  endDate?: string | null;
+  salary?: number | null;
+  salaryPeriod?: SalaryPeriod | null;
+  paymentMethod?: SalaryPaymentMethod | null;
+  emergencyContact?: string | null;
+  emergencyPhone?: string | null;
+  idNumber?: string | null;
+  notes?: string | null;
+  isActive: boolean;
+  userId?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+  user?: { id: number; username: string; role: string } | null;
+}
+
+export interface Expense {
+  id: number;
+  label: string;
+  category: string;
+  amount: number;
+  expenseDate: string;
+  paymentMethod?: string | null;
+  note?: string | null;
+  createdBy?: number | null;
+  createdAt: string;
+  creator?: { id: number; username: string } | null;
+}
+
 export interface Supplier {
   id: number;
   name: string;
@@ -310,6 +366,19 @@ export interface DashboardData {
   salesGrowth: number;
   ordersGrowth: number;
   ticketGrowth: number;
+  totalExpenses: number;
+  previousPeriodExpenses: number;
+  expensesGrowth: number;
+  foodCost: number;
+  foodCostPct: number;
+  grossMargin: number;
+  grossMarginPct: number;
+  lossValue: number;
+  netProfit: number;
+  previousNetProfit: number;
+  profitGrowth: number;
+  expensesByCategory: { category: string; amount: number }[];
+  dishMargins: { name: string; cost: number; price: number; marginPct: number }[];
   salesByHour: { hour: string; amount: number; orders: number }[];
   topDishes: { name: string; quantity: number; revenue: number; percentage: number }[];
   paymentMethods: { method: string; count: number; amount: number; percentage: number }[];

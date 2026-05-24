@@ -17,6 +17,8 @@ import {
   Purchase,
   Inventory,
   Promotion,
+  Employee,
+  Expense,
 } from '../types';
 
 export interface VariantInput {
@@ -30,6 +32,9 @@ export interface DishInput {
   name: string;
   description?: string;
   price: number;
+  priceType?: 'fixe' | 'libre';
+  priceMin?: number;
+  priceMax?: number;
   category?: string;
   preparationTime?: number;
   isActive?: boolean;
@@ -45,7 +50,7 @@ export interface PaymentInput {
 }
 
 export interface CreateOrderPayload {
-  items: { dishId: number; variantId?: number; offered?: boolean; quantity: number; notes?: string }[];
+  items: { dishId: number; variantId?: number; customPrice?: number; offered?: boolean; quantity: number; notes?: string }[];
   couponCode?: string;
   discountAmount: number;
   discountPercent: number;
@@ -167,6 +172,53 @@ export const userApi = {
     api.put(`/users/${id}`, data).then((r) => r.data.data as User),
   toggle: (id: number) => api.patch(`/users/${id}/toggle-active`).then((r) => r.data.data as User),
   remove: (id: number) => api.delete(`/users/${id}`).then((r) => r.data.data),
+};
+
+export interface EmployeeInput {
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  photoUrl?: string;
+  position?: string;
+  contractType?: string;
+  hireDate?: string;
+  endDate?: string;
+  salary?: number;
+  salaryPeriod?: string;
+  paymentMethod?: string;
+  emergencyContact?: string;
+  emergencyPhone?: string;
+  idNumber?: string;
+  notes?: string;
+  isActive?: boolean;
+  userId?: number | null;
+}
+
+export const employeeApi = {
+  list: () => api.get('/employees').then((r) => r.data.data as Employee[]),
+  get: (id: number) => api.get(`/employees/${id}`).then((r) => r.data.data as Employee),
+  create: (data: EmployeeInput) => api.post('/employees', data).then((r) => r.data.data as Employee),
+  update: (id: number, data: EmployeeInput) => api.put(`/employees/${id}`, data).then((r) => r.data.data as Employee),
+  remove: (id: number) => api.delete(`/employees/${id}`).then((r) => r.data.data),
+};
+
+export interface ExpenseInput {
+  label: string;
+  category: string;
+  amount: number;
+  expenseDate: string;
+  paymentMethod?: string;
+  note?: string;
+}
+
+export const expenseApi = {
+  list: (category?: string) =>
+    api.get('/expenses', { params: category ? { category } : {} }).then((r) => r.data.data as Expense[]),
+  create: (data: ExpenseInput) => api.post('/expenses', data).then((r) => r.data.data as Expense),
+  update: (id: number, data: ExpenseInput) => api.put(`/expenses/${id}`, data).then((r) => r.data.data as Expense),
+  remove: (id: number) => api.delete(`/expenses/${id}`).then((r) => r.data.data),
 };
 
 export const statsApi = {

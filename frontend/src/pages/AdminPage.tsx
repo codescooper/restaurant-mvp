@@ -21,42 +21,21 @@ import {
   TriangleAlert,
   Tag,
   ImagePlus,
+  Briefcase,
+  Wallet,
 } from 'lucide-react';
 import { stockApi, dishApi, userApi, cashApi, auditApi, orderApi } from '../services/endpoints';
 import { getApiError } from '../services/api';
 import { StockItem, Dish, User, Role, CashSessionSummary, AuditLogEntry } from '../types';
 import { formatFCFA, formatDateTime } from '../utils/format';
+import { compressImage } from '../utils/image';
 import SuppliersTab from './admin/SuppliersTab';
 import InventoryTab from './admin/InventoryTab';
 import PromotionsTab from './admin/PromotionsTab';
+import EmployeesTab from './admin/EmployeesTab';
+import ExpensesTab from './admin/ExpensesTab';
 
-// Redimensionne et compresse une image côté navigateur en data URL JPEG (stockée en base, sans service externe).
-function compressImage(file: File, maxSize = 500, quality = 0.7): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Lecture du fichier impossible'));
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = () => reject(new Error('Image invalide'));
-      img.onload = () => {
-        const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
-        const w = Math.round(img.width * scale);
-        const h = Math.round(img.height * scale);
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return reject(new Error('Canvas indisponible'));
-        ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      };
-      img.src = reader.result as string;
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-type Tab = 'stock' | 'menu' | 'users' | 'caisse' | 'journal' | 'fournisseurs' | 'inventaire' | 'promotions';
+type Tab = 'stock' | 'menu' | 'users' | 'employes' | 'depenses' | 'caisse' | 'journal' | 'fournisseurs' | 'inventaire' | 'promotions';
 type CrudTab = 'stock' | 'menu' | 'users';
 
 const LOSS_CAUSES: { value: string; label: string }[] = [
@@ -76,6 +55,12 @@ const AUDIT_LABEL: Record<string, string> = {
   annulation: 'Annulation',
   remboursement: 'Remboursement',
   correction_commande: 'Correction',
+  employe_creation: 'Employé créé',
+  employe_modification: 'Employé modifié',
+  employe_suppression: 'Employé supprimé',
+  depense_creation: 'Dépense ajoutée',
+  depense_modification: 'Dépense modifiée',
+  depense_suppression: 'Dépense supprimée',
 };
 const AUDIT_BADGE: Record<string, string> = {
   remboursement: 'bg-rose-500/15 text-rose-300',
@@ -85,6 +70,12 @@ const AUDIT_BADGE: Record<string, string> = {
   fermeture_caisse: 'bg-purple-500/15 text-purple-300',
   paiement: 'bg-sky-500/15 text-sky-300',
   ouverture_tiroir: 'bg-neutral-800 text-neutral-200',
+  employe_creation: 'bg-emerald-500/15 text-emerald-300',
+  employe_modification: 'bg-gold-400/15 text-gold-300',
+  employe_suppression: 'bg-rose-500/15 text-rose-300',
+  depense_creation: 'bg-rose-500/15 text-rose-300',
+  depense_modification: 'bg-gold-400/15 text-gold-300',
+  depense_suppression: 'bg-rose-500/15 text-rose-300',
 };
 const UNITS = ['kg', 'litre', 'unité', 'gramme', 'ml'];
 const CATEGORIES = ['Entrée', 'Plat', 'Dessert', 'Boisson'];
@@ -185,8 +176,8 @@ export default function AdminPage() {
     setEditing(null);
     setIngredients([]);
     setVariants([]);
-    if (t === 'stock') setForm({ name: '', quantity: 0, unit: 'kg', alertThreshold: 10 });
-    if (t === 'menu') setForm({ name: '', description: '', price: 0, category: 'Plat', isActive: true, imageUrl: '' });
+    if (t === 'stock') setForm({ name: '', quantity: 0, unit: 'kg', unitCost: 0, alertThreshold: 10 });
+    if (t === 'menu') setForm({ name: '', description: '', price: 0, priceType: 'fixe', priceMin: 0, priceMax: 0, category: 'Plat', isActive: true, imageUrl: '' });
     if (t === 'users') setForm({ username: '', password: '', role: 'caissier' });
   };
 
@@ -195,11 +186,11 @@ export default function AdminPage() {
     setEditing(item);
     if (t === 'stock') {
       const s = item as StockItem;
-      setForm({ name: s.name, quantity: s.quantity, unit: s.unit, alertThreshold: s.alertThreshold });
+      setForm({ name: s.name, quantity: s.quantity, unit: s.unit, unitCost: s.unitCost, alertThreshold: s.alertThreshold });
     }
     if (t === 'menu') {
       const d = item as Dish;
-      setForm({ name: d.name, description: d.description ?? '', price: d.price, category: d.category ?? 'Plat', isActive: d.isActive, imageUrl: d.imageUrl ?? '' });
+      setForm({ name: d.name, description: d.description ?? '', price: d.price, priceType: d.priceType ?? 'fixe', priceMin: d.priceMin ?? 0, priceMax: d.priceMax ?? 0, category: d.category ?? 'Plat', isActive: d.isActive, imageUrl: d.imageUrl ?? '' });
       setIngredients(d.ingredients.map((i) => ({ stockItemId: i.stockItemId, quantityNeeded: i.quantityNeeded })));
       setVariants(
         (d.variants ?? []).map((v) => ({
@@ -231,27 +222,35 @@ export default function AdminPage() {
           name: String(form.name),
           quantity: Number(form.quantity),
           unit: String(form.unit),
+          unitCost: Number(form.unitCost) || 0,
           alertThreshold: Number(form.alertThreshold),
         };
         if (editing) await stockApi.update((editing as StockItem).id, payload);
         else await stockApi.create(payload);
         await loadStock();
       } else if (modal === 'menu') {
+        const isLibre = form.priceType === 'libre';
         const payload = {
           name: String(form.name),
           description: String(form.description),
           price: Number(form.price),
+          priceType: (isLibre ? 'libre' : 'fixe') as 'fixe' | 'libre',
+          priceMin: isLibre ? Number(form.priceMin) || 0 : undefined,
+          priceMax: isLibre ? Number(form.priceMax) || 0 : undefined,
           category: String(form.category),
           isActive: Boolean(form.isActive),
           imageUrl: form.imageUrl !== undefined ? String(form.imageUrl ?? '') : undefined,
           ingredients: ingredients.filter((i) => i.stockItemId && i.quantityNeeded > 0),
-          variants: variants
-            .filter((v) => v.name.trim())
-            .map((v) => ({
-              name: v.name.trim(),
-              price: Number(v.price) || 0,
-              ingredients: v.ingredients.filter((i) => i.stockItemId && i.quantityNeeded > 0),
-            })),
+          // Prix libre et variantes sont exclusifs : on n'envoie pas de variantes en mode libre.
+          variants: isLibre
+            ? []
+            : variants
+                .filter((v) => v.name.trim())
+                .map((v) => ({
+                  name: v.name.trim(),
+                  price: Number(v.price) || 0,
+                  ingredients: v.ingredients.filter((i) => i.stockItemId && i.quantityNeeded > 0),
+                })),
         };
         if (editing) await dishApi.update((editing as Dish).id, payload);
         else await dishApi.create(payload);
@@ -321,6 +320,8 @@ export default function AdminPage() {
     { id: 'stock', label: 'Stock', icon: Package },
     { id: 'menu', label: 'Menu', icon: UtensilsCrossed },
     { id: 'users', label: 'Utilisateurs', icon: Users },
+    { id: 'employes', label: 'Employés', icon: Briefcase },
+    { id: 'depenses', label: 'Dépenses', icon: Wallet },
     { id: 'fournisseurs', label: 'Fournisseurs', icon: Truck },
     { id: 'inventaire', label: 'Inventaire', icon: ClipboardCheck },
     { id: 'promotions', label: 'Promotions', icon: Tag },
@@ -394,6 +395,7 @@ export default function AdminPage() {
                 <th className="text-left p-3">Article</th>
                 <th className="text-left p-3">Quantité</th>
                 <th className="text-left p-3">Unité</th>
+                <th className="text-right p-3">Prix d'achat</th>
                 <th className="text-left p-3">Seuil</th>
                 <th className="text-left p-3">Statut</th>
                 <th className="text-right p-3">Actions</th>
@@ -407,6 +409,9 @@ export default function AdminPage() {
                     <td className="p-3 font-medium">{item.name}</td>
                     <td className={`p-3 font-bold ${low ? 'text-rose-400' : 'text-emerald-400'}`}>{item.quantity}</td>
                     <td className="p-3">{item.unit}</td>
+                    <td className="p-3 text-right whitespace-nowrap text-neutral-300">
+                      {item.unitCost ? `${formatFCFA(item.unitCost)}/${item.unit}` : '—'}
+                    </td>
                     <td className="p-3">{item.alertThreshold}</td>
                     <td className="p-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs ${low ? 'bg-rose-500/15 text-rose-300' : 'bg-emerald-500/15 text-emerald-300'}`}>
@@ -454,7 +459,32 @@ export default function AdminPage() {
                     </span>
                   </div>
                   <p className="text-neutral-400 text-sm mt-1">{dish.description}</p>
-                  <p className="text-2xl font-bold text-gold-400 mt-1">{formatFCFA(dish.price)}</p>
+                  {dish.priceType === 'libre' ? (
+                    <p className="text-2xl font-bold text-gold-400 mt-1">
+                      Prix libre
+                      <span className="ml-2 text-sm font-normal text-neutral-400">
+                        {formatFCFA(dish.priceMin ?? 0)} – {formatFCFA(dish.priceMax ?? 0)}
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="text-2xl font-bold text-gold-400 mt-1">{formatFCFA(dish.price)}</p>
+                  )}
+                  {dish.priceType !== 'libre' && (!dish.variants || dish.variants.length === 0) && (() => {
+                    const cost = dish.costPrice ?? 0;
+                    const margin = dish.price - cost;
+                    const pct = dish.price ? Math.round((margin / dish.price) * 100) : 0;
+                    const color = pct >= 60 ? 'text-emerald-400' : pct >= 40 ? 'text-gold-400' : 'text-rose-400';
+                    return (
+                      <p className="text-sm mt-1">
+                        <span className="text-neutral-400">Coût {formatFCFA(cost)}</span>
+                        <span className="mx-1 text-neutral-600">·</span>
+                        <span className={color}>Marge {formatFCFA(margin)} ({pct}%)</span>
+                      </p>
+                    );
+                  })()}
+                  {dish.priceType === 'libre' && (dish.costPrice ?? 0) > 0 && (
+                    <p className="text-sm mt-1 text-neutral-400">Coût de revient {formatFCFA(dish.costPrice ?? 0)}</p>
+                  )}
                 </div>
                 <div className="flex gap-1">
                   <button onClick={() => toggleDish(dish.id)} className="p-1.5 text-neutral-300 hover:bg-neutral-800 rounded">
@@ -483,9 +513,31 @@ export default function AdminPage() {
                       <span>{ing.stockItem.name}</span>
                       <span className="text-neutral-400">
                         {ing.quantityNeeded} {ing.stockItem.unit}
+                        {ing.stockItem.unitCost ? ` · ${formatFCFA(Math.round(ing.quantityNeeded * ing.stockItem.unitCost))}` : ''}
                       </span>
                     </div>
                   ))}
+                  {dish.variants && dish.variants.length > 0 ? (
+                    <div className="border-t border-neutral-800 mt-2 pt-2 space-y-1">
+                      {dish.variants.map((v) => {
+                        const cost = v.costPrice ?? 0;
+                        const pct = v.price ? Math.round(((v.price - cost) / v.price) * 100) : 0;
+                        return (
+                          <div key={v.id} className="flex justify-between">
+                            <span className="text-neutral-300">{v.name}</span>
+                            <span className="text-neutral-400">
+                              Coût {formatFCFA(cost)} · Vente {formatFCFA(v.price)} · Marge {pct}%
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="border-t border-neutral-800 mt-2 pt-2 flex justify-between font-medium">
+                      <span className="text-neutral-300">Coût de revient</span>
+                      <span className="text-gold-400">{formatFCFA(dish.costPrice ?? 0)}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -641,6 +693,10 @@ export default function AdminPage() {
       )}
 
       {/* FOURNISSEURS */}
+      {tab === 'employes' && <EmployeesTab />}
+
+      {tab === 'depenses' && <ExpensesTab />}
+
       {tab === 'fournisseurs' && <SuppliersTab />}
 
       {/* INVENTAIRE */}
@@ -807,6 +863,10 @@ export default function AdminPage() {
                     {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
                   </select>
                 </Field>
+                <Field label={`Prix d'achat (FCFA / ${String(form.unit ?? 'unité')})`}>
+                  <input type="number" min="0" step="0.01" className="input" value={Number(form.unitCost ?? 0)} onChange={(e) => setForm({ ...form, unitCost: e.target.value })} />
+                  <p className="text-xs text-neutral-500 mt-1">Coût par unité, sert au calcul du coût de revient des plats.</p>
+                </Field>
                 <Field label="Seuil d'alerte">
                   <input type="number" className="input" value={Number(form.alertThreshold ?? 0)} onChange={(e) => setForm({ ...form, alertThreshold: e.target.value })} />
                 </Field>
@@ -821,9 +881,25 @@ export default function AdminPage() {
                 <Field label="Description">
                   <textarea className="input" value={String(form.description ?? '')} onChange={(e) => setForm({ ...form, description: e.target.value })} />
                 </Field>
-                <Field label="Prix (FCFA)">
+                <Field label={form.priceType === 'libre' ? 'Prix par défaut suggéré (FCFA)' : 'Prix (FCFA)'}>
                   <input type="number" className="input" value={Number(form.price ?? 0)} onChange={(e) => setForm({ ...form, price: e.target.value })} />
                 </Field>
+                <Field label="Type de prix">
+                  <select className="input" value={String(form.priceType ?? 'fixe')} onChange={(e) => setForm({ ...form, priceType: e.target.value })}>
+                    <option value="fixe">Prix fixe</option>
+                    <option value="libre">Prix libre (le caissier saisit entre min et max)</option>
+                  </select>
+                </Field>
+                {form.priceType === 'libre' && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Prix minimum (FCFA)">
+                      <input type="number" className="input" value={Number(form.priceMin ?? 0)} onChange={(e) => setForm({ ...form, priceMin: e.target.value })} />
+                    </Field>
+                    <Field label="Prix maximum (FCFA)">
+                      <input type="number" className="input" value={Number(form.priceMax ?? 0)} onChange={(e) => setForm({ ...form, priceMax: e.target.value })} />
+                    </Field>
+                  </div>
+                )}
                 <Field label="Catégorie">
                   <select className="input" value={String(form.category ?? 'Plat')} onChange={(e) => setForm({ ...form, category: e.target.value })}>
                     {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -914,7 +990,8 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* Déclinaisons / variantes (optionnel) */}
+                {/* Déclinaisons / variantes (optionnel) — incompatibles avec un prix libre */}
+                {form.priceType !== 'libre' && (
                 <div>
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-sm font-medium text-neutral-200">Déclinaisons (optionnel)</span>
@@ -1028,6 +1105,7 @@ export default function AdminPage() {
                     )}
                   </div>
                 </div>
+                )}
               </div>
             )}
 

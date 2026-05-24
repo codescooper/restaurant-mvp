@@ -23,6 +23,7 @@ export async function createStock(data: {
   name: string;
   quantity: number;
   unit: StockUnit;
+  unitCost?: number;
   alertThreshold: number;
 }) {
   return prisma.stockItem.create({
@@ -30,6 +31,7 @@ export async function createStock(data: {
       name: data.name,
       quantity: roundQty(data.quantity),
       unit: data.unit,
+      unitCost: data.unitCost ?? 0,
       alertThreshold: roundQty(data.alertThreshold),
     },
   });
@@ -37,7 +39,7 @@ export async function createStock(data: {
 
 export async function updateStock(
   id: number,
-  data: { name?: string; quantity?: number; unit?: StockUnit; alertThreshold?: number }
+  data: { name?: string; quantity?: number; unit?: StockUnit; unitCost?: number; alertThreshold?: number }
 ) {
   await getStock(id);
   return prisma.stockItem.update({
@@ -46,6 +48,7 @@ export async function updateStock(
       ...(data.name !== undefined ? { name: data.name } : {}),
       ...(data.quantity !== undefined ? { quantity: roundQty(data.quantity) } : {}),
       ...(data.unit !== undefined ? { unit: data.unit } : {}),
+      ...(data.unitCost !== undefined ? { unitCost: data.unitCost } : {}),
       ...(data.alertThreshold !== undefined ? { alertThreshold: roundQty(data.alertThreshold) } : {}),
       lastUpdated: new Date(),
     },

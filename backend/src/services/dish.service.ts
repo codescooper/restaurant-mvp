@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { AppError } from '../utils/errors';
 import { DishCategory } from '../constants';
@@ -19,6 +20,9 @@ interface DishInput {
   name: string;
   description?: string;
   price: number;
+  priceType?: 'fixe' | 'libre';
+  priceMin?: number;
+  priceMax?: number;
   category?: DishCategory;
   preparationTime?: number;
   isActive?: boolean;
@@ -27,7 +31,7 @@ interface DishInput {
   variants?: VariantInput[];
 }
 
-const stockSelect = { select: { id: true, name: true, unit: true, quantity: true } } as const;
+const stockSelect = { select: { id: true, name: true, unit: true, quantity: true, unitCost: true } } as const;
 const dishInclude = {
   ingredients: { include: { stockItem: stockSelect } },
   variants: {
@@ -36,14 +40,31 @@ const dishInclude = {
   },
 } as const;
 
+type DishPayload = Prisma.DishGetPayload<{ include: typeof dishInclude }>;
+
+// Coût de revient d'une recette = Σ (quantité d'ingrédient × coût unitaire), arrondi au FCFA.
+function recipeCost(ingredients: { quantityNeeded: number; stockItem: { unitCost: number } }[]): number {
+  return Math.round(ingredients.reduce((s, i) => s + i.quantityNeeded * (i.stockItem?.unitCost ?? 0), 0));
+}
+
+// Annote un plat (et ses variantes) de son coût de revient calculé.
+function withCost(dish: DishPayload) {
+  return {
+    ...dish,
+    costPrice: recipeCost(dish.ingredients),
+    variants: dish.variants.map((v) => ({ ...v, costPrice: recipeCost(v.ingredients) })),
+  };
+}
+
 export async function listDishes() {
-  return prisma.dish.findMany({ orderBy: { name: 'asc' }, include: dishInclude });
+  const dishes = await prisma.dish.findMany({ orderBy: { name: 'asc' }, include: dishInclude });
+  return dishes.map(withCost);
 }
 
 export async function getDish(id: number) {
   const dish = await prisma.dish.findUnique({ where: { id }, include: dishInclude });
   if (!dish) throw new AppError(404, 'DISH_001');
-  return dish;
+  return withCost(dish);
 }
 
 // Disponibilite : actif ET stock suffisant pour la quantite demandee (§13.1 regle 3).
@@ -90,6 +111,9 @@ export async function listMenuWithAvailability() {
       name: dish.name,
       description: dish.description,
       price: dish.price,
+      priceType: dish.priceType,
+      priceMin: dish.priceMin,
+      priceMax: dish.priceMax,
       category: dish.category,
       imageUrl: dish.imageUrl,
       available,
@@ -111,11 +135,15 @@ function variantCreateData(variants: VariantInput[]) {
 }
 
 export async function createDish(data: DishInput) {
+  const isLibre = data.priceType === 'libre';
   return prisma.dish.create({
     data: {
       name: data.name,
       description: data.description,
       price: data.price,
+      priceType: data.priceType ?? 'fixe',
+      priceMin: isLibre ? data.priceMin ?? null : null,
+      priceMax: isLibre ? data.priceMax ?? null : null,
       category: data.category,
       preparationTime: data.preparationTime,
       isActive: data.isActive ?? true,
@@ -123,7 +151,8 @@ export async function createDish(data: DishInput) {
       ingredients: data.ingredients
         ? { create: data.ingredients.map((i) => ({ stockItemId: i.stockItemId, quantityNeeded: i.quantityNeeded })) }
         : undefined,
-      variants: data.variants ? { create: variantCreateData(data.variants) } : undefined,
+      // Un plat à prix libre n'a pas de variantes.
+      variants: !isLibre && data.variants ? { create: variantCreateData(data.variants) } : undefined,
     },
     include: dishInclude,
   });
@@ -138,7 +167,10 @@ export async function updateDish(id: number, data: DishInput) {
         data: data.ingredients.map((i) => ({ dishId: id, stockItemId: i.stockItemId, quantityNeeded: i.quantityNeeded })),
       });
     }
-    if (data.variants) {
+    if (data.priceType === 'libre') {
+      // Bascule en prix libre : on retire toute variante (incompatible).
+      await tx.dishVariant.deleteMany({ where: { dishId: id } });
+    } else if (data.variants) {
       // Remplace les variantes (les anciennes commandes gardent variantName ; variantId passe à null).
       await tx.dishVariant.deleteMany({ where: { dishId: id } });
       for (const [idx, v] of data.variants.entries()) {
@@ -162,6 +194,13 @@ export async function updateDish(id: number, data: DishInput) {
         ...(data.name !== undefined ? { name: data.name } : {}),
         ...(data.description !== undefined ? { description: data.description } : {}),
         ...(data.price !== undefined ? { price: data.price } : {}),
+        ...(data.priceType !== undefined
+          ? {
+              priceType: data.priceType,
+              priceMin: data.priceType === 'libre' ? data.priceMin ?? null : null,
+              priceMax: data.priceType === 'libre' ? data.priceMax ?? null : null,
+            }
+          : {}),
         ...(data.category !== undefined ? { category: data.category } : {}),
         ...(data.preparationTime !== undefined ? { preparationTime: data.preparationTime } : {}),
         ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),

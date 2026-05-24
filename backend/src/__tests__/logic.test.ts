@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeFinalTotal, formatOrderNumber } from '../services/order.service';
+import { computeFinalTotal, formatOrderNumber, resolveLibrePrice } from '../services/order.service';
 import { roundQty } from '../services/stock.service';
 import { computeDiscrepancy } from '../services/cash.service';
 import { evaluateManagerApproval } from '../services/settings.service';
@@ -17,6 +17,26 @@ describe('computeFinalTotal', () => {
   });
   it('sans réduction', () => {
     expect(computeFinalTotal(3000, 0, 0)).toBe(3000);
+  });
+});
+
+describe('resolveLibrePrice (plat à prix libre)', () => {
+  const dish = { name: 'Poisson du jour', priceMin: 2000, priceMax: 6000 };
+  it('accepte un prix dans les bornes', () => {
+    expect(resolveLibrePrice(dish, 3500)).toBe(3500);
+  });
+  it('accepte les valeurs aux bornes (inclusives)', () => {
+    expect(resolveLibrePrice(dish, 2000)).toBe(2000);
+    expect(resolveLibrePrice(dish, 6000)).toBe(6000);
+  });
+  it('refuse un prix sous le minimum', () => {
+    expect(() => resolveLibrePrice(dish, 1500)).toThrowError(/hors limites/);
+  });
+  it('refuse un prix au-dessus du maximum', () => {
+    expect(() => resolveLibrePrice(dish, 9000)).toThrowError(/hors limites/);
+  });
+  it('refuse un prix manquant', () => {
+    expect(() => resolveLibrePrice(dish, undefined)).toThrowError(/Prix requis/);
   });
 });
 

@@ -9,6 +9,11 @@ import {
   Download,
   Calendar,
   Coins,
+  Wallet,
+  PiggyBank,
+  Boxes,
+  TriangleAlert,
+  Utensils,
 } from 'lucide-react';
 import { useClock } from '../hooks/useClock';
 import { useWebSocket } from '../contexts/WebSocketContext';
@@ -84,6 +89,8 @@ export default function DashboardPage() {
   const maxSale = data ? Math.max(1, ...data.salesByHour.map((s) => s.amount)) : 1;
   const maxDishRevenue = data ? Math.max(1, ...data.topDishes.map((d) => d.revenue)) : 1;
   const maxTipServer = data && data.tips.byServer.length ? Math.max(1, ...data.tips.byServer.map((s) => s.amount)) : 1;
+  const maxExpenseCat = data && data.expensesByCategory.length ? Math.max(1, ...data.expensesByCategory.map((c) => c.amount)) : 1;
+  const catLabel = (c: string) => c.charAt(0).toUpperCase() + c.slice(1).replace(/_/g, ' ');
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-black text-neutral-200 max-w-7xl mx-auto p-4">
@@ -155,6 +162,52 @@ export default function DashboardPage() {
               label="Heure de pointe"
               value={data.peakHour}
               sub={formatFCFA(data.peakHourSales)}
+            />
+            <KpiCard
+              icon={<Wallet className="w-5 h-5 text-rose-400" />}
+              iconBg="bg-rose-500/15"
+              border="border-rose-500"
+              label="Dépenses"
+              value={formatFCFA(data.totalExpenses)}
+              growth={data.expensesGrowth}
+              sub={`précédent : ${formatFCFA(data.previousPeriodExpenses)}`}
+            />
+            <KpiCard
+              icon={<PiggyBank className={`w-5 h-5 ${data.netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} />}
+              iconBg={data.netProfit >= 0 ? 'bg-emerald-500/15' : 'bg-rose-500/15'}
+              border={data.netProfit >= 0 ? 'border-green-500' : 'border-rose-500'}
+              label="Bénéfice net"
+              value={formatFCFA(data.netProfit)}
+              growth={data.profitGrowth}
+              sub="ventes − coût matière − pertes − charges"
+            />
+          </div>
+
+          {/* Rentabilité : coût matière, marge brute, pertes valorisées */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+            <KpiCard
+              icon={<Boxes className="w-5 h-5 text-sky-400" />}
+              iconBg="bg-sky-500/15"
+              border="border-sky-500"
+              label="Coût matière (ingrédients vendus)"
+              value={formatFCFA(data.foodCost)}
+              sub={`${data.foodCostPct}% des ventes`}
+            />
+            <KpiCard
+              icon={<TrendingUp className="w-5 h-5 text-emerald-400" />}
+              iconBg="bg-emerald-500/15"
+              border="border-green-500"
+              label="Marge brute (ventes − coût matière)"
+              value={formatFCFA(data.grossMargin)}
+              sub={`${data.grossMarginPct}% des ventes`}
+            />
+            <KpiCard
+              icon={<TriangleAlert className="w-5 h-5 text-orange-400" />}
+              iconBg="bg-orange-500/15"
+              border="border-orange-500"
+              label="Pertes (valorisées)"
+              value={formatFCFA(data.lossValue)}
+              sub="gaspillage / casse sur la période"
             />
           </div>
 
@@ -279,6 +332,73 @@ export default function DashboardPage() {
               ))}
               {data.salesByChannel.length === 0 && <p className="text-neutral-500 text-sm">Aucune donnée</p>}
             </div>
+          </div>
+
+          {/* Dépenses par catégorie */}
+          <div className="bg-neutral-950 rounded-xl shadow p-4 mb-4">
+            <div className="flex items-center gap-2 mb-4">
+              <Wallet className="w-5 h-5 text-rose-400" />
+              <h2 className="font-bold text-neutral-100">Dépenses par catégorie</h2>
+              <span className="ml-auto text-rose-400 font-bold">{formatFCFA(data.totalExpenses)}</span>
+            </div>
+            {data.expensesByCategory.length === 0 ? (
+              <p className="text-neutral-500 text-sm">Aucune dépense sur la période</p>
+            ) : (
+              <div className="space-y-3">
+                {data.expensesByCategory.map((c) => (
+                  <div key={c.category}>
+                    <div className="flex justify-between text-sm">
+                      <span>{catLabel(c.category)}</span>
+                      <span className="text-neutral-300 font-semibold">{formatFCFA(c.amount)}</span>
+                    </div>
+                    <div className="h-2 bg-neutral-800 rounded-full overflow-hidden mt-1">
+                      <div className="h-full bg-rose-500/80 rounded-full" style={{ width: `${(c.amount / maxExpenseCat) * 100}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Marge par plat (rentabilité) */}
+          <div className="bg-neutral-950 rounded-xl shadow p-4 mb-4">
+            <div className="flex items-center gap-2 mb-4">
+              <Utensils className="w-5 h-5 text-gold-400" />
+              <h2 className="font-bold text-neutral-100">Marge par plat</h2>
+              <span className="ml-auto text-xs text-neutral-500">triés du moins au plus rentable</span>
+            </div>
+            {data.dishMargins.length === 0 ? (
+              <p className="text-neutral-500 text-sm">Renseigne le prix d'achat des ingrédients pour voir les marges.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-neutral-400">
+                    <tr>
+                      <th className="text-left py-1">Plat</th>
+                      <th className="text-right py-1">Coût</th>
+                      <th className="text-right py-1">Vente</th>
+                      <th className="text-right py-1">Marge</th>
+                      <th className="text-right py-1">%</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.dishMargins.map((d) => {
+                      const margin = d.price - d.cost;
+                      const color = d.marginPct >= 60 ? 'text-emerald-400' : d.marginPct >= 40 ? 'text-gold-400' : 'text-rose-400';
+                      return (
+                        <tr key={d.name} className="border-t border-neutral-900">
+                          <td className="py-1.5 text-neutral-200">{d.name}</td>
+                          <td className="py-1.5 text-right text-neutral-400">{formatFCFA(d.cost)}</td>
+                          <td className="py-1.5 text-right text-neutral-400">{formatFCFA(d.price)}</td>
+                          <td className={`py-1.5 text-right font-medium ${color}`}>{formatFCFA(margin)}</td>
+                          <td className={`py-1.5 text-right font-bold ${color}`}>{d.marginPct}%</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* Pourboires (hors chiffre d'affaires) */}

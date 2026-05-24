@@ -39,13 +39,9 @@ function getRange(period: Period): Range {
 
 const NON_CANCELLED = { status: { not: 'annulée' } };
 
-async function sumSales(start: Date, end: Date) {
-  const result = await prisma.order.aggregate({
-    _sum: { finalTotal: true },
-    _count: true,
-    where: { ...NON_CANCELLED, createdAt: { gte: start, lt: end } },
-  });
-  return { total: result._sum.finalTotal ?? 0, count: result._count };
+// Coût de revient d'une recette = Σ (quantité × coût unitaire de l'ingrédient), arrondi au FCFA.
+function recipeCost(ings: { quantityNeeded: number; stockItem: { unitCost: number } }[]): number {
+  return Math.round(ings.reduce((s, i) => s + i.quantityNeeded * (i.stockItem?.unitCost ?? 0), 0));
 }
 
 function growth(current: number, previous: number): number {
@@ -63,7 +59,76 @@ export async function getDashboard(period: Period) {
   });
 
   const current = { total: orders.reduce((s, o) => s + o.finalTotal, 0), count: orders.length };
-  const previous = await sumSales(prevStart, prevEnd);
+
+  // Coûts de revient (recettes & coûts unitaires actuels), dépenses, pertes — pour la rentabilité.
+  const [stockItems, dishesForCost, prevOrders, expenseSum, prevExpenseSum, expenseByCat, lossMovements, prevLossMovements] =
+    await Promise.all([
+      prisma.stockItem.findMany({ select: { id: true, unitCost: true } }),
+      prisma.dish.findMany({
+        include: {
+          ingredients: { include: { stockItem: { select: { unitCost: true } } } },
+          variants: { include: { ingredients: { include: { stockItem: { select: { unitCost: true } } } } } },
+        },
+      }),
+      prisma.order.findMany({ where: { ...NON_CANCELLED, createdAt: { gte: prevStart, lt: prevEnd } }, include: { items: true } }),
+      prisma.expense.aggregate({ _sum: { amount: true }, where: { expenseDate: { gte: start, lt: end } } }),
+      prisma.expense.aggregate({ _sum: { amount: true }, where: { expenseDate: { gte: prevStart, lt: prevEnd } } }),
+      prisma.expense.groupBy({ by: ['category'], _sum: { amount: true }, where: { expenseDate: { gte: start, lt: end } } }),
+      prisma.stockMovement.findMany({ where: { movementType: 'perte', createdAt: { gte: start, lt: end } }, select: { quantity: true, stockItemId: true } }),
+      prisma.stockMovement.findMany({ where: { movementType: 'perte', createdAt: { gte: prevStart, lt: prevEnd } }, select: { quantity: true, stockItemId: true } }),
+    ]);
+
+  const stockCost = new Map(stockItems.map((s) => [s.id, s.unitCost]));
+  const dishCost = new Map<number, number>();
+  const variantCost = new Map<number, number>();
+  for (const d of dishesForCost) {
+    dishCost.set(d.id, recipeCost(d.ingredients));
+    for (const v of d.variants) variantCost.set(v.id, recipeCost(v.ingredients));
+  }
+  // Coût matière (COGS) = coût de revient des plats/variantes réellement vendus (offerts inclus : la matière est consommée).
+  const cogsOf = (list: { items: { variantId: number | null; dishId: number; quantity: number }[] }[]) =>
+    list.reduce(
+      (sum, o) => sum + o.items.reduce((s, it) => s + (it.variantId ? variantCost.get(it.variantId) ?? 0 : dishCost.get(it.dishId) ?? 0) * it.quantity, 0),
+      0
+    );
+  const lossOf = (movs: { quantity: number; stockItemId: number }[]) =>
+    Math.round(movs.reduce((s, m) => s + Math.abs(m.quantity) * (stockCost.get(m.stockItemId) ?? 0), 0));
+
+  const previous = { total: prevOrders.reduce((s, o) => s + o.finalTotal, 0), count: prevOrders.length };
+
+  const cogs = cogsOf(orders);
+  const prevCogs = cogsOf(prevOrders);
+  const lossValue = lossOf(lossMovements);
+  const prevLossValue = lossOf(prevLossMovements);
+  const totalExpenses = expenseSum._sum.amount ?? 0;
+  const previousExpenses = prevExpenseSum._sum.amount ?? 0;
+
+  const grossMargin = current.total - cogs; // marge brute (avant pertes & charges)
+  const grossMarginPct = current.total ? Math.round((grossMargin / current.total) * 100) : 0;
+  const foodCostPct = current.total ? Math.round((cogs / current.total) * 100) : 0;
+  const netProfit = current.total - cogs - lossValue - totalExpenses;
+  const previousNetProfit = previous.total - prevCogs - prevLossValue - previousExpenses;
+
+  const expensesByCategory = expenseByCat
+    .map((e) => ({ category: e.category, amount: e._sum.amount ?? 0 }))
+    .sort((a, b) => b.amount - a.amount);
+
+  // Marge par plat (plats actifs ; variantes listées séparément ; plats à prix libre exclus car sans prix fixe).
+  const dishMargins: { name: string; cost: number; price: number; marginPct: number }[] = [];
+  for (const d of dishesForCost) {
+    if (!d.isActive) continue;
+    const activeVariants = d.variants.filter((v) => v.isActive);
+    if (activeVariants.length) {
+      for (const v of activeVariants) {
+        const cost = variantCost.get(v.id) ?? 0;
+        dishMargins.push({ name: `${d.name} (${v.name})`, cost, price: v.price, marginPct: v.price ? Math.round(((v.price - cost) / v.price) * 100) : 0 });
+      }
+    } else if (d.priceType !== 'libre') {
+      const cost = dishCost.get(d.id) ?? 0;
+      dishMargins.push({ name: d.name, cost, price: d.price, marginPct: d.price ? Math.round(((d.price - cost) / d.price) * 100) : 0 });
+    }
+  }
+  dishMargins.sort((a, b) => a.marginPct - b.marginPct);
 
   const averageTicket = current.count ? Math.round(current.total / current.count) : 0;
   const previousTicket = previous.count ? Math.round(previous.total / previous.count) : 0;
@@ -183,6 +248,19 @@ export async function getDashboard(period: Period) {
     salesGrowth: growth(current.total, previous.total),
     ordersGrowth: growth(current.count, previous.count),
     ticketGrowth: growth(averageTicket, previousTicket),
+    totalExpenses,
+    previousPeriodExpenses: previousExpenses,
+    expensesGrowth: growth(totalExpenses, previousExpenses),
+    foodCost: cogs,
+    foodCostPct,
+    grossMargin,
+    grossMarginPct,
+    lossValue,
+    netProfit,
+    previousNetProfit,
+    profitGrowth: growth(netProfit, previousNetProfit),
+    expensesByCategory,
+    dishMargins,
     salesByHour,
     topDishes,
     paymentMethods,

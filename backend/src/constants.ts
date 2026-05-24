@@ -75,6 +75,32 @@ export type InventoryStatus = (typeof INVENTORY_STATUSES)[number];
 export const CASH_SESSION_STATUSES = ['ouverte', 'fermée'] as const;
 export type CashSessionStatus = (typeof CASH_SESSION_STATUSES)[number];
 
+// Employés (RH).
+export const CONTRACT_TYPES = ['CDI', 'CDD', 'extra', 'stagiaire', 'autre'] as const;
+export type ContractType = (typeof CONTRACT_TYPES)[number];
+
+export const SALARY_PERIODS = ['mensuel', 'horaire', 'journalier'] as const;
+export type SalaryPeriod = (typeof SALARY_PERIODS)[number];
+
+export const SALARY_PAYMENT_METHODS = ['espèces', 'virement', 'mobile_money'] as const;
+export type SalaryPaymentMethod = (typeof SALARY_PAYMENT_METHODS)[number];
+
+// Dépenses d'exploitation (charges générales, hors achats fournisseurs).
+export const EXPENSE_CATEGORIES = [
+  // Charges fixes
+  'loyer', 'électricité', 'eau', 'internet', 'abonnement',
+  // Personnel
+  'salaire', 'prime', 'charges_sociales',
+  // Exploitation
+  'équipement', 'entretien', 'transport', 'nettoyage',
+  // Divers
+  'marketing', 'taxes', 'frais_bancaires', 'autre',
+] as const;
+export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+
+export const EXPENSE_PAYMENT_METHODS = ['espèces', 'virement', 'mobile_money', 'carte', 'autre'] as const;
+export type ExpensePaymentMethod = (typeof EXPENSE_PAYMENT_METHODS)[number];
+
 // Actions sensibles tracées dans le journal d'audit (§C).
 export const AUDIT_ACTIONS = [
   'ouverture_caisse',
@@ -85,6 +111,12 @@ export const AUDIT_ACTIONS = [
   'annulation',
   'remboursement',
   'correction_commande',
+  'employe_creation',
+  'employe_modification',
+  'employe_suppression',
+  'depense_creation',
+  'depense_modification',
+  'depense_suppression',
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 

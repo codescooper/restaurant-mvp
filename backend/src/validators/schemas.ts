@@ -11,6 +11,11 @@ import {
   INVENTORY_TYPES,
   PROMO_KINDS,
   DISCOUNT_TYPES,
+  CONTRACT_TYPES,
+  SALARY_PERIODS,
+  SALARY_PAYMENT_METHODS,
+  EXPENSE_CATEGORIES,
+  EXPENSE_PAYMENT_METHODS,
 } from '../constants';
 
 // --- Auth ---
@@ -28,6 +33,7 @@ export const createStockSchema = z.object({
   name: z.string().min(1),
   quantity: z.number().min(0),
   unit: z.enum(STOCK_UNITS),
+  unitCost: z.number().min(0).default(0),
   alertThreshold: z.number().min(0).default(10),
 });
 
@@ -35,6 +41,7 @@ export const updateStockSchema = z.object({
   name: z.string().min(1).optional(),
   quantity: z.number().min(0).optional(),
   unit: z.enum(STOCK_UNITS).optional(),
+  unitCost: z.number().min(0).optional(),
   alertThreshold: z.number().min(0).optional(),
 });
 
@@ -99,10 +106,14 @@ const variantSchema = z.object({
   ingredients: z.array(ingredientSchema).optional(),
 });
 
-export const createDishSchema = z.object({
+const dishObjectSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   price: z.number().int().positive(),
+  // Mode de prix : 'libre' => le caissier saisit un montant entre priceMin et priceMax.
+  priceType: z.enum(['fixe', 'libre']).optional(),
+  priceMin: z.number().int().positive().optional(),
+  priceMax: z.number().int().positive().optional(),
   category: z.enum(DISH_CATEGORIES).optional(),
   preparationTime: z.number().int().positive().optional(),
   isActive: z.boolean().optional(),
@@ -112,7 +123,64 @@ export const createDishSchema = z.object({
   variants: z.array(variantSchema).optional(),
 });
 
-export const updateDishSchema = createDishSchema.partial();
+// Bornes obligatoires et cohérentes pour un prix libre.
+const dishBoundsOk = (d: { priceType?: string; priceMin?: number; priceMax?: number }) =>
+  d.priceType !== 'libre' || (d.priceMin != null && d.priceMax != null && d.priceMin <= d.priceMax);
+// Prix libre et variantes sont mutuellement exclusifs.
+const dishNoVariantsIfLibre = (d: { priceType?: string; variants?: unknown[] }) =>
+  d.priceType !== 'libre' || !(d.variants && d.variants.length > 0);
+
+export const createDishSchema = dishObjectSchema
+  .refine(dishBoundsOk, { message: 'Prix libre : minimum et maximum requis (min ≤ max)', path: ['priceMin'] })
+  .refine(dishNoVariantsIfLibre, { message: 'Un plat à prix libre ne peut pas avoir de variantes', path: ['variants'] });
+
+export const updateDishSchema = dishObjectSchema
+  .partial()
+  .refine(dishBoundsOk, { message: 'Prix libre : minimum et maximum requis (min ≤ max)', path: ['priceMin'] })
+  .refine(dishNoVariantsIfLibre, { message: 'Un plat à prix libre ne peut pas avoir de variantes', path: ['variants'] });
+
+// --- Employés (RH) ---
+export const createEmployeeSchema = z.object({
+  // Identité & contact
+  firstName: z.string().min(1, 'Prénom requis').max(50),
+  lastName: z.string().min(1, 'Nom requis').max(50),
+  phone: z.string().max(30).optional(),
+  email: z.string().max(100).optional(),
+  address: z.string().max(500).optional(),
+  // Photo : data URL compressée côté client (comme les plats). Bornée pour éviter les abus.
+  photoUrl: z.string().max(1_000_000).optional(),
+  // Contrat
+  position: z.string().max(60).optional(),
+  contractType: z.enum(CONTRACT_TYPES).optional(),
+  hireDate: z.string().optional(),
+  endDate: z.string().optional(),
+  // Rémunération
+  salary: z.number().int().min(0).optional(),
+  salaryPeriod: z.enum(SALARY_PERIODS).optional(),
+  paymentMethod: z.enum(SALARY_PAYMENT_METHODS).optional(),
+  // RH & urgence
+  emergencyContact: z.string().max(100).optional(),
+  emergencyPhone: z.string().max(30).optional(),
+  idNumber: z.string().max(50).optional(),
+  notes: z.string().max(1000).optional(),
+  // Statut & lien compte de connexion (null = délier)
+  isActive: z.boolean().optional(),
+  userId: z.number().int().positive().nullable().optional(),
+});
+
+export const updateEmployeeSchema = createEmployeeSchema.partial();
+
+// --- Dépenses ---
+export const createExpenseSchema = z.object({
+  label: z.string().min(1, 'Libellé requis').max(120),
+  category: z.enum(EXPENSE_CATEGORIES),
+  amount: z.number().int().positive('Montant invalide'),
+  expenseDate: z.string().min(1, 'Date requise'),
+  paymentMethod: z.enum(EXPENSE_PAYMENT_METHODS).optional(),
+  note: z.string().max(1000).optional(),
+});
+
+export const updateExpenseSchema = createExpenseSchema.partial();
 
 // --- Users ---
 export const createUserSchema = z.object({
@@ -135,6 +203,8 @@ export const createOrderSchema = z
         z.object({
           dishId: z.number().int().positive(),
           variantId: z.number().int().positive().optional(),
+          // Prix saisi en caisse pour les plats à prix libre (validé contre les bornes côté serveur).
+          customPrice: z.number().int().min(0).optional(),
           offered: z.boolean().optional(),
           quantity: z.number().int().positive(),
           notes: z.string().optional(),
@@ -292,6 +362,7 @@ export const syncSchema = z.object({
     items: z.array(z.object({
       dishId: z.number().int().positive(),
       variantId: z.number().int().positive().optional(),
+      customPrice: z.number().int().min(0).optional(),
       offered: z.boolean().optional(),
       quantity: z.number().int().positive(),
       notes: z.string().optional(),

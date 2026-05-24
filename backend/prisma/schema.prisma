@@ -33,8 +33,67 @@ model User {
   purchases         Purchase[]
   inventories       Inventory[]
   reservations      Reservation[]
+  employee          Employee?
+  expenses          Expense[]
 
   @@map("users")
+}
+
+// Dépense d'exploitation (charges générales, hors achats fournisseurs/stock) (§ gestion).
+// Registre comptable simple : n'impacte pas la caisse. Réservé à l'administrateur.
+model Expense {
+  id            Int      @id @default(autoincrement())
+  label         String   @db.VarChar(120)
+  category      String   @db.VarChar(30)
+  amount        Int
+  expenseDate   DateTime @map("expense_date")
+  paymentMethod String?  @map("payment_method") @db.VarChar(20)
+  note          String?  @db.Text
+  createdBy     Int?     @map("created_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  creator User? @relation(fields: [createdBy], references: [id])
+
+  @@index([expenseDate], map: "idx_expenses_date")
+  @@index([category], map: "idx_expenses_category")
+  @@map("expenses")
+}
+
+// Fiche employé (RH) : distincte du compte de connexion (User), reliée optionnellement via userId.
+// Gère aussi le personnel sans accès à l'app. Données sensibles (salaire) : routes réservées à l'admin.
+model Employee {
+  id        Int      @id @default(autoincrement())
+  // Identité & contact
+  firstName String   @map("first_name") @db.VarChar(50)
+  lastName  String   @map("last_name") @db.VarChar(50)
+  phone     String?  @db.VarChar(30)
+  email     String?  @db.VarChar(100)
+  address   String?  @db.Text
+  photoUrl  String?  @map("photo_url") @db.Text
+  // Contrat
+  position     String?   @db.VarChar(60)
+  contractType String?   @map("contract_type") @db.VarChar(20)
+  hireDate     DateTime? @map("hire_date")
+  endDate      DateTime? @map("end_date")
+  // Rémunération (FCFA, sans centimes)
+  salary        Int?
+  salaryPeriod  String? @map("salary_period") @db.VarChar(15)
+  paymentMethod String? @map("payment_method") @db.VarChar(20)
+  // RH & urgence
+  emergencyContact String? @map("emergency_contact") @db.VarChar(100)
+  emergencyPhone   String? @map("emergency_phone") @db.VarChar(30)
+  idNumber         String? @map("id_number") @db.VarChar(50)
+  notes            String? @db.Text
+  // Statut & lien compte
+  isActive  Boolean  @default(true) @map("is_active")
+  userId    Int?     @unique @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([isActive], map: "idx_employees_active")
+  @@map("employees")
 }
 
 model StockItem {
@@ -42,6 +101,8 @@ model StockItem {
   name           String   @db.VarChar(100)
   quantity       Float    @default(0)
   unit           String   @db.VarChar(20)
+  // Coût d'achat par unité (FCFA). Float pour gérer les coûts au gramme/ml près. Base du coût de revient des plats.
+  unitCost       Float    @default(0) @map("unit_cost")
   alertThreshold Float    @default(10) @map("alert_threshold")
   lastUpdated    DateTime @default(now()) @map("last_updated")
   createdAt      DateTime @default(now()) @map("created_at")
@@ -62,6 +123,10 @@ model Dish {
   name            String   @db.VarChar(100)
   description     String?  @db.Text
   price           Int
+  // Mode de prix : 'fixe' (price appliqué tel quel) ou 'libre' (caissier saisit un montant entre priceMin et priceMax ; price sert de défaut suggéré).
+  priceType       String   @default("fixe") @map("price_type") @db.VarChar(10)
+  priceMin        Int?     @map("price_min")
+  priceMax        Int?     @map("price_max")
   imageUrl        String?  @map("image_url") @db.Text
   isActive        Boolean  @default(true) @map("is_active")
   category        String?  @db.VarChar(50)

@@ -109,6 +109,9 @@ export default function CaissePage() {
   const [dishes, setDishes] = useState<MenuDish[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [variantPick, setVariantPick] = useState<MenuDish | null>(null);
+  // Saisie de prix pour un plat à prix libre.
+  const [pricePick, setPricePick] = useState<MenuDish | null>(null);
+  const [priceInput, setPriceInput] = useState('');
   const [category, setCategory] = useState('Tout');
   const [search, setSearch] = useState('');
   const [discountType, setDiscountType] = useState<DiscountType>('none');
@@ -333,14 +336,21 @@ export default function CaissePage() {
   };
 
   const toggleOffered = (key: string) =>
-    setCart((prev) => prev.map((c) => (lineKey(c.id, c.variantId) === key ? { ...c, offered: !c.offered } : c)));
+    setCart((prev) => prev.map((c) => (lineKey(c.id, c.variantId, c.customPrice) === key ? { ...c, offered: !c.offered } : c)));
 
-  // Clé unique d'une ligne de panier = plat + variante (un même plat peut avoir plusieurs variantes).
-  const lineKey = (dishId: number, variantId?: number) => `${dishId}:${variantId ?? 0}`;
+  // Clé unique d'une ligne de panier = plat + variante + prix libre (un même plat libre peut être ajouté à plusieurs prix).
+  const lineKey = (dishId: number, variantId?: number, customPrice?: number) =>
+    `${dishId}:${variantId ?? 0}:${customPrice ?? 0}`;
 
-  // Clic sur un plat : s'il a des variantes, on ouvre le sélecteur ; sinon ajout direct.
+  // Clic sur un plat : prix libre => saisie du prix ; variantes => sélecteur ; sinon ajout direct.
   const pickDish = (dish: MenuDish) => {
     if (!dish.available) return;
+    if (dish.priceType === 'libre') {
+      const def = Math.min(Math.max(dish.price, dish.priceMin ?? 0), dish.priceMax ?? dish.price);
+      setPriceInput(String(def || dish.priceMin || ''));
+      setPricePick(dish);
+      return;
+    }
     if (dish.variants && dish.variants.length > 0) {
       setVariantPick(dish);
       return;
@@ -348,12 +358,12 @@ export default function CaissePage() {
     addToCart(dish);
   };
 
-  const addToCart = (dish: MenuDish, variant?: MenuVariant) => {
-    const key = lineKey(dish.id, variant?.id);
+  const addToCart = (dish: MenuDish, variant?: MenuVariant, customPrice?: number) => {
+    const key = lineKey(dish.id, variant?.id, customPrice);
     setCart((prev) => {
-      const existing = prev.find((c) => lineKey(c.id, c.variantId) === key);
+      const existing = prev.find((c) => lineKey(c.id, c.variantId, c.customPrice) === key);
       if (existing) {
-        return prev.map((c) => (lineKey(c.id, c.variantId) === key ? { ...c, quantity: c.quantity + 1 } : c));
+        return prev.map((c) => (lineKey(c.id, c.variantId, c.customPrice) === key ? { ...c, quantity: c.quantity + 1 } : c));
       }
       return [
         ...prev,
@@ -362,22 +372,35 @@ export default function CaissePage() {
           variantId: variant?.id,
           variantName: variant?.name,
           name: dish.name,
-          price: variant ? variant.price : dish.price,
+          price: customPrice ?? (variant ? variant.price : dish.price),
+          customPrice,
           quantity: 1,
         },
       ];
     });
   };
 
+  // Validation de la saisie de prix libre puis ajout au panier.
+  const confirmPricePick = () => {
+    if (!pricePick) return;
+    const value = Math.round(Number(priceInput));
+    const min = pricePick.priceMin ?? 0;
+    const max = pricePick.priceMax ?? Number.MAX_SAFE_INTEGER;
+    if (!Number.isFinite(value) || value < min || value > max) return;
+    addToCart(pricePick, undefined, value);
+    setPricePick(null);
+    setPriceInput('');
+  };
+
   const updateQty = (key: string, delta: number) => {
     setCart((prev) =>
       prev
-        .map((c) => (lineKey(c.id, c.variantId) === key ? { ...c, quantity: c.quantity + delta } : c))
+        .map((c) => (lineKey(c.id, c.variantId, c.customPrice) === key ? { ...c, quantity: c.quantity + delta } : c))
         .filter((c) => c.quantity > 0)
     );
   };
 
-  const removeItem = (key: string) => setCart((prev) => prev.filter((c) => lineKey(c.id, c.variantId) !== key));
+  const removeItem = (key: string) => setCart((prev) => prev.filter((c) => lineKey(c.id, c.variantId, c.customPrice) !== key));
 
   const resetAll = () => {
     setCart([]);
@@ -405,7 +428,7 @@ export default function CaissePage() {
     // la remise manuelle n'est envoyée que sans coupon ni happy hour.
     const manual = !coupon && !happyHour;
     const payload: CreateOrderPayload = {
-      items: cart.map((c) => ({ dishId: c.id, variantId: c.variantId, offered: c.offered || undefined, quantity: c.quantity, notes: c.notes })),
+      items: cart.map((c) => ({ dishId: c.id, variantId: c.variantId, customPrice: c.customPrice, offered: c.offered || undefined, quantity: c.quantity, notes: c.notes })),
       couponCode: coupon?.code,
       discountAmount: manual && discountType === 'amount' ? Number(discountValue) || 0 : 0,
       discountPercent: manual && discountType === 'percent' ? Number(discountValue) || 0 : 0,
@@ -527,7 +550,7 @@ export default function CaissePage() {
             <p className="text-center text-gray-500 mb-3">{formatDateTime(receipt.time)}</p>
             <div className="border-t border-b py-2 space-y-1">
               {receipt.items.map((i) => (
-                <div key={`${i.id}:${i.variantId ?? 0}`} className="flex justify-between">
+                <div key={`${i.id}:${i.variantId ?? 0}:${i.customPrice ?? 0}`} className="flex justify-between">
                   <span>
                     {i.quantity} x {i.name}
                     {i.variantName ? ` (${i.variantName})` : ''}
@@ -740,6 +763,7 @@ export default function CaissePage() {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {filtered.map((dish) => {
                 const hasVariants = !!dish.variants && dish.variants.length > 0;
+                const isLibre = dish.priceType === 'libre';
                 return (
                   <button
                     key={dish.id}
@@ -761,7 +785,14 @@ export default function CaissePage() {
                       <div className="text-4xl mb-2">{EMOJI[dish.category ?? ''] ?? '🍽️'}</div>
                     )}
                     <div className="font-semibold text-neutral-100 leading-tight">{dish.name}</div>
-                    {hasVariants ? (
+                    {isLibre ? (
+                      <div className="text-gold-400 font-bold mt-1 text-sm">
+                        Prix libre
+                        <span className="ml-1 text-xs text-neutral-400">
+                          · {formatFCFA(dish.priceMin ?? 0)}–{formatFCFA(dish.priceMax ?? 0)}
+                        </span>
+                      </div>
+                    ) : hasVariants ? (
                       <div className="text-gold-400 font-bold mt-1 text-sm">
                         dès {formatFCFA(Math.min(...dish.variants!.map((v) => v.price)))}
                         <span className="ml-1 text-xs text-neutral-400">· {dish.variants!.length} variantes</span>
@@ -795,7 +826,7 @@ export default function CaissePage() {
             ) : (
               <div className="space-y-2 max-h-72 overflow-y-auto mb-3">
                 {cart.map((item) => {
-                  const key = lineKey(item.id, item.variantId);
+                  const key = lineKey(item.id, item.variantId, item.customPrice);
                   return (
                     <div key={key} className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 rounded-lg p-2">
                       <div className="flex-1 min-w-0">
@@ -1152,6 +1183,51 @@ export default function CaissePage() {
             </div>
           </div>
         )}
+
+        {/* Saisie du prix (plat à prix libre) */}
+        {pricePick && (() => {
+          const min = pricePick.priceMin ?? 0;
+          const max = pricePick.priceMax ?? Number.MAX_SAFE_INTEGER;
+          const value = Math.round(Number(priceInput));
+          const valid = priceInput !== '' && Number.isFinite(value) && value >= min && value <= max;
+          return (
+            <div className={OVERLAY}>
+              <div className={`${MODAL} max-w-sm p-6`}>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-bold text-neutral-100">{pricePick.name}</h3>
+                  <button onClick={() => setPricePick(null)} className="text-neutral-500 hover:text-neutral-300">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <label className="block text-sm text-neutral-400 mb-1">Prix de vente (FCFA)</label>
+                <p className="text-xs text-neutral-500 mb-3">
+                  Entre {formatFCFA(min)} et {formatFCFA(pricePick.priceMax ?? 0)}
+                </p>
+                <input
+                  type="number"
+                  min={min}
+                  max={pricePick.priceMax ?? undefined}
+                  value={priceInput}
+                  onChange={(e) => setPriceInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && valid) confirmPricePick();
+                  }}
+                  className={INPUT}
+                  placeholder={`${min}`}
+                  autoFocus
+                />
+                {priceInput !== '' && !valid && (
+                  <p className="text-rose-400 text-xs mt-1">
+                    Prix hors limites ({formatFCFA(min)} – {formatFCFA(pricePick.priceMax ?? 0)})
+                  </p>
+                )}
+                <button onClick={confirmPricePick} disabled={!valid} className={`w-full mt-4 py-2.5 rounded-xl ${BTN_GOLD}`}>
+                  Ajouter au panier
+                </button>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Modal ouverture de caisse */}
         {cashModal === 'open' && (
