@@ -218,11 +218,11 @@ export async function toggleActive(id: number) {
 
 export async function deleteDish(id: number) {
   await getDish(id);
-  const activeOrderItem = await prisma.orderItem.findFirst({
-    where: { dishId: id, order: { status: { in: ['commandée', 'en_cours', 'prête'] } } },
-  });
-  if (activeOrderItem) {
-    throw new AppError(400, 'DISH_002', 'Plat présent dans une commande en cours, suppression impossible');
+  // Les order_items sont des données de vente historiques (stats/journal) : on ne les supprime jamais.
+  // Si le plat figure dans une commande (passée ou en cours), la suppression violerait la FK : on la bloque.
+  const orderItem = await prisma.orderItem.findFirst({ where: { dishId: id } });
+  if (orderItem) {
+    throw new AppError(400, 'DISH_002', 'Plat déjà présent dans des commandes, désactivez-le plutôt que de le supprimer');
   }
   await prisma.dishIngredient.deleteMany({ where: { dishId: id } });
   await prisma.dishVariant.deleteMany({ where: { dishId: id } });
