@@ -8,6 +8,7 @@ import {
   getHours,
 } from 'date-fns';
 import { prisma } from '../config/prisma';
+import { STOCK_PURCHASE_CATEGORY } from '../constants';
 
 export type Period = 'today' | 'week' | 'month';
 
@@ -60,8 +61,11 @@ export async function getDashboard(period: Period) {
 
   const current = { total: orders.reduce((s, o) => s + o.finalTotal, 0), count: orders.length };
 
-  // Coûts de revient (recettes & coûts unitaires actuels), dépenses, pertes — pour la rentabilité.
-  const [stockItems, dishesForCost, prevOrders, expenseSum, prevExpenseSum, expenseByCat, lossMovements, prevLossMovements] =
+  // Charges = dépenses hors achats de stock (l'approvisionnement est compté via le coût matière, pas ici).
+  const chargesOnly = { category: { not: STOCK_PURCHASE_CATEGORY } };
+
+  // Coûts de revient (recettes & coûts unitaires actuels), charges, achats stock, pertes — pour la rentabilité.
+  const [stockItems, dishesForCost, prevOrders, expenseSum, prevExpenseSum, expenseByCat, stockPurchaseSum, prevStockPurchaseSum, lossMovements, prevLossMovements] =
     await Promise.all([
       prisma.stockItem.findMany({ select: { id: true, unitCost: true } }),
       prisma.dish.findMany({
@@ -71,9 +75,11 @@ export async function getDashboard(period: Period) {
         },
       }),
       prisma.order.findMany({ where: { ...NON_CANCELLED, createdAt: { gte: prevStart, lt: prevEnd } }, include: { items: true } }),
-      prisma.expense.aggregate({ _sum: { amount: true }, where: { expenseDate: { gte: start, lt: end } } }),
-      prisma.expense.aggregate({ _sum: { amount: true }, where: { expenseDate: { gte: prevStart, lt: prevEnd } } }),
-      prisma.expense.groupBy({ by: ['category'], _sum: { amount: true }, where: { expenseDate: { gte: start, lt: end } } }),
+      prisma.expense.aggregate({ _sum: { amount: true }, where: { expenseDate: { gte: start, lt: end }, ...chargesOnly } }),
+      prisma.expense.aggregate({ _sum: { amount: true }, where: { expenseDate: { gte: prevStart, lt: prevEnd }, ...chargesOnly } }),
+      prisma.expense.groupBy({ by: ['category'], _sum: { amount: true }, where: { expenseDate: { gte: start, lt: end }, ...chargesOnly } }),
+      prisma.expense.aggregate({ _sum: { amount: true }, where: { expenseDate: { gte: start, lt: end }, category: STOCK_PURCHASE_CATEGORY } }),
+      prisma.expense.aggregate({ _sum: { amount: true }, where: { expenseDate: { gte: prevStart, lt: prevEnd }, category: STOCK_PURCHASE_CATEGORY } }),
       prisma.stockMovement.findMany({ where: { movementType: 'perte', createdAt: { gte: start, lt: end } }, select: { quantity: true, stockItemId: true } }),
       prisma.stockMovement.findMany({ where: { movementType: 'perte', createdAt: { gte: prevStart, lt: prevEnd } }, select: { quantity: true, stockItemId: true } }),
     ]);
@@ -102,6 +108,9 @@ export async function getDashboard(period: Period) {
   const prevLossValue = lossOf(prevLossMovements);
   const totalExpenses = expenseSum._sum.amount ?? 0;
   const previousExpenses = prevExpenseSum._sum.amount ?? 0;
+  // Achats de stock (trésorerie) : affichés pour info, hors bénéfice net (déjà comptés via le coût matière).
+  const stockPurchases = stockPurchaseSum._sum.amount ?? 0;
+  const previousStockPurchases = prevStockPurchaseSum._sum.amount ?? 0;
 
   const grossMargin = current.total - cogs; // marge brute (avant pertes & charges)
   const grossMarginPct = current.total ? Math.round((grossMargin / current.total) * 100) : 0;
@@ -251,6 +260,9 @@ export async function getDashboard(period: Period) {
     totalExpenses,
     previousPeriodExpenses: previousExpenses,
     expensesGrowth: growth(totalExpenses, previousExpenses),
+    stockPurchases,
+    previousStockPurchases,
+    stockPurchasesGrowth: growth(stockPurchases, previousStockPurchases),
     foodCost: cogs,
     foodCostPct,
     grossMargin,

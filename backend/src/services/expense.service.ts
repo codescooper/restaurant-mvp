@@ -61,6 +61,31 @@ export async function createExpense(data: ExpenseInput, actorId?: number) {
   return expense;
 }
 
+// Enregistre automatiquement un achat de stock comme dépense (catégorie 'approvisionnement').
+// Visible en trésorerie mais exclu du bénéfice net (le coût matière est déjà compté via le COGS).
+export async function recordStockPurchase(params: {
+  stockName: string;
+  quantity: number;
+  unit: string;
+  unitCost: number;
+  isInitial?: boolean;
+  actorId?: number;
+}) {
+  const amount = Math.round(params.quantity * params.unitCost);
+  if (amount <= 0) return null;
+  const prefix = params.isInitial ? 'Achat stock' : 'Réappro';
+  return createExpense(
+    {
+      label: `${prefix} : ${params.stockName} (${params.quantity} ${params.unit})`,
+      category: 'approvisionnement',
+      amount,
+      expenseDate: new Date().toISOString(),
+      note: 'Généré automatiquement depuis le stock',
+    },
+    params.actorId
+  );
+}
+
 export async function updateExpense(id: number, data: ExpenseInput, actorId?: number) {
   await getExpense(id);
   const expense = await prisma.expense.update({

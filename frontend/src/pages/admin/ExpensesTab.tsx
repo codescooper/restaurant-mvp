@@ -51,9 +51,11 @@ const CATEGORY_GROUPS: { group: string; items: { value: string; label: string }[
     ],
   },
 ];
-const CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
-  CATEGORY_GROUPS.flatMap((g) => g.items.map((i) => [i.value, i.label]))
-);
+const CATEGORY_LABEL: Record<string, string> = {
+  ...Object.fromEntries(CATEGORY_GROUPS.flatMap((g) => g.items.map((i) => [i.value, i.label]))),
+  // Auto-générée depuis le module stock (non proposée à la création manuelle).
+  approvisionnement: 'Approvisionnement (stock)',
+};
 const PAYMENT_METHODS: { value: string; label: string }[] = [
   { value: 'espèces', label: 'Espèces' },
   { value: 'virement', label: 'Virement' },
@@ -173,6 +175,7 @@ export default function ExpensesTab() {
           </div>
           <select className={`${INPUT} w-auto`} value={filter} onChange={(e) => setFilter(e.target.value)}>
             <option value="">Toutes les catégories</option>
+            <option value="approvisionnement">Approvisionnement (stock)</option>
             {CATEGORY_GROUPS.map((g) => (
               <optgroup key={g.group} label={g.group}>
                 {g.items.map((i) => (

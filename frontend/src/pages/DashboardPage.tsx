@@ -183,8 +183,8 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Rentabilité : coût matière, marge brute, pertes valorisées */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          {/* Rentabilité : coût matière, marge brute, pertes valorisées, achats stock */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
             <KpiCard
               icon={<Boxes className="w-5 h-5 text-sky-400" />}
               iconBg="bg-sky-500/15"
@@ -208,6 +208,15 @@ export default function DashboardPage() {
               label="Pertes (valorisées)"
               value={formatFCFA(data.lossValue)}
               sub="gaspillage / casse sur la période"
+            />
+            <KpiCard
+              icon={<ShoppingCart className="w-5 h-5 text-amber-400" />}
+              iconBg="bg-amber-500/15"
+              border="border-amber-500"
+              label="Achats stock (trésorerie)"
+              value={formatFCFA(data.stockPurchases)}
+              growth={data.stockPurchasesGrowth}
+              sub="hors bénéfice net (compté en coût matière)"
             />
           </div>
 

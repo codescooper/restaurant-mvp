@@ -7,7 +7,7 @@ export const listStockController = asyncHandler(async (_req, res) => {
 });
 
 export const createStockController = asyncHandler(async (req, res) => {
-  sendSuccess(res, await stockService.createStock(req.body), 201);
+  sendSuccess(res, await stockService.createStock(req.body, req.user?.id), 201);
 });
 
 export const updateStockController = asyncHandler(async (req, res) => {

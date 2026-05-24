@@ -83,6 +83,7 @@ const ROLE_BADGE: Record<string, string> = {
   administrateur: 'bg-purple-500/15 text-purple-300',
   caissier: 'bg-sky-500/15 text-sky-300',
   cuisinier: 'bg-orange-500/15 text-orange-300',
+  serveur: 'bg-emerald-500/15 text-emerald-300',
 };
 
 interface Ingredient { stockItemId: number; quantityNeeded: number }
@@ -349,7 +350,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      <div className="flex gap-2 mb-4 sticky top-16 bg-neutral-900 py-2 z-10">
+      <div className="flex flex-wrap gap-2 mb-4 sticky top-16 bg-neutral-900 py-2 z-10">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -1129,6 +1130,7 @@ export default function AdminPage() {
                     <option value="administrateur">Administrateur</option>
                     <option value="caissier">Caissier</option>
                     <option value="cuisinier">Cuisinier</option>
+                    <option value="serveur">Serveur</option>
                   </select>
                 </Field>
                 {!editing && <p className="text-xs text-neutral-400">Le mot de passe sera hashé.</p>}

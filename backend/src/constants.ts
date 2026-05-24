@@ -85,8 +85,12 @@ export type SalaryPeriod = (typeof SALARY_PERIODS)[number];
 export const SALARY_PAYMENT_METHODS = ['espèces', 'virement', 'mobile_money'] as const;
 export type SalaryPaymentMethod = (typeof SALARY_PAYMENT_METHODS)[number];
 
-// Dépenses d'exploitation (charges générales, hors achats fournisseurs).
+// Dépenses d'exploitation. La catégorie 'approvisionnement' (achats de stock) est générée
+// automatiquement depuis le module stock : visible en trésorerie mais EXCLUE du bénéfice net
+// (le coût des matières est déjà compté via le coût matière/COGS au moment de la vente).
 export const EXPENSE_CATEGORIES = [
+  // Approvisionnement (auto, hors bénéfice net)
+  'approvisionnement',
   // Charges fixes
   'loyer', 'électricité', 'eau', 'internet', 'abonnement',
   // Personnel
@@ -97,6 +101,9 @@ export const EXPENSE_CATEGORIES = [
   'marketing', 'taxes', 'frais_bancaires', 'autre',
 ] as const;
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+
+// Catégorie réservée aux achats de stock (auto-générée, exclue du bénéfice net).
+export const STOCK_PURCHASE_CATEGORY: ExpenseCategory = 'approvisionnement';
 
 export const EXPENSE_PAYMENT_METHODS = ['espèces', 'virement', 'mobile_money', 'carte', 'autre'] as const;
 export type ExpensePaymentMethod = (typeof EXPENSE_PAYMENT_METHODS)[number];

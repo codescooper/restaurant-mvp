@@ -369,6 +369,9 @@ export interface DashboardData {
   totalExpenses: number;
   previousPeriodExpenses: number;
   expensesGrowth: number;
+  stockPurchases: number;
+  previousStockPurchases: number;
+  stockPurchasesGrowth: number;
   foodCost: number;
   foodCostPct: number;
   grossMargin: number;

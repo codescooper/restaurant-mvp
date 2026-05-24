@@ -3,6 +3,7 @@ import { AppError } from '../utils/errors';
 import { StockUnit } from '../constants';
 import { emitStockAlert } from '../websocket';
 import { createNotification } from './notification.service';
+import { recordStockPurchase } from './expense.service';
 import { StockItem } from '@prisma/client';
 
 export function roundQty(value: number): number {
@@ -19,22 +20,32 @@ export async function getStock(id: number) {
   return item;
 }
 
-export async function createStock(data: {
-  name: string;
-  quantity: number;
-  unit: StockUnit;
-  unitCost?: number;
-  alertThreshold: number;
-}) {
-  return prisma.stockItem.create({
+export async function createStock(
+  data: {
+    name: string;
+    quantity: number;
+    unit: StockUnit;
+    unitCost?: number;
+    alertThreshold: number;
+  },
+  userId?: number
+) {
+  const quantity = roundQty(data.quantity);
+  const unitCost = data.unitCost ?? 0;
+  const item = await prisma.stockItem.create({
     data: {
       name: data.name,
-      quantity: roundQty(data.quantity),
+      quantity,
       unit: data.unit,
-      unitCost: data.unitCost ?? 0,
+      unitCost,
       alertThreshold: roundQty(data.alertThreshold),
     },
   });
+  // Stock initial valorisé : enregistré comme achat (catégorie 'approvisionnement').
+  if (quantity > 0 && unitCost > 0) {
+    await recordStockPurchase({ stockName: item.name, quantity, unit: item.unit, unitCost, isInitial: true, actorId: userId });
+  }
+  return item;
 }
 
 export async function updateStock(
@@ -89,6 +100,10 @@ export async function addQuantity(id: number, quantity: number, userId?: number)
     });
     return result;
   });
+  // Réapprovisionnement valorisé au coût unitaire courant : enregistré comme achat.
+  if (item.unitCost > 0) {
+    await recordStockPurchase({ stockName: item.name, quantity: roundQty(quantity), unit: item.unit, unitCost: item.unitCost, actorId: userId });
+  }
   return updated;
 }
 
