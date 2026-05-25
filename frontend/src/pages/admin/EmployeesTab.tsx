@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, X, ImagePlus, Link2 } from 'lucide-react';
-import { employeeApi, userApi, EmployeeInput } from '../../services/endpoints';
+import { employeeApi, userApi, EmployeeInput, MemberRow } from '../../services/endpoints';
 import { getApiError } from '../../services/api';
-import { Employee, User } from '../../types';
+import { Employee } from '../../types';
 import { formatFCFA } from '../../utils/format';
 import { compressImage } from '../../utils/image';
 
@@ -57,7 +57,7 @@ const toDateInput = (iso?: string | null) => (iso ? iso.slice(0, 10) : '');
 
 export default function EmployeesTab() {
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<MemberRow[]>([]);
   const [error, setError] = useState('');
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<Employee | null>(null);
@@ -161,7 +161,7 @@ export default function EmployeesTab() {
   const linkedElsewhere = new Set(
     employees.filter((e) => e.userId != null && e.id !== editing?.id).map((e) => e.userId as number)
   );
-  const selectableUsers = users.filter((u) => !linkedElsewhere.has(u.id));
+  const selectableUsers = users.filter((u) => !linkedElsewhere.has(u.userId));
 
   return (
     <div>
@@ -209,7 +209,7 @@ export default function EmployeesTab() {
                 <td className="p-3 text-neutral-400">
                   {e.user ? (
                     <span className="inline-flex items-center gap-1 text-xs bg-neutral-800 px-2 py-0.5 rounded-full">
-                      <Link2 className="w-3 h-3 text-gold-400" /> {e.user.username}
+                      <Link2 className="w-3 h-3 text-gold-400" /> {e.user.displayName ?? '—'}
                     </span>
                   ) : (
                     '—'
@@ -350,7 +350,7 @@ export default function EmployeesTab() {
               <L label="Compte de connexion lié (optionnel)">
                 <select className={INPUT} value={form.userId} onChange={(e) => setF({ userId: e.target.value })}>
                   <option value="">Aucun (pas d'accès à l'app)</option>
-                  {selectableUsers.map((u) => <option key={u.id} value={u.id}>{u.username} ({u.role})</option>)}
+                  {selectableUsers.map((u) => <option key={u.userId} value={u.userId}>{u.displayName ?? u.email} ({u.role})</option>)}
                 </select>
               </L>
               <label className="flex items-center gap-2 text-sm text-neutral-200 pb-2">

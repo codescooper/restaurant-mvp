@@ -25,8 +25,9 @@ import {
   Wallet,
 } from 'lucide-react';
 import { stockApi, dishApi, userApi, cashApi, auditApi, orderApi } from '../services/endpoints';
+import { MemberRow } from '../services/endpoints';
 import { getApiError } from '../services/api';
-import { StockItem, Dish, User, Role, CashSessionSummary, AuditLogEntry } from '../types';
+import { StockItem, Dish, Role, CashSessionSummary, AuditLogEntry } from '../types';
 import { formatFCFA, formatDateTime } from '../utils/format';
 import { compressImage } from '../utils/image';
 import SuppliersTab from './admin/SuppliersTab';
@@ -37,6 +38,7 @@ import ExpensesTab from './admin/ExpensesTab';
 
 type Tab = 'stock' | 'menu' | 'users' | 'employes' | 'depenses' | 'caisse' | 'journal' | 'fournisseurs' | 'inventaire' | 'promotions';
 type CrudTab = 'stock' | 'menu' | 'users';
+type UserEditing = MemberRow | null;
 
 const LOSS_CAUSES: { value: string; label: string }[] = [
   { value: 'casse', label: 'Casse' },
@@ -94,12 +96,12 @@ export default function AdminPage() {
   const [search, setSearch] = useState('');
   const [stock, setStock] = useState<StockItem[]>([]);
   const [dishes, setDishes] = useState<Dish[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<MemberRow[]>([]);
   const [expandedDish, setExpandedDish] = useState<number | null>(null);
   const [error, setError] = useState('');
 
   const [modal, setModal] = useState<CrudTab | null>(null);
-  const [editing, setEditing] = useState<StockItem | Dish | User | null>(null);
+  const [editing, setEditing] = useState<StockItem | Dish | UserEditing>(null);
   const [form, setForm] = useState<Record<string, unknown>>({});
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [variants, setVariants] = useState<VariantForm[]>([]);
@@ -179,10 +181,10 @@ export default function AdminPage() {
     setVariants([]);
     if (t === 'stock') setForm({ name: '', quantity: 0, unit: 'kg', unitCost: 0, alertThreshold: 10 });
     if (t === 'menu') setForm({ name: '', description: '', price: 0, priceType: 'fixe', priceMin: 0, priceMax: 0, category: 'Plat', isActive: true, imageUrl: '' });
-    if (t === 'users') setForm({ username: '', password: '', role: 'caissier' });
+    if (t === 'users') setForm({ email: '', displayName: '', password: '', role: 'caissier' });
   };
 
-  const openEdit = (t: CrudTab, item: StockItem | Dish | User) => {
+  const openEdit = (t: CrudTab, item: StockItem | Dish | MemberRow) => {
     setModal(t);
     setEditing(item);
     if (t === 'stock') {
@@ -202,8 +204,8 @@ export default function AdminPage() {
       );
     }
     if (t === 'users') {
-      const u = item as User;
-      setForm({ username: u.username, password: '', role: u.role });
+      const u = item as MemberRow;
+      setForm({ email: u.email, displayName: u.displayName ?? '', password: '', role: u.role });
     }
   };
 
@@ -258,14 +260,20 @@ export default function AdminPage() {
         await loadDishes();
       } else if (modal === 'users') {
         if (editing) {
-          const payload: { username: string; role: Role; password?: string } = {
-            username: String(form.username),
+          const u = editing as MemberRow;
+          const payload: { role?: Role; password?: string; displayName?: string } = {
             role: form.role as Role,
+            displayName: form.displayName ? String(form.displayName) : undefined,
           };
           if (form.password) payload.password = String(form.password);
-          await userApi.update((editing as User).id, payload);
+          await userApi.update(u.membershipId, payload);
         } else {
-          await userApi.create({ username: String(form.username), password: String(form.password), role: form.role as Role });
+          await userApi.create({
+            email: String(form.email),
+            password: String(form.password),
+            role: form.role as Role,
+            displayName: form.displayName ? String(form.displayName) : undefined,
+          });
         }
         await loadUsers();
       }
@@ -293,6 +301,7 @@ export default function AdminPage() {
     try {
       if (t === 'stock') { await stockApi.remove(id); await loadStock(); }
       if (t === 'menu') { await dishApi.remove(id); await loadDishes(); }
+      // For users, `id` is passed as membershipId from the table row
       if (t === 'users') { await userApi.remove(id); await loadUsers(); }
     } catch (e) {
       setError(getApiError(e));
@@ -302,8 +311,8 @@ export default function AdminPage() {
   const toggleDish = async (id: number) => {
     try { await dishApi.toggle(id); await loadDishes(); } catch (e) { setError(getApiError(e)); }
   };
-  const toggleUser = async (id: number) => {
-    try { await userApi.toggle(id); await loadUsers(); } catch (e) { setError(getApiError(e)); }
+  const toggleUser = async (membershipId: number) => {
+    try { await userApi.toggle(membershipId); await loadUsers(); } catch (e) { setError(getApiError(e)); }
   };
 
   const s = search.toLowerCase();
@@ -313,7 +322,11 @@ export default function AdminPage() {
     [dishes, s]
   );
   const filteredUsers = useMemo(
-    () => users.filter((u) => u.username.toLowerCase().includes(s) || u.role.toLowerCase().includes(s)),
+    () => users.filter((u) =>
+      (u.displayName ?? u.email).toLowerCase().includes(s) ||
+      u.email.toLowerCase().includes(s) ||
+      u.role.toLowerCase().includes(s)
+    ),
     [users, s]
   );
 
@@ -546,13 +559,14 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* USERS */}
+      {/* USERS (membres) */}
       {tab === 'users' && (
         <div className="bg-neutral-950 rounded-xl shadow overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-neutral-900 text-neutral-300">
               <tr>
-                <th className="text-left p-3">Utilisateur</th>
+                <th className="text-left p-3">Nom / Email</th>
+                <th className="text-left p-3">Email</th>
                 <th className="text-left p-3">Rôle</th>
                 <th className="text-left p-3">Statut</th>
                 <th className="text-left p-3">Dernière connexion</th>
@@ -561,8 +575,9 @@ export default function AdminPage() {
             </thead>
             <tbody>
               {filteredUsers.map((u) => (
-                <tr key={u.id} className="border-t hover:bg-neutral-900">
-                  <td className="p-3 font-medium">{u.username}</td>
+                <tr key={u.membershipId} className="border-t hover:bg-neutral-900">
+                  <td className="p-3 font-medium">{u.displayName ?? u.email}</td>
+                  <td className="p-3 text-neutral-400">{u.email}</td>
                   <td className="p-3">
                     <span className={`px-2 py-0.5 rounded-full text-xs capitalize ${ROLE_BADGE[u.role] ?? 'bg-neutral-800'}`}>{u.role}</span>
                   </td>
@@ -573,13 +588,13 @@ export default function AdminPage() {
                   </td>
                   <td className="p-3 text-neutral-400">{u.lastLogin ? formatDateTime(u.lastLogin) : '—'}</td>
                   <td className="p-3 text-right whitespace-nowrap">
-                    <button onClick={() => toggleUser(u.id)} className="p-1.5 text-neutral-300 hover:bg-neutral-800 rounded">
+                    <button onClick={() => toggleUser(u.membershipId)} className="p-1.5 text-neutral-300 hover:bg-neutral-800 rounded">
                       {u.isActive ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                     </button>
                     <button onClick={() => openEdit('users', u)} className="p-1.5 text-gold-400 hover:bg-neutral-800 rounded">
                       <Pencil className="w-4 h-4" />
                     </button>
-                    <button onClick={() => remove('users', u.id)} className="p-1.5 text-rose-400 hover:bg-rose-500/10 rounded">
+                    <button onClick={() => remove('users', u.membershipId)} className="p-1.5 text-rose-400 hover:bg-rose-500/10 rounded">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </td>
@@ -610,7 +625,7 @@ export default function AdminPage() {
             <tbody>
               {sessions.map((s) => (
                 <tr key={s.id} className="border-t hover:bg-neutral-900">
-                  <td className="p-3 font-medium">{s.cashier?.username ?? `#${s.cashierId}`}</td>
+                  <td className="p-3 font-medium">{s.cashier?.displayName ?? `#${s.cashierId}`}</td>
                   <td className="p-3 text-neutral-400">{formatDateTime(s.openedAt)}</td>
                   <td className="p-3 text-neutral-400">{s.closedAt ? formatDateTime(s.closedAt) : '—'}</td>
                   <td className="p-3 text-right">{formatFCFA(s.openingFloat)}</td>
@@ -673,7 +688,7 @@ export default function AdminPage() {
                       {AUDIT_LABEL[log.action] ?? log.action}
                     </span>
                   </td>
-                  <td className="p-3">{log.user?.username ?? '—'}</td>
+                  <td className="p-3">{log.user?.displayName ?? 'Système'}</td>
                   <td className="p-3 text-neutral-400">
                     {log.entityType}
                     {log.entityId ? ` #${log.entityId}` : ''}
@@ -772,7 +787,7 @@ export default function AdminPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-sm mb-4">
-              <Info label="Caissier" value={sessionDetail.cashier?.username ?? '—'} />
+              <Info label="Caissier" value={sessionDetail.cashier?.displayName ?? '—'} />
               <Info label="Statut" value={sessionDetail.status} />
               <Info label="Ouverte" value={formatDateTime(sessionDetail.openedAt)} />
               <Info label="Fermée" value={sessionDetail.closedAt ? formatDateTime(sessionDetail.closedAt) : '—'} />
@@ -1112,8 +1127,18 @@ export default function AdminPage() {
 
             {modal === 'users' && (
               <div className="space-y-3">
-                <Field label="Nom d'utilisateur">
-                  <input className="input" value={String(form.username ?? '')} onChange={(e) => setForm({ ...form, username: e.target.value })} />
+                {!editing && (
+                  <Field label="Email">
+                    <input type="email" className="input" value={String(form.email ?? '')} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="utilisateur@exemple.com" />
+                  </Field>
+                )}
+                {editing && (
+                  <Field label="Email">
+                    <input type="email" className="input" value={String(form.email ?? '')} disabled readOnly />
+                  </Field>
+                )}
+                <Field label="Nom affiché (optionnel)">
+                  <input className="input" value={String(form.displayName ?? '')} onChange={(e) => setForm({ ...form, displayName: e.target.value })} placeholder="Prénom Nom" />
                 </Field>
                 {!editing && (
                   <Field label="Mot de passe">
@@ -1127,6 +1152,7 @@ export default function AdminPage() {
                 )}
                 <Field label="Rôle">
                   <select className="input" value={String(form.role ?? 'caissier')} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+                    <option value="propriétaire">Propriétaire</option>
                     <option value="administrateur">Administrateur</option>
                     <option value="caissier">Caissier</option>
                     <option value="cuisinier">Cuisinier</option>
