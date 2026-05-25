@@ -11,12 +11,13 @@ interface WebSocketContextType {
 const WebSocketContext = createContext<WebSocketContextType>({ socket: null, connected: false });
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {
-  const { currentUser } = useAuth();
+  const { currentUser, activeRestaurantId } = useAuth();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    if (!currentUser) {
+    // Pas connecté ou pas de restaurant sélectionné → pas de socket (le backend exige un token scopé).
+    if (!currentUser || activeRestaurantId == null) {
       disconnectSocket();
       setSocket(null);
       setConnected(false);
@@ -26,12 +27,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     if (!token) return;
 
     const s = connectSocket(token);
-    s.on('connect', () => {
-      setConnected(true);
-      s.emit('join_room', { role: currentUser.role });
-    });
+    s.on('connect', () => setConnected(true));
     s.on('disconnect', () => setConnected(false));
-    // Échec de connexion : socket.io retente automatiquement ; on évite juste une erreur non gérée.
     s.on('connect_error', (err) => {
       setConnected(false);
       console.warn('WebSocket indisponible, nouvelle tentative…', err.message);
@@ -42,7 +39,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       s.removeAllListeners();
       disconnectSocket();
     };
-  }, [currentUser]);
+    // Reconnexion quand l'utilisateur OU le restaurant actif change (nouveau token scopé).
+  }, [currentUser, activeRestaurantId]);
 
   return (
     <WebSocketContext.Provider value={{ socket, connected }}>{children}</WebSocketContext.Provider>
