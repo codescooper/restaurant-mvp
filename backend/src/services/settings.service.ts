@@ -54,7 +54,7 @@ export function evaluateManagerApproval(
   providedPin: string | undefined,
   verify: (pin: string, hash: string) => boolean
 ): boolean {
-  if (role === 'administrateur') return false;
+  if (role === 'administrateur' || role === 'propriétaire') return false;
   if (!configuredHash) return false;
   if (!providedPin || !verify(providedPin.trim(), configuredHash)) {
     throw new AppError(403, 'PIN_001');

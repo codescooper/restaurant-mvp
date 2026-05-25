@@ -96,6 +96,10 @@ describe('evaluateManagerApproval (PIN annulation/remboursement)', () => {
     expect(evaluateManagerApproval('administrateur', 'HASH:1234', undefined, verify)).toBe(false);
     expect(evaluateManagerApproval('administrateur', null, undefined, verify)).toBe(false);
   });
+  it('le propriétaire est exempt (aucun PIN requis)', () => {
+    expect(evaluateManagerApproval('propriétaire', 'HASH:1234', undefined, verify)).toBe(false);
+    expect(evaluateManagerApproval('propriétaire', null, undefined, verify)).toBe(false);
+  });
   it('opt-in : libre tant qu\'aucun PIN n\'est configuré', () => {
     expect(evaluateManagerApproval('caissier', null, undefined, verify)).toBe(false);
   });

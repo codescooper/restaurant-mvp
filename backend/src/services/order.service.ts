@@ -1,8 +1,6 @@
 import { format } from 'date-fns';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
-
-type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 import { AppError } from '../utils/errors';
 import { roundQty, checkLowStock } from './stock.service';
 import { createNotification } from './notification.service';
@@ -24,6 +22,8 @@ import {
   DeliveryPlatform,
   Role,
 } from '../constants';
+
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 const orderInclude = { items: true } as const;
 
