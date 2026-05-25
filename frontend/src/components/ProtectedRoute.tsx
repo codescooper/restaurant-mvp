@@ -10,7 +10,7 @@ export function ProtectedRoute({
   children: ReactNode;
   allowedRoles: Role[];
 }) {
-  const { currentUser, isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, hasActiveRestaurant, currentRole, loading } = useAuth();
 
   if (loading) {
     return (
@@ -18,7 +18,8 @@ export function ProtectedRoute({
     );
   }
   if (!isAuthenticated) return <Navigate to="/" replace />;
-  if (currentUser && !allowedRoles.includes(currentUser.role)) {
+  if (!hasActiveRestaurant) return <Navigate to="/select-restaurant" replace />;
+  if (currentRole && !allowedRoles.includes(currentRole)) {
     return <Navigate to="/unauthorized" replace />;
   }
   return <>{children}</>;
