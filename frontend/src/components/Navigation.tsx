@@ -94,7 +94,7 @@ export function Navigation() {
             {memberships.length > 1 && (
               <select
                 value={activeRestaurantId ?? ''}
-                onChange={(e) => selectRestaurant(Number(e.target.value))}
+                onChange={(e) => { selectRestaurant(Number(e.target.value)).catch(console.error); }}
                 className="ml-2 bg-neutral-900 border border-neutral-800 text-neutral-200 text-sm rounded-lg px-2 py-1.5"
                 title="Changer de restaurant"
               >
@@ -138,7 +138,7 @@ export function Navigation() {
             {memberships.length > 1 && (
               <select
                 value={activeRestaurantId ?? ''}
-                onChange={(e) => { selectRestaurant(Number(e.target.value)); setShowMobileMenu(false); }}
+                onChange={(e) => { selectRestaurant(Number(e.target.value)).catch(console.error); setShowMobileMenu(false); }}
                 className="w-full bg-neutral-900 border border-neutral-800 text-neutral-200 text-sm rounded-lg px-3 py-2"
                 title="Changer de restaurant"
               >

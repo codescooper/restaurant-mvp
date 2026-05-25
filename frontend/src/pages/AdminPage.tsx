@@ -24,8 +24,7 @@ import {
   Briefcase,
   Wallet,
 } from 'lucide-react';
-import { stockApi, dishApi, userApi, cashApi, auditApi, orderApi } from '../services/endpoints';
-import { MemberRow } from '../services/endpoints';
+import { stockApi, dishApi, userApi, cashApi, auditApi, orderApi, MemberRow } from '../services/endpoints';
 import { getApiError } from '../services/api';
 import { StockItem, Dish, Role, CashSessionSummary, AuditLogEntry } from '../types';
 import { formatFCFA, formatDateTime } from '../utils/format';
@@ -82,6 +81,7 @@ const AUDIT_BADGE: Record<string, string> = {
 const UNITS = ['kg', 'litre', 'unité', 'gramme', 'ml'];
 const CATEGORIES = ['Entrée', 'Plat', 'Dessert', 'Boisson'];
 const ROLE_BADGE: Record<string, string> = {
+  propriétaire: 'bg-gold-400/15 text-gold-300',
   administrateur: 'bg-purple-500/15 text-purple-300',
   caissier: 'bg-sky-500/15 text-sky-300',
   cuisinier: 'bg-orange-500/15 text-orange-300',
