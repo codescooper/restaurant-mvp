@@ -29,7 +29,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     // Contexte restaurant : vérifie que le membership est toujours actif.
     if (decoded.restaurantId != null) {
       const membership = await basePrisma.membership.findFirst({
-        where: { userId: user.id, restaurantId: decoded.restaurantId, isActive: true },
+        where: { userId: user.id, restaurantId: decoded.restaurantId, isActive: true, restaurant: { status: 'active' } },
       });
       if (!membership) return sendError(res, 403, 'AUTH_005');
       req.restaurantId = decoded.restaurantId;
