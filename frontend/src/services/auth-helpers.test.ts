@@ -39,4 +39,7 @@ describe('decodeAccessToken', () => {
   it('token invalide → objet vide', () => {
     expect(decodeAccessToken('nimporte')).toEqual({});
   });
+  it('payload non décodable → objet vide', () => {
+    expect(decodeAccessToken('x.!!!.y')).toEqual({});
+  });
 });

@@ -24,9 +24,9 @@ api.interceptors.response.use(
         const tokens = data.data as { accessToken: string; refreshToken: string };
         let accessToken = tokens.accessToken;
         // Multi-restaurants : le refresh n'est pas scopé → on ré-applique le restaurant actif.
-        const activeId = Number(localStorage.getItem('activeRestaurantId') || '');
+        const activeId = parseInt(localStorage.getItem('activeRestaurantId') ?? '', 10);
         const claims = decodeAccessToken(accessToken);
-        if (activeId && claims.restaurantId !== activeId) {
+        if (!Number.isNaN(activeId) && typeof claims.restaurantId === 'number' && claims.restaurantId !== activeId) {
           const sw = await axios.post(
             `${API_URL}/auth/switch-restaurant`,
             { restaurantId: activeId },
