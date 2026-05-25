@@ -21,7 +21,7 @@ export async function listPromotions() {
 
 export async function createPromotion(data: PromotionInput) {
   if (data.kind === 'coupon' && data.code) {
-    const dup = await prisma.promotion.findUnique({ where: { code: data.code } });
+    const dup = await prisma.promotion.findFirst({ where: { code: data.code } });
     if (dup) throw new AppError(409, 'VALIDATION_001', 'Ce code coupon existe déjà');
   }
   return prisma.promotion.create({
@@ -89,7 +89,7 @@ export async function findActiveHappyHour(now = new Date()) {
 
 // Coupon valide (actif, non épuisé).
 export async function findValidCoupon(code: string) {
-  const c = await prisma.promotion.findUnique({ where: { code } });
+  const c = await prisma.promotion.findFirst({ where: { code } });
   if (!c || c.kind !== 'coupon' || !c.isActive) throw new AppError(400, 'VALIDATION_001', 'Coupon invalide');
   if (c.maxUses != null && c.usedCount >= c.maxUses) throw new AppError(400, 'VALIDATION_001', 'Coupon épuisé');
   return c;

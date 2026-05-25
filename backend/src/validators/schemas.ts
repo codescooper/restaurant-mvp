@@ -188,15 +188,16 @@ export const updateExpenseSchema = createExpenseSchema.partial();
 
 // --- Users ---
 export const createUserSchema = z.object({
-  username: z.string().min(3),
+  email: z.string().email(),
   password: z.string().min(6),
   role: z.enum(ROLES),
+  displayName: z.string().min(1).max(80).optional(),
 });
 
 export const updateUserSchema = z.object({
-  username: z.string().min(3).optional(),
-  password: z.string().min(6).optional(),
   role: z.enum(ROLES).optional(),
+  password: z.string().min(6).optional(),
+  displayName: z.string().min(1).max(80).optional(),
 });
 
 // --- Orders ---

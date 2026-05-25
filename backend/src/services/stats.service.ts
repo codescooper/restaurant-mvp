@@ -55,7 +55,7 @@ export async function getDashboard(period: Period) {
 
   const orders = await prisma.order.findMany({
     where: { ...NON_CANCELLED, createdAt: { gte: start, lt: end } },
-    include: { items: true, server: { select: { username: true } } },
+    include: { items: true, server: { select: { displayName: true } } },
     orderBy: { createdAt: 'desc' },
   });
 
@@ -220,7 +220,7 @@ export async function getDashboard(period: Period) {
   const tipByServer = new Map<string, number>();
   const tipByMethod = new Map<string, number>();
   for (const o of tipped) {
-    const who = o.server?.username ?? 'Maison';
+    const who = o.server?.displayName ?? 'Maison';
     tipByServer.set(who, (tipByServer.get(who) ?? 0) + o.tipAmount);
     const m = o.tipMethod ?? 'inconnu';
     tipByMethod.set(m, (tipByMethod.get(m) ?? 0) + o.tipAmount);

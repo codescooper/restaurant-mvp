@@ -105,7 +105,7 @@ export async function closeSession(
       discrepancyReason: discrepancyReason?.trim() || null,
       notes: notes ?? session.notes,
     },
-    include: { cashier: { select: { id: true, username: true } } },
+    include: { cashier: { select: { id: true, displayName: true } } },
   });
   await logAudit({
     userId: closedBy ?? cashierId,
@@ -174,8 +174,8 @@ export async function listSessions(limit = 50) {
     orderBy: { openedAt: 'desc' },
     take: limit,
     include: {
-      cashier: { select: { id: true, username: true } },
-      closer: { select: { id: true, username: true } },
+      cashier: { select: { id: true, displayName: true } },
+      closer: { select: { id: true, displayName: true } },
     },
   });
 }
@@ -184,8 +184,8 @@ export async function getSessionReport(id: number) {
   const session = await prisma.cashSession.findUnique({
     where: { id },
     include: {
-      cashier: { select: { id: true, username: true } },
-      closer: { select: { id: true, username: true } },
+      cashier: { select: { id: true, displayName: true } },
+      closer: { select: { id: true, displayName: true } },
     },
   });
   if (!session) throw new AppError(404, 'CASH_005');

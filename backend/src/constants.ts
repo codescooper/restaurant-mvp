@@ -1,6 +1,6 @@
 // Valeurs catégorielles du domaine (libellés français du cahier des charges).
 
-export const ROLES = ['administrateur', 'caissier', 'cuisinier', 'serveur'] as const;
+export const ROLES = ['propriétaire', 'administrateur', 'caissier', 'cuisinier', 'serveur'] as const;
 export type Role = (typeof ROLES)[number];
 
 export const TABLE_STATUSES = ['libre', 'occupée', 'addition_demandée', 'réservée'] as const;

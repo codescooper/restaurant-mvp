@@ -13,6 +13,7 @@ export const ErrorCodes = {
   ORDER_005: 'Un serveur ne peut pas encaisser : commande à régler à la caisse',
   DISH_001: 'Plat introuvable',
   DISH_002: 'Plat indisponible',
+  NOTIF_001: 'Notification introuvable',
   USER_001: 'Utilisateur introuvable',
   USER_002: 'Username déjà existant',
   USER_003: 'Action interdite sur votre propre compte',

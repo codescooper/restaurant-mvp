@@ -43,6 +43,6 @@ export async function listAuditLogs(filters: AuditFilters = {}) {
     },
     orderBy: { createdAt: 'desc' },
     take: filters.limit ?? 200,
-    include: { user: { select: { id: true, username: true, role: true } } },
+    include: { user: { select: { id: true, displayName: true } } },
   });
 }

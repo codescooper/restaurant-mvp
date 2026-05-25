@@ -12,7 +12,7 @@ import {
 
 const router = Router();
 // Données RH sensibles (salaires) : réservé à l'administrateur.
-router.use(authenticate, requireRole('administrateur'));
+router.use(authenticate, requireRole('propriétaire', 'administrateur'));
 
 router.get('/', listEmployeesController);
 router.post('/', validate(createEmployeeSchema), createEmployeeController);

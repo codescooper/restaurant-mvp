@@ -3,7 +3,7 @@ import { authenticate, requireRole } from '../middlewares/auth';
 import { dashboardController, exportController } from '../controllers/stats.controller';
 
 const router = Router();
-router.use(authenticate, requireRole('administrateur', 'caissier'));
+router.use(authenticate, requireRole('propriétaire', 'administrateur', 'caissier'));
 
 router.get('/dashboard', dashboardController);
 // POST (fetch + blob) et GET (téléchargement natif du navigateur, token en query) supportés.

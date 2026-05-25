@@ -1,6 +1,7 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { authenticate } from '../middlewares/auth';
 import { tenantContext } from '../middlewares/tenant';
+import { sendError } from '../utils/response';
 import authRoutes from './auth.routes';
 import stockRoutes from './stock.routes';
 import dishRoutes from './dish.routes';
@@ -26,23 +27,27 @@ router.get('/health', (_req, res) => res.json({ success: true, data: { status: '
 router.use('/auth', authRoutes);
 
 // Toutes les routes suivantes sont scopées : auth (pose req.restaurantId) puis ouverture du contexte.
-router.use(authenticate, tenantContext);
+// tenantContext est branché par route pour ne pas intercepter les routes inconnues (→ 404).
+const tenant = [authenticate, tenantContext] as const;
 
-router.use('/stock', stockRoutes);
-router.use('/dishes', dishRoutes);
-router.use('/users', userRoutes);
-router.use('/orders', orderRoutes);
-router.use('/tables', tableRoutes);
-router.use('/stats', statsRoutes);
-router.use('/notifications', notificationRoutes);
-router.use('/sync', syncRoutes);
-router.use('/cash', cashRoutes);
-router.use('/audit', auditRoutes);
-router.use('/suppliers', supplierRoutes);
-router.use('/employees', employeeRoutes);
-router.use('/expenses', expenseRoutes);
-router.use('/inventory', inventoryRoutes);
-router.use('/promotions', promotionRoutes);
-router.use('/settings', settingsRoutes);
+router.use('/stock', ...tenant, stockRoutes);
+router.use('/dishes', ...tenant, dishRoutes);
+router.use('/users', ...tenant, userRoutes);
+router.use('/orders', ...tenant, orderRoutes);
+router.use('/tables', ...tenant, tableRoutes);
+router.use('/stats', ...tenant, statsRoutes);
+router.use('/notifications', ...tenant, notificationRoutes);
+router.use('/sync', ...tenant, syncRoutes);
+router.use('/cash', ...tenant, cashRoutes);
+router.use('/audit', ...tenant, auditRoutes);
+router.use('/suppliers', ...tenant, supplierRoutes);
+router.use('/employees', ...tenant, employeeRoutes);
+router.use('/expenses', ...tenant, expenseRoutes);
+router.use('/inventory', ...tenant, inventoryRoutes);
+router.use('/promotions', ...tenant, promotionRoutes);
+router.use('/settings', ...tenant, settingsRoutes);
+
+// Route inconnue dans l'espace /api → 404 (l'authenticate ne doit pas intercepter avant le 404 handler global).
+router.use((_req: Request, res: Response) => sendError(res, 404, 'INTERNAL_001', 'Route introuvable'));
 
 export default router;

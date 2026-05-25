@@ -34,7 +34,7 @@ export async function listTablesWithStatus() {
     where: { tableId: { not: null }, ...OCCUPYING_WHERE },
     include: {
       items: { select: { id: true, dishName: true, quantity: true } },
-      server: { select: { id: true, username: true } },
+      server: { select: { id: true, displayName: true } },
     },
     orderBy: { createdAt: 'asc' },
   });
@@ -126,7 +126,7 @@ export async function listTables() {
 }
 
 export async function createTable(data: { name: string; capacity?: number }) {
-  const existing = await prisma.table.findUnique({ where: { name: data.name } });
+  const existing = await prisma.table.findFirst({ where: { name: data.name } });
   if (existing) throw new AppError(409, 'VALIDATION_001', 'Une table porte déjà ce nom');
   return prisma.table.create({ data: { name: data.name, capacity: data.capacity ?? 4 } });
 }
@@ -135,7 +135,7 @@ export async function updateTable(id: number, data: { name?: string; capacity?: 
   const table = await prisma.table.findUnique({ where: { id } });
   if (!table) throw new AppError(404, 'VALIDATION_001', 'Table introuvable');
   if (data.name && data.name !== table.name) {
-    const dup = await prisma.table.findUnique({ where: { name: data.name } });
+    const dup = await prisma.table.findFirst({ where: { name: data.name } });
     if (dup) throw new AppError(409, 'VALIDATION_001', 'Une table porte déjà ce nom');
   }
   return prisma.table.update({
