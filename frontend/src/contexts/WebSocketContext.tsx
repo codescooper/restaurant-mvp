@@ -39,8 +39,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       s.removeAllListeners();
       disconnectSocket();
     };
-    // Reconnexion quand l'utilisateur OU le restaurant actif change (nouveau token scopé).
-  }, [currentUser, activeRestaurantId]);
+    // Reconnexion quand l'identité de l'utilisateur OU le restaurant actif change (nouveau token scopé).
+  }, [currentUser?.id, activeRestaurantId]);
 
   return (
     <WebSocketContext.Provider value={{ socket, connected }}>{children}</WebSocketContext.Provider>

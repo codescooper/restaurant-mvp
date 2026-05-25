@@ -42,11 +42,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then(({ user, memberships: ms }) => {
         setCurrentUser(user);
         setMemberships(ms);
-        const claims = decodeAccessToken(token);
+        const claims = decodeAccessToken(localStorage.getItem('accessToken'));
         if (claims.restaurantId && ms.some((m) => m.restaurantId === claims.restaurantId)) {
           setActiveRestaurantId(claims.restaurantId);
           setCurrentRole((claims.role as Role) ?? ms.find((m) => m.restaurantId === claims.restaurantId)?.role ?? null);
           localStorage.setItem('activeRestaurantId', String(claims.restaurantId));
+        } else {
+          localStorage.removeItem('activeRestaurantId');
         }
       })
       .catch(() => {
@@ -81,11 +83,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCurrentUser(res.user);
     setMemberships(res.memberships);
     const role = res.memberships.find((m) => m.restaurantId === restaurantId)?.role
-      ?? (decodeAccessToken(res.accessToken).role as Role);
+      ?? (decodeAccessToken(res.accessToken).role as Role | undefined);
+    if (!role) throw new Error(`Restaurant ${restaurantId} introuvable dans la réponse`);
     setActiveRestaurantId(restaurantId);
-    setCurrentRole(role ?? null);
+    setCurrentRole(role);
     localStorage.setItem('activeRestaurantId', String(restaurantId));
-    return role as Role;
+    return role;
   };
 
   const logout = () => {
