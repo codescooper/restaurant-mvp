@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { authenticate } from '../middlewares/auth';
+import { tenantContext } from '../middlewares/tenant';
 import authRoutes from './auth.routes';
 import stockRoutes from './stock.routes';
 import dishRoutes from './dish.routes';
@@ -22,6 +24,10 @@ const router = Router();
 router.get('/health', (_req, res) => res.json({ success: true, data: { status: 'ok' } }));
 
 router.use('/auth', authRoutes);
+
+// Toutes les routes suivantes sont scopées : auth (pose req.restaurantId) puis ouverture du contexte.
+router.use(authenticate, tenantContext);
+
 router.use('/stock', stockRoutes);
 router.use('/dishes', dishRoutes);
 router.use('/users', userRoutes);

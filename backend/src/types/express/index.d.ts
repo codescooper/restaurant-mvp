@@ -1,14 +1,7 @@
-import { Role } from '../../constants';
-
 declare global {
   namespace Express {
-    interface UserPayload {
-      id: number;
-      username: string;
-      role: Role;
-    }
     interface Request {
-      user?: UserPayload;
+      user?: { id: number; isSuperAdmin: boolean };
       restaurantId?: number;
       membership?: { restaurantId: number; role: string };
     }

@@ -20,8 +20,12 @@ import {
 
 // --- Auth ---
 export const loginSchema = z.object({
-  username: z.string().min(1, 'Nom d\'utilisateur requis'),
-  password: z.string().min(1, 'Mot de passe requis'),
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+export const switchRestaurantSchema = z.object({
+  restaurantId: z.number().int().positive(),
 });
 
 export const refreshSchema = z.object({

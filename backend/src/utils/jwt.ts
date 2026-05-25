@@ -4,8 +4,10 @@ import { Role } from '../constants';
 
 export interface AccessPayload {
   userId: number;
-  username: string;
-  role: Role;
+  isSuperAdmin: boolean;
+  // Contexte restaurant actif (absent tant qu'aucun restaurant n'est sélectionné, ex. super-admin).
+  restaurantId?: number;
+  role?: Role;
 }
 
 export interface RefreshPayload {

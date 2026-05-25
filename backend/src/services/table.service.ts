@@ -14,7 +14,7 @@ import {
 import { resolveCashSessionForPayment, getOpenSession } from './cash.service';
 import { createOrder } from './order.service';
 import { logAudit } from './audit.service';
-import { emitStatsUpdated, emitToRole, emitToAll } from '../websocket';
+import { emitStatsUpdated, emitToRole, emitToRestaurant } from '../websocket';
 
 // Une commande "occupe" sa table si elle n'est ni annulée, ni (servie ET payée).
 const OCCUPYING_WHERE: Prisma.OrderWhereInput = {
@@ -238,7 +238,7 @@ export async function setBillRequested(id: number, requested: boolean) {
   const table = await prisma.table.findUnique({ where: { id } });
   if (!table) throw new AppError(404, 'VALIDATION_001', 'Table introuvable');
   const updated = await prisma.table.update({ where: { id }, data: { billRequested: requested } });
-  emitToAll('table_status_changed', { tableId: id });
+  emitToRestaurant('table_status_changed', { tableId: id });
   if (requested) {
     emitToRole('caissier', 'bill_requested', { tableId: id, tableName: table.name });
   }
@@ -268,7 +268,7 @@ export async function mergeTable(sourceId: number, targetId: number, userId?: nu
     entityId: sourceId,
     details: { fusion: true, source: source.name, cible: target.name, commandes: moved.count },
   });
-  emitToAll('table_status_changed', { tableId: sourceId, targetId });
+  emitToRestaurant('table_status_changed', { tableId: sourceId, targetId });
   return { sourceId, targetId, moved: moved.count };
 }
 
@@ -431,7 +431,7 @@ export async function createReservation(input: ReservationInput, userId?: number
     },
     include: reservationInclude,
   });
-  emitToAll('table_status_changed', { tableId: input.tableId });
+  emitToRestaurant('table_status_changed', { tableId: input.tableId });
   return withComputed(reservation);
 }
 
@@ -483,8 +483,8 @@ export async function updateReservation(id: number, input: ReservationInput, use
       include: reservationInclude,
     });
   });
-  emitToAll('table_status_changed', { tableId });
-  if (tableId !== existing.tableId) emitToAll('table_status_changed', { tableId: existing.tableId });
+  emitToRestaurant('table_status_changed', { tableId });
+  if (tableId !== existing.tableId) emitToRestaurant('table_status_changed', { tableId: existing.tableId });
   return withComputed(updated);
 }
 
@@ -502,7 +502,7 @@ export async function setReservationStatus(id: number, status: 'annulée' | 'hon
   const reservation = await prisma.reservation.findUnique({ where: { id } });
   if (!reservation) throw new AppError(404, 'VALIDATION_001', 'Réservation introuvable');
   const updated = await prisma.reservation.update({ where: { id }, data: { status } });
-  emitToAll('table_status_changed', { tableId: reservation.tableId });
+  emitToRestaurant('table_status_changed', { tableId: reservation.tableId });
   return updated;
 }
 
@@ -529,7 +529,7 @@ export async function cancelReservation(id: number, refundDeposit: boolean, user
       details: { customerName: reservation.customerName, deposit: reservation.depositAmount, method: reservation.depositMethod },
     });
   }
-  emitToAll('table_status_changed', { tableId: reservation.tableId });
+  emitToRestaurant('table_status_changed', { tableId: reservation.tableId });
   return updated;
 }
 
@@ -563,6 +563,6 @@ export async function arriveReservation(id: number, userId?: number) {
       userId
     );
   }
-  emitToAll('table_status_changed', { tableId: reservation.tableId });
+  emitToRestaurant('table_status_changed', { tableId: reservation.tableId });
   return { reservationId: id, orderCreated: !!order, order };
 }
