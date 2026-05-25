@@ -9,6 +9,8 @@ declare global {
     }
     interface Request {
       user?: UserPayload;
+      restaurantId?: number;
+      membership?: { restaurantId: number; role: string };
     }
   }
 }
