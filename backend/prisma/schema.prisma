@@ -107,7 +107,7 @@ model Expense {
   restaurantId  Int?     @map("restaurant_id")
 
   creator    User?       @relation(fields: [createdBy], references: [id])
-  restaurant Restaurant? @relation(fields: [restaurantId], references: [id])
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@index([expenseDate], map: "idx_expenses_date")
   @@index([category], map: "idx_expenses_category")
@@ -148,7 +148,7 @@ model Employee {
   restaurantId     Int?      @map("restaurant_id")
 
   user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
-  restaurant Restaurant? @relation(fields: [restaurantId], references: [id])
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@index([isActive], map: "idx_employees_active")
   @@index([restaurantId], map: "idx_employees_restaurant")
@@ -173,7 +173,7 @@ model StockItem {
   notifications      Notification[]
   purchases          Purchase[]
   inventoryLines     InventoryLine[]
-  restaurant         Restaurant?         @relation(fields: [restaurantId], references: [id])
+  restaurant         Restaurant?         @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@index([quantity, alertThreshold], map: "idx_stock_items_alert")
   @@index([restaurantId], map: "idx_stock_items_restaurant")
@@ -201,7 +201,7 @@ model Dish {
   variants         DishVariant[]
   orderItems       OrderItem[]
   reservationItems ReservationItem[]
-  restaurant       Restaurant?       @relation(fields: [restaurantId], references: [id])
+  restaurant       Restaurant?       @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@index([isActive], map: "idx_dishes_active")
   @@index([restaurantId], map: "idx_dishes_restaurant")
@@ -309,7 +309,7 @@ model Order {
   items          OrderItem[]
   stockMovements StockMovement[]
   notifications  Notification[]
-  restaurant     Restaurant?     @relation(fields: [restaurantId], references: [id])
+  restaurant     Restaurant?     @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@unique([restaurantId, orderNumber])
   @@index([status], map: "idx_orders_status")
@@ -358,7 +358,7 @@ model StockMovement {
   stockItem  StockItem   @relation(fields: [stockItemId], references: [id])
   order      Order?      @relation(fields: [orderId], references: [id])
   creator    User?       @relation(fields: [createdBy], references: [id])
-  restaurant Restaurant? @relation(fields: [restaurantId], references: [id])
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@index([restaurantId], map: "idx_stock_movements_restaurant")
   @@map("stock_movements")
@@ -379,7 +379,7 @@ model Notification {
   relatedOrder Order?             @relation(fields: [relatedOrderId], references: [id])
   relatedStock StockItem?         @relation(fields: [relatedStockId], references: [id])
   reads        NotificationRead[]
-  restaurant   Restaurant?        @relation(fields: [restaurantId], references: [id])
+  restaurant   Restaurant?        @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@index([userRole, isRead], map: "idx_notifications_role")
   @@index([restaurantId], map: "idx_notifications_restaurant")
@@ -407,7 +407,7 @@ model AppSetting {
   updatedAt    DateTime @updatedAt @map("updated_at")
   restaurantId Int?     @map("restaurant_id")
 
-  restaurant Restaurant? @relation(fields: [restaurantId], references: [id])
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@unique([restaurantId, settingKey])
   @@index([restaurantId], map: "idx_app_settings_restaurant")
@@ -424,7 +424,7 @@ model Table {
 
   orders       Order[]
   reservations Reservation[]
-  restaurant   Restaurant?   @relation(fields: [restaurantId], references: [id])
+  restaurant   Restaurant?   @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@unique([restaurantId, name])
   @@index([restaurantId], map: "idx_tables_restaurant")
@@ -468,7 +468,7 @@ model Reservation {
   creator            User?             @relation(fields: [createdBy], references: [id])
   depositCashSession CashSession?      @relation("ReservationDeposits", fields: [depositCashSessionId], references: [id])
   items              ReservationItem[]
-  restaurant         Restaurant?       @relation(fields: [restaurantId], references: [id])
+  restaurant         Restaurant?       @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@index([tableId, status], map: "idx_reservations_table")
   @@index([reservedAt], map: "idx_reservations_date")
@@ -518,7 +518,7 @@ model CashSession {
   closer              User?         @relation("ClosedSessions", fields: [closedBy], references: [id])
   orders              Order[]
   reservationDeposits Reservation[] @relation("ReservationDeposits")
-  restaurant          Restaurant?   @relation(fields: [restaurantId], references: [id])
+  restaurant          Restaurant?   @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@index([cashierId, status], map: "idx_cash_sessions_cashier")
   @@index([restaurantId], map: "idx_cash_sessions_restaurant")
@@ -543,7 +543,7 @@ model Promotion {
   restaurantId  Int?     @map("restaurant_id")
 
   orders     Order[]
-  restaurant Restaurant? @relation(fields: [restaurantId], references: [id])
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@unique([restaurantId, code])
   @@index([restaurantId], map: "idx_promotions_restaurant")
@@ -562,7 +562,7 @@ model AuditLog {
   restaurantId Int?     @map("restaurant_id")
 
   user       User?       @relation(fields: [userId], references: [id])
-  restaurant Restaurant? @relation(fields: [restaurantId], references: [id])
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@index([action], map: "idx_audit_action")
   @@index([createdAt], map: "idx_audit_created_at")
@@ -594,7 +594,7 @@ model Supplier {
   restaurantId Int?     @map("restaurant_id")
 
   purchases  Purchase[]
-  restaurant Restaurant? @relation(fields: [restaurantId], references: [id])
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@index([restaurantId], map: "idx_suppliers_restaurant")
   @@map("suppliers")
@@ -619,7 +619,7 @@ model Purchase {
   supplier   Supplier    @relation(fields: [supplierId], references: [id], onDelete: Cascade)
   stockItem  StockItem   @relation(fields: [stockItemId], references: [id])
   creator    User?       @relation(fields: [createdBy], references: [id])
-  restaurant Restaurant? @relation(fields: [restaurantId], references: [id])
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@index([supplierId], map: "idx_purchases_supplier")
   @@index([restaurantId], map: "idx_purchases_restaurant")
@@ -639,7 +639,7 @@ model Inventory {
 
   creator    User?           @relation(fields: [createdBy], references: [id])
   lines      InventoryLine[]
-  restaurant Restaurant?     @relation(fields: [restaurantId], references: [id])
+  restaurant Restaurant?     @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@index([restaurantId], map: "idx_inventories_restaurant")
   @@map("inventories")
