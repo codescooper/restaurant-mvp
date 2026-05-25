@@ -1,14 +1,17 @@
 import {
   startOfDay,
+  endOfDay,
   startOfWeek,
   startOfMonth,
   subDays,
   subWeeks,
   subMonths,
   getHours,
+  format as formatDate,
 } from 'date-fns';
 import { prisma } from '../config/prisma';
 import { STOCK_PURCHASE_CATEGORY } from '../constants';
+import { getRestaurantName } from './settings.service';
 
 export type Period = 'today' | 'week' | 'month';
 
@@ -283,3 +286,245 @@ export async function getDashboard(period: Period) {
 }
 
 export type DashboardData = Awaited<ReturnType<typeof getDashboard>>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Rapport financier sur une plage de dates (du … au …) — synthèse trésorerie.
+// Logique « caisse » (recettes − toutes dépenses) ET bénéfice net (recettes −
+// coût matière − pertes − charges) côte à côte. Sert au PDF/CSV téléchargeable.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface FinancialReport {
+  restaurantName: string;
+  start: Date;
+  end: Date;
+  // Section 1 — dépenses enregistrées (toutes catégories, achats stock inclus).
+  expenses: { date: Date; label: string; category: string; amount: number }[];
+  totalExpenses: number;
+  // Section 2 — recettes par jour (chiffre d'affaires des commandes non annulées).
+  revenues: { date: Date; amount: number; orders: number }[];
+  totalRevenue: number;
+  ordersCount: number;
+  // Section 3 — résultat.
+  simpleProfit: number; // recettes − total dépenses (logique caisse)
+  netProfit: number; // recettes − coût matière − pertes − charges
+  cogs: number; // coût matière des plats vendus
+  lossValue: number; // pertes valorisées
+  charges: number; // dépenses hors approvisionnement
+  stockPurchases: number; // dépenses d'approvisionnement (achats stock)
+  // Section 4 — observations.
+  bestDays: { date: Date; amount: number }[];
+  topDishes: { name: string; quantity: number; revenue: number }[];
+  topExpenseCategories: { category: string; amount: number }[];
+}
+
+const dayKey = (d: Date) => formatDate(d, 'yyyy-MM-dd');
+
+export async function getFinancialReport(startInput: Date, endInput: Date): Promise<FinancialReport> {
+  const start = startOfDay(startInput);
+  const end = endOfDay(endInput);
+
+  const [restaurantName, orders, expenses, stockItems, dishesForCost, lossMovements] = await Promise.all([
+    getRestaurantName(),
+    prisma.order.findMany({
+      where: { ...NON_CANCELLED, createdAt: { gte: start, lte: end } },
+      include: { items: true },
+      orderBy: { createdAt: 'asc' },
+    }),
+    prisma.expense.findMany({
+      where: { expenseDate: { gte: start, lte: end } },
+      orderBy: { expenseDate: 'asc' },
+    }),
+    prisma.stockItem.findMany({ select: { id: true, unitCost: true } }),
+    prisma.dish.findMany({
+      include: {
+        ingredients: { include: { stockItem: { select: { unitCost: true } } } },
+        variants: { include: { ingredients: { include: { stockItem: { select: { unitCost: true } } } } } },
+      },
+    }),
+    prisma.stockMovement.findMany({
+      where: { movementType: 'perte', createdAt: { gte: start, lte: end } },
+      select: { quantity: true, stockItemId: true },
+    }),
+  ]);
+
+  // Coûts de revient (recettes & coûts unitaires actuels) — pour le coût matière (COGS).
+  const stockCost = new Map(stockItems.map((s) => [s.id, s.unitCost]));
+  const dishCost = new Map<number, number>();
+  const variantCost = new Map<number, number>();
+  for (const d of dishesForCost) {
+    dishCost.set(d.id, recipeCost(d.ingredients));
+    for (const v of d.variants) variantCost.set(v.id, recipeCost(v.ingredients));
+  }
+  const cogs = orders.reduce(
+    (sum, o) =>
+      sum +
+      o.items.reduce(
+        (s, it) => s + (it.variantId ? variantCost.get(it.variantId) ?? 0 : dishCost.get(it.dishId) ?? 0) * it.quantity,
+        0
+      ),
+    0
+  );
+  const lossValue = Math.round(
+    lossMovements.reduce((s, m) => s + Math.abs(m.quantity) * (stockCost.get(m.stockItemId) ?? 0), 0)
+  );
+
+  // Section 1 — dépenses.
+  const expenseRows = expenses.map((e) => ({
+    date: e.expenseDate,
+    label: e.label,
+    category: e.category,
+    amount: e.amount,
+  }));
+  const totalExpenses = expenseRows.reduce((s, e) => s + e.amount, 0);
+  const stockPurchases = expenseRows
+    .filter((e) => e.category === STOCK_PURCHASE_CATEGORY)
+    .reduce((s, e) => s + e.amount, 0);
+  const charges = totalExpenses - stockPurchases;
+
+  // Section 2 — recettes par jour (uniquement les jours avec des ventes).
+  const revByDay = new Map<string, { date: Date; amount: number; orders: number }>();
+  for (const o of orders) {
+    const day = startOfDay(o.createdAt);
+    const key = dayKey(day);
+    const cur = revByDay.get(key) ?? { date: day, amount: 0, orders: 0 };
+    cur.amount += o.finalTotal;
+    cur.orders += 1;
+    revByDay.set(key, cur);
+  }
+  const revenues = [...revByDay.values()].sort((a, b) => a.date.getTime() - b.date.getTime());
+  const totalRevenue = revenues.reduce((s, r) => s + r.amount, 0);
+
+  // Section 3 — résultats.
+  const simpleProfit = totalRevenue - totalExpenses;
+  const netProfit = totalRevenue - cogs - lossValue - charges;
+
+  // Section 4 — observations.
+  const bestDays = [...revenues].sort((a, b) => b.amount - a.amount).slice(0, 3);
+
+  const dishAgg = new Map<string, { quantity: number; revenue: number }>();
+  for (const o of orders) {
+    for (const it of o.items) {
+      const cur = dishAgg.get(it.dishName) ?? { quantity: 0, revenue: 0 };
+      cur.quantity += it.quantity;
+      cur.revenue += it.subtotal;
+      dishAgg.set(it.dishName, cur);
+    }
+  }
+  const topDishes = [...dishAgg.entries()]
+    .map(([name, v]) => ({ name, quantity: v.quantity, revenue: v.revenue }))
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 5);
+
+  const catAgg = new Map<string, number>();
+  for (const e of expenseRows) catAgg.set(e.category, (catAgg.get(e.category) ?? 0) + e.amount);
+  const topExpenseCategories = [...catAgg.entries()]
+    .map(([category, amount]) => ({ category, amount }))
+    .sort((a, b) => b.amount - a.amount);
+
+  return {
+    restaurantName,
+    start,
+    end,
+    expenses: expenseRows,
+    totalExpenses,
+    revenues,
+    totalRevenue,
+    ordersCount: orders.length,
+    simpleProfit,
+    netProfit,
+    cogs,
+    lossValue,
+    charges,
+    stockPurchases,
+    bestDays,
+    topDishes,
+    topExpenseCategories,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Rapport des ventes par produit sur une plage de dates — performance produit.
+// Agrège chaque produit réellement vendu (plat + variante) : quantité & revenu,
+// regroupés par catégorie de menu. Chiffres exacts (pas d'estimation).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const UNCLASSIFIED = 'Non classé';
+
+export interface ProductLine {
+  name: string;
+  category: string;
+  quantity: number;
+  revenue: number;
+}
+
+export interface ProductReport {
+  restaurantName: string;
+  start: Date;
+  end: Date;
+  // Une section par catégorie ayant des ventes (triées par revenu décroissant).
+  categories: { category: string; quantity: number; revenue: number; products: ProductLine[] }[];
+  totalQuantity: number;
+  totalRevenue: number;
+  // Observations (data uniquement).
+  topByRevenue: ProductLine[];
+  topByQuantity: ProductLine[];
+}
+
+export async function getProductReport(startInput: Date, endInput: Date): Promise<ProductReport> {
+  const start = startOfDay(startInput);
+  const end = endOfDay(endInput);
+
+  const [restaurantName, orders, dishes] = await Promise.all([
+    getRestaurantName(),
+    prisma.order.findMany({
+      where: { ...NON_CANCELLED, createdAt: { gte: start, lte: end } },
+      include: { items: true },
+    }),
+    prisma.dish.findMany({ select: { id: true, category: true } }),
+  ]);
+
+  const catOf = new Map(dishes.map((d) => [d.id, d.category ?? UNCLASSIFIED]));
+
+  // Agrégation par produit (clé = nom du plat + variante éventuelle).
+  const agg = new Map<string, ProductLine>();
+  for (const o of orders) {
+    for (const it of o.items) {
+      const name = it.variantName ? `${it.dishName} (${it.variantName})` : it.dishName;
+      const category = catOf.get(it.dishId) ?? UNCLASSIFIED;
+      const cur = agg.get(name) ?? { name, category, quantity: 0, revenue: 0 };
+      cur.quantity += it.quantity;
+      cur.revenue += it.subtotal;
+      agg.set(name, cur);
+    }
+  }
+  const products = [...agg.values()];
+
+  // Regroupement par catégorie.
+  const byCat = new Map<string, { category: string; quantity: number; revenue: number; products: ProductLine[] }>();
+  for (const p of products) {
+    const cur = byCat.get(p.category) ?? { category: p.category, quantity: 0, revenue: 0, products: [] };
+    cur.quantity += p.quantity;
+    cur.revenue += p.revenue;
+    cur.products.push(p);
+    byCat.set(p.category, cur);
+  }
+  const categories = [...byCat.values()].sort((a, b) => b.revenue - a.revenue);
+  for (const c of categories) c.products.sort((a, b) => b.revenue - a.revenue);
+
+  const totalQuantity = products.reduce((s, p) => s + p.quantity, 0);
+  const totalRevenue = products.reduce((s, p) => s + p.revenue, 0);
+
+  const topByRevenue = [...products].sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+  const topByQuantity = [...products].sort((a, b) => b.quantity - a.quantity).slice(0, 5);
+
+  return {
+    restaurantName,
+    start,
+    end,
+    categories,
+    totalQuantity,
+    totalRevenue,
+    topByRevenue,
+    topByQuantity,
+  };
+}

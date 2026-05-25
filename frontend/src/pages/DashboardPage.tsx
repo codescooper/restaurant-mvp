@@ -7,7 +7,8 @@ import {
   TrendingDown,
   Clock,
   Download,
-  Calendar,
+  FileText,
+  Check,
   Coins,
   Wallet,
   PiggyBank,
@@ -17,13 +18,17 @@ import {
 } from 'lucide-react';
 import { useClock } from '../hooks/useClock';
 import { useWebSocket } from '../contexts/WebSocketContext';
-import { statsApi } from '../services/endpoints';
+import { statsApi, settingsApi } from '../services/endpoints';
 import { DashboardData } from '../types';
 import { formatFCFA, formatTime } from '../utils/format';
 
 type Period = 'today' | 'week' | 'month';
 const PERIOD_LABELS: Record<Period, string> = { today: "Aujourd'hui", week: 'Cette semaine', month: 'Ce mois' };
 const CHANNEL_LABELS: Record<string, string> = { sur_place: 'Sur place', emporter: 'À emporter', livraison: 'Livraison' };
+
+// Date -> 'yyyy-MM-dd' en heure locale (pour les <input type="date">).
+const toInput = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 function GrowthBadge({ value }: { value: number }) {
   const positive = value >= 0;
@@ -43,6 +48,12 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [exportError, setExportError] = useState('');
+
+  // Rapport financier : plage de dates au choix + nom du restaurant (paramétrable).
+  const [reportStart, setReportStart] = useState(() => toInput(new Date(new Date().getFullYear(), new Date().getMonth(), 1)));
+  const [reportEnd, setReportEnd] = useState(() => toInput(new Date()));
+  const [restaurantName, setRestaurantName] = useState('');
+  const [nameSaved, setNameSaved] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -66,21 +77,71 @@ export default function DashboardPage() {
     };
   }, [socket, load]);
 
+  useEffect(() => {
+    settingsApi
+      .getRestaurantName()
+      .then(setRestaurantName)
+      .catch(() => {});
+  }, []);
+
+  // Raccourcis de période pour le rapport.
+  const applyPreset = (kind: '7d' | '30d' | 'month' | 'lastMonth') => {
+    const now = new Date();
+    if (kind === '7d') {
+      const s = new Date(now);
+      s.setDate(now.getDate() - 6);
+      setReportStart(toInput(s));
+      setReportEnd(toInput(now));
+    } else if (kind === '30d') {
+      const s = new Date(now);
+      s.setDate(now.getDate() - 29);
+      setReportStart(toInput(s));
+      setReportEnd(toInput(now));
+    } else if (kind === 'month') {
+      setReportStart(toInput(new Date(now.getFullYear(), now.getMonth(), 1)));
+      setReportEnd(toInput(now));
+    } else {
+      setReportStart(toInput(new Date(now.getFullYear(), now.getMonth() - 1, 1)));
+      setReportEnd(toInput(new Date(now.getFullYear(), now.getMonth(), 0)));
+    }
+  };
+
+  const saveName = async () => {
+    setExportError('');
+    try {
+      const saved = await settingsApi.setRestaurantName(restaurantName);
+      setRestaurantName(saved);
+      setNameSaved(true);
+      setTimeout(() => setNameSaved(false), 2000);
+    } catch {
+      setExportError("Impossible d'enregistrer le nom (réservé à l'administrateur).");
+    }
+  };
+
   // Téléchargement natif du navigateur : lien direct vers le backend (Content-Disposition:
   // attachment). Synchrone, donc le « geste utilisateur » est préservé — Chrome ne bloque plus
   // le téléchargement (problème des téléchargements déclenchés après un await).
-  const handleExport = (format: 'pdf' | 'csv') => {
+  const handleDownloadReport = (kind: 'report' | 'product-report', format: 'pdf' | 'csv') => {
     setExportError('');
     const token = localStorage.getItem('accessToken');
     if (!token) {
       setExportError('Session expirée. Reconnectez-vous puis réessayez.');
       return;
     }
+    if (!reportStart || !reportEnd) {
+      setExportError('Choisis une date de début et une date de fin.');
+      return;
+    }
+    if (reportStart > reportEnd) {
+      setExportError('La date de début doit précéder la date de fin.');
+      return;
+    }
     const base = import.meta.env.VITE_API_URL as string;
-    const url = `${base}/stats/export?period=${period}&format=${format}&token=${encodeURIComponent(token)}`;
+    const url = `${base}/stats/${kind}?start=${reportStart}&end=${reportEnd}&format=${format}&token=${encodeURIComponent(token)}`;
+    const filename = kind === 'product-report' ? 'rapport-produits' : 'rapport-financier';
     const a = document.createElement('a');
     a.href = url;
-    a.download = `rapport-${period}.${format}`;
+    a.download = `${filename}.${format}`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -225,9 +286,6 @@ export default function DashboardPage() {
             <div className="lg:col-span-2 bg-neutral-950 rounded-xl shadow p-4">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="font-bold text-neutral-100">Ventes par heure</h2>
-                <button onClick={() => handleExport('csv')} className="text-sm text-gold-400 flex items-center gap-1">
-                  <Download className="w-4 h-4" /> Exporter
-                </button>
               </div>
               <div className="flex items-end gap-1 h-64">
                 {data.salesByHour.map((s) => (
@@ -452,28 +510,120 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Actions rapides */}
+          {/* Rapport financier (PDF / CSV) sur une plage de dates au choix */}
           <div className="bg-gradient-to-r from-neutral-950 to-neutral-900/40 border border-neutral-800 ring-1 ring-white/5 text-neutral-100 rounded-2xl p-5">
-            <h2 className="font-bold mb-3">Actions Rapides</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex items-center gap-2 mb-1">
+              <FileText className="w-5 h-5 text-gold-400" />
+              <h2 className="font-bold">Rapport financier</h2>
+            </div>
+            <p className="text-sm text-neutral-400 mb-4">
+              Dépenses, recettes et bénéfice sur la période choisie, prêt à imprimer ou partager.
+            </p>
+
+            {/* Nom du restaurant (en-tête du rapport) */}
+            <div className="mb-4">
+              <label className="block text-sm text-neutral-400 mb-1">Nom du restaurant (en-tête du rapport)</label>
+              <div className="flex gap-2 max-w-md">
+                <input
+                  value={restaurantName}
+                  onChange={(e) => setRestaurantName(e.target.value)}
+                  placeholder="Ex. La Table d'Or"
+                  className="flex-1 bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-neutral-100 placeholder-neutral-500 outline-none focus:ring-2 focus:ring-gold-400/60 focus:border-gold-400"
+                />
+                <button
+                  onClick={saveName}
+                  className="flex items-center gap-1.5 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-100 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap"
+                >
+                  {nameSaved ? <Check className="w-4 h-4 text-emerald-400" /> : null}
+                  {nameSaved ? 'Enregistré' : 'Enregistrer'}
+                </button>
+              </div>
+            </div>
+
+            {/* Plage de dates + raccourcis */}
+            <div className="flex flex-wrap items-end gap-3 mb-4">
+              <div>
+                <label className="block text-sm text-neutral-400 mb-1">Du</label>
+                <input
+                  type="date"
+                  value={reportStart}
+                  max={reportEnd}
+                  onChange={(e) => setReportStart(e.target.value)}
+                  className="bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-neutral-100 outline-none focus:ring-2 focus:ring-gold-400/60 focus:border-gold-400"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-neutral-400 mb-1">Au</label>
+                <input
+                  type="date"
+                  value={reportEnd}
+                  min={reportStart}
+                  onChange={(e) => setReportEnd(e.target.value)}
+                  className="bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-neutral-100 outline-none focus:ring-2 focus:ring-gold-400/60 focus:border-gold-400"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {([
+                  ['7d', '7 jours'],
+                  ['30d', '30 jours'],
+                  ['month', 'Ce mois'],
+                  ['lastMonth', 'Mois dernier'],
+                ] as const).map(([kind, label]) => (
+                  <button
+                    key={kind}
+                    onClick={() => applyPreset(kind)}
+                    className="bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-sm px-3 py-2 rounded-lg"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="text-xs uppercase tracking-wide text-neutral-500 mb-2">Rapport financier (trésorerie)</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
               <button
-                onClick={() => handleExport('pdf')}
-                className="flex items-center gap-3 bg-neutral-950/20 hover:bg-neutral-950/30 backdrop-blur-sm rounded-lg p-4 text-left"
+                onClick={() => handleDownloadReport('report', 'pdf')}
+                className="flex items-center gap-3 bg-gold-400 hover:bg-gold-300 text-black rounded-lg p-4 text-left font-medium"
               >
                 <Download className="w-6 h-6" />
                 <div>
-                  <div className="font-semibold">Rapport ({PERIOD_LABELS[period]})</div>
-                  <div className="text-sm opacity-90">Télécharger PDF</div>
+                  <div className="font-semibold">Rapport financier</div>
+                  <div className="text-sm opacity-80">Télécharger PDF</div>
                 </div>
               </button>
               <button
-                onClick={() => handleExport('csv')}
-                className="flex items-center gap-3 bg-neutral-950/20 hover:bg-neutral-950/30 backdrop-blur-sm rounded-lg p-4 text-left"
+                onClick={() => handleDownloadReport('report', 'csv')}
+                className="flex items-center gap-3 bg-neutral-950/40 hover:bg-neutral-900 border border-neutral-800 rounded-lg p-4 text-left"
               >
-                <Calendar className="w-6 h-6" />
+                <Download className="w-6 h-6" />
                 <div>
-                  <div className="font-semibold">Export données</div>
-                  <div className="text-sm opacity-90">Télécharger CSV</div>
+                  <div className="font-semibold">Données financières</div>
+                  <div className="text-sm opacity-90">Télécharger CSV (tableur)</div>
+                </div>
+              </button>
+            </div>
+
+            <div className="text-xs uppercase tracking-wide text-neutral-500 mb-2">Ventes par produit</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                onClick={() => handleDownloadReport('product-report', 'pdf')}
+                className="flex items-center gap-3 bg-gold-400 hover:bg-gold-300 text-black rounded-lg p-4 text-left font-medium"
+              >
+                <Download className="w-6 h-6" />
+                <div>
+                  <div className="font-semibold">Rapport ventes par produit</div>
+                  <div className="text-sm opacity-80">Télécharger PDF</div>
+                </div>
+              </button>
+              <button
+                onClick={() => handleDownloadReport('product-report', 'csv')}
+                className="flex items-center gap-3 bg-neutral-950/40 hover:bg-neutral-900 border border-neutral-800 rounded-lg p-4 text-left"
+              >
+                <Download className="w-6 h-6" />
+                <div>
+                  <div className="font-semibold">Données produits</div>
+                  <div className="text-sm opacity-90">Télécharger CSV (tableur)</div>
                 </div>
               </button>
             </div>

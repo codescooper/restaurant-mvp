@@ -19,11 +19,15 @@ export type DiscountType = (typeof DISCOUNT_TYPES)[number];
 // Clés de réglages (table app_settings).
 export const SETTING_MAX_DISCOUNT = 'max_discount_percent';
 export const SETTING_MANAGER_PIN = 'manager_pin';
+export const SETTING_RESTAURANT_NAME = 'restaurant_name';
+
+// Nom du restaurant par défaut (affiché en en-tête des rapports tant qu'aucun n'est configuré).
+export const DEFAULT_RESTAURANT_NAME = 'Mon Restaurant';
 
 export const STOCK_UNITS = ['kg', 'litre', 'unité', 'gramme', 'ml'] as const;
 export type StockUnit = (typeof STOCK_UNITS)[number];
 
-export const DISH_CATEGORIES = ['Entrée', 'Plat', 'Dessert', 'Boisson'] as const;
+export const DISH_CATEGORIES = ['Entrée', 'Plat', 'Accompagnement', 'Fast-food', 'Dessert', 'Boisson'] as const;
 export type DishCategory = (typeof DISH_CATEGORIES)[number];
 
 export const ORDER_STATUSES = [

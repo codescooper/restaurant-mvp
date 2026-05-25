@@ -255,8 +255,6 @@ export const expenseApi = {
 export const statsApi = {
   dashboard: (period: 'today' | 'week' | 'month') =>
     api.get('/stats/dashboard', { params: { period } }).then((r) => r.data.data as DashboardData),
-  exportReport: (period: string, format: 'pdf' | 'csv') =>
-    api.post('/stats/export', { period, format }, { responseType: 'blob' }).then((r) => r.data as Blob),
 };
 
 export const cashApi = {
@@ -291,6 +289,10 @@ export const settingsApi = {
   getMaxDiscount: () => api.get('/settings/max-discount').then((r) => r.data.data.maxDiscountPercent as number),
   setMaxDiscount: (maxDiscountPercent: number) =>
     api.put('/settings/max-discount', { maxDiscountPercent }).then((r) => r.data.data),
+  getRestaurantName: () =>
+    api.get('/settings/restaurant-name').then((r) => r.data.data.restaurantName as string),
+  setRestaurantName: (restaurantName: string) =>
+    api.put('/settings/restaurant-name', { restaurantName }).then((r) => r.data.data.restaurantName as string),
   getManagerPinStatus: () =>
     api.get('/settings/manager-pin/status').then((r) => r.data.data.configured as boolean),
   setManagerPin: (pin: string) =>
