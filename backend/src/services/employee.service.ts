@@ -25,7 +25,7 @@ export interface EmployeeInput {
   userId?: number | null;
 }
 
-const userSelect = { select: { id: true, username: true, role: true } } as const;
+const userSelect = { select: { id: true, displayName: true } } as const;
 
 // '' -> null (permet d'effacer un champ optionnel), sinon valeur trimée.
 function nz(v?: string): string | null {
