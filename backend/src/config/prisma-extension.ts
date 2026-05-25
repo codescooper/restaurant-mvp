@@ -30,15 +30,22 @@ export const tenantExtension = Prisma.defineExtension({
         // L'API d'extension ne permet pas de changer l'opération → on POST-FILTRE le résultat
         // par restaurantId. On force la présence de restaurantId si un `select` restreint est fourni.
         if (operation === 'findUnique' || operation === 'findUniqueOrThrow') {
-          if (a.select && typeof a.select === 'object') {
+          // Un where unique n'accepte pas de filtre non-unique → on POST-FILTRE le résultat.
+          const usedSelect = !!(a.select && typeof a.select === 'object');
+          const askedRestaurantId =
+            usedSelect && (a.select as Record<string, unknown>).restaurantId === true;
+          if (usedSelect && !askedRestaurantId) {
             (a.select as Record<string, unknown>).restaurantId = true;
           }
-          const res = (await query(a)) as { restaurantId?: number } | null;
+          const res = (await query(a)) as Record<string, unknown> | null;
           if (res && res.restaurantId !== restaurantId) {
-            if (operation === 'findUniqueOrThrow') {
-              throw new Error('No record found (cross-tenant isolation)');
-            }
+            if (operation === 'findUniqueOrThrow') throw new Error('No record found');
             return null;
+          }
+          // Ne pas divulguer restaurantId si l'appelant ne l'avait pas demandé dans son select.
+          if (res && usedSelect && !askedRestaurantId) {
+            const { restaurantId: _omit, ...rest } = res;
+            return rest;
           }
           return res;
         }
@@ -60,7 +67,12 @@ export const tenantExtension = Prisma.defineExtension({
           return query(a);
         }
 
-        // update/delete/upsert par id unique : NON filtrables sur un where unique.
+        if (operation === 'upsert') {
+          a.create = { ...((a.create as object) ?? {}), restaurantId };
+          return query(a);
+        }
+
+        // update/delete par id unique : NON filtrables sur un where unique.
         // Sûrs UNIQUEMENT si précédés d'une lecture scopée (convention du code, vérifiée par les tests).
         // On laisse passer tel quel.
         return query(args);
