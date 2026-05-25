@@ -1,4 +1,5 @@
 import axios, { AxiosError } from 'axios';
+import { decodeAccessToken } from './auth-helpers';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -21,10 +22,25 @@ api.interceptors.response.use(
       try {
         const { data } = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
         const tokens = data.data as { accessToken: string; refreshToken: string };
-        localStorage.setItem('accessToken', tokens.accessToken);
-        localStorage.setItem('refreshToken', tokens.refreshToken);
+        let accessToken = tokens.accessToken;
+        // Multi-restaurants : le refresh n'est pas scopé → on ré-applique le restaurant actif.
+        const activeId = Number(localStorage.getItem('activeRestaurantId') || '');
+        const claims = decodeAccessToken(accessToken);
+        if (activeId && claims.restaurantId !== activeId) {
+          const sw = await axios.post(
+            `${API_URL}/auth/switch-restaurant`,
+            { restaurantId: activeId },
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          );
+          const swTokens = sw.data.data as { accessToken: string; refreshToken: string };
+          accessToken = swTokens.accessToken;
+          localStorage.setItem('refreshToken', swTokens.refreshToken);
+        } else {
+          localStorage.setItem('refreshToken', tokens.refreshToken);
+        }
+        localStorage.setItem('accessToken', accessToken);
         original.headers = original.headers ?? {};
-        original.headers.Authorization = `Bearer ${tokens.accessToken}`;
+        original.headers.Authorization = `Bearer ${accessToken}`;
         return api(original);
       } catch (refreshErr) {
         localStorage.removeItem('accessToken');

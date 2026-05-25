@@ -31,7 +31,8 @@ describe('resolvePostLogin', () => {
 describe('decodeAccessToken', () => {
   it('décode le payload restaurantId/role', () => {
     // JWT factice : header.payload.signature (payload base64url de {restaurantId:7,role:"serveur"})
-    const payload = Buffer.from(JSON.stringify({ userId: 1, restaurantId: 7, role: 'serveur', isSuperAdmin: false })).toString('base64url');
+    const json = JSON.stringify({ userId: 1, restaurantId: 7, role: 'serveur', isSuperAdmin: false });
+    const payload = btoa(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     const token = `x.${payload}.y`;
     expect(decodeAccessToken(token)).toMatchObject({ restaurantId: 7, role: 'serveur' });
   });
