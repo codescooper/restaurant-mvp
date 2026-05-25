@@ -9,7 +9,7 @@ interface AuthContextType {
   activeRestaurantId: number | null;
   currentRole: Role | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<{ autoSelected: boolean }>;
+  login: (email: string, password: string) => Promise<{ autoSelected: boolean; role: Role | null }>;
   selectRestaurant: (restaurantId: number) => Promise<Role>;
   logout: () => void;
   isAuthenticated: boolean;
@@ -69,12 +69,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setActiveRestaurantId(post.restaurantId);
       setCurrentRole(post.role);
       localStorage.setItem('activeRestaurantId', String(post.restaurantId));
-      return { autoSelected: true };
+      return { autoSelected: true, role: post.role };
     }
     setActiveRestaurantId(null);
     setCurrentRole(null);
     localStorage.removeItem('activeRestaurantId');
-    return { autoSelected: false };
+    return { autoSelected: false, role: null };
   };
 
   const selectRestaurant = async (restaurantId: number) => {

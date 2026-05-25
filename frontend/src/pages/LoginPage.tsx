@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChefHat, User, Lock, Eye, EyeOff, LogIn, AlertCircle, Loader2 } from 'lucide-react';
+import { ChefHat, Mail, Lock, Eye, EyeOff, LogIn, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { homeForRole } from '../services/auth-helpers';
 import { getApiError } from '../services/api';
@@ -42,9 +42,8 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      const { autoSelected } = await login(email, password);
-      navigate(autoSelected ? '/' : '/select-restaurant', { replace: true });
-      // Si autoSelected, le useEffect ci-dessus redirige vers la page du rôle.
+      const { autoSelected, role } = await login(email, password);
+      navigate(autoSelected && role ? homeForRole(role) : '/select-restaurant', { replace: true });
     } catch (err) {
       setError(getApiError(err, 'Email ou mot de passe incorrect'));
     } finally {
@@ -78,10 +77,11 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-neutral-300 mb-1">Email</label>
+            <label htmlFor="email" className="block text-sm font-medium text-neutral-300 mb-1">Email</label>
             <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
               <input
+                id="email"
                 ref={emailRef}
                 type="email"
                 value={email}
@@ -94,10 +94,11 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-neutral-300 mb-1">Mot de passe</label>
+            <label htmlFor="password" className="block text-sm font-medium text-neutral-300 mb-1">Mot de passe</label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
               <input
+                id="password"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

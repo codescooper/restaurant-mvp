@@ -19,8 +19,7 @@ export function ProtectedRoute({
   }
   if (!isAuthenticated) return <Navigate to="/" replace />;
   if (!hasActiveRestaurant) return <Navigate to="/select-restaurant" replace />;
-  if (currentRole && !allowedRoles.includes(currentRole)) {
-    return <Navigate to="/unauthorized" replace />;
-  }
+  if (!currentRole) return <Navigate to="/select-restaurant" replace />;
+  if (!allowedRoles.includes(currentRole)) return <Navigate to="/unauthorized" replace />;
   return <>{children}</>;
 }
