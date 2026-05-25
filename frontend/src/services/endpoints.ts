@@ -255,6 +255,12 @@ export const expenseApi = {
 export const statsApi = {
   dashboard: (period: 'today' | 'week' | 'month') =>
     api.get('/stats/dashboard', { params: { period } }).then((r) => r.data.data as DashboardData),
+  // Télécharge un rapport (PDF/CSV) via requête authentifiée (le token passe par l'en-tête
+  // Authorization, pas l'URL) ; renvoie un Blob prêt à enregistrer côté navigateur.
+  downloadReport: (kind: 'report' | 'product-report', start: string, end: string, format: 'pdf' | 'csv') =>
+    api
+      .get(`/stats/${kind}`, { params: { start, end, format }, responseType: 'blob' })
+      .then((r) => r.data as Blob),
 };
 
 export const cashApi = {

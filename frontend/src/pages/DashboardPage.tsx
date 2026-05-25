@@ -118,16 +118,12 @@ export default function DashboardPage() {
     }
   };
 
-  // Téléchargement natif du navigateur : lien direct vers le backend (Content-Disposition:
-  // attachment). Synchrone, donc le « geste utilisateur » est préservé — Chrome ne bloque plus
-  // le téléchargement (problème des téléchargements déclenchés après un await).
-  const handleDownloadReport = (kind: 'report' | 'product-report', format: 'pdf' | 'csv') => {
+  const [downloading, setDownloading] = useState(false);
+
+  // Téléchargement via requête authentifiée (token dans l'en-tête, pas l'URL) : on récupère le
+  // fichier en Blob puis on l'enregistre via une URL objet (blob:), même origine → fiable.
+  const handleDownloadReport = async (kind: 'report' | 'product-report', format: 'pdf' | 'csv') => {
     setExportError('');
-    const token = localStorage.getItem('accessToken');
-    if (!token) {
-      setExportError('Session expirée. Reconnectez-vous puis réessayez.');
-      return;
-    }
     if (!reportStart || !reportEnd) {
       setExportError('Choisis une date de début et une date de fin.');
       return;
@@ -136,15 +132,23 @@ export default function DashboardPage() {
       setExportError('La date de début doit précéder la date de fin.');
       return;
     }
-    const base = import.meta.env.VITE_API_URL as string;
-    const url = `${base}/stats/${kind}?start=${reportStart}&end=${reportEnd}&format=${format}&token=${encodeURIComponent(token)}`;
-    const filename = kind === 'product-report' ? 'rapport-produits' : 'rapport-financier';
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${filename}.${format}`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    setDownloading(true);
+    try {
+      const blob = await statsApi.downloadReport(kind, reportStart, reportEnd, format);
+      const filename = kind === 'product-report' ? 'rapport-produits' : 'rapport-financier';
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${filename}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setExportError('Échec du téléchargement. La base est peut-être momentanément indisponible — réessaie dans quelques secondes.');
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const maxSale = data ? Math.max(1, ...data.salesByHour.map((s) => s.amount)) : 1;
@@ -584,7 +588,8 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
               <button
                 onClick={() => handleDownloadReport('report', 'pdf')}
-                className="flex items-center gap-3 bg-gold-400 hover:bg-gold-300 text-black rounded-lg p-4 text-left font-medium"
+                disabled={downloading}
+                className="flex items-center gap-3 bg-gold-400 hover:bg-gold-300 text-black rounded-lg p-4 text-left font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Download className="w-6 h-6" />
                 <div>
@@ -594,7 +599,8 @@ export default function DashboardPage() {
               </button>
               <button
                 onClick={() => handleDownloadReport('report', 'csv')}
-                className="flex items-center gap-3 bg-neutral-950/40 hover:bg-neutral-900 border border-neutral-800 rounded-lg p-4 text-left"
+                disabled={downloading}
+                className="flex items-center gap-3 bg-neutral-950/40 hover:bg-neutral-900 border border-neutral-800 rounded-lg p-4 text-left disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Download className="w-6 h-6" />
                 <div>
@@ -608,7 +614,8 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 onClick={() => handleDownloadReport('product-report', 'pdf')}
-                className="flex items-center gap-3 bg-gold-400 hover:bg-gold-300 text-black rounded-lg p-4 text-left font-medium"
+                disabled={downloading}
+                className="flex items-center gap-3 bg-gold-400 hover:bg-gold-300 text-black rounded-lg p-4 text-left font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Download className="w-6 h-6" />
                 <div>
@@ -618,7 +625,8 @@ export default function DashboardPage() {
               </button>
               <button
                 onClick={() => handleDownloadReport('product-report', 'csv')}
-                className="flex items-center gap-3 bg-neutral-950/40 hover:bg-neutral-900 border border-neutral-800 rounded-lg p-4 text-left"
+                disabled={downloading}
+                className="flex items-center gap-3 bg-neutral-950/40 hover:bg-neutral-900 border border-neutral-800 rounded-lg p-4 text-left disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Download className="w-6 h-6" />
                 <div>
