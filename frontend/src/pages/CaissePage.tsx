@@ -1161,7 +1161,7 @@ export default function CaissePage() {
             <div className={`${MODAL} max-w-sm p-6`}>
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold text-neutral-100">{variantPick.name}</h3>
-                <button onClick={() => setVariantPick(null)} className="text-neutral-500 hover:text-neutral-300">
+                <button onClick={() => { setVariantPick(null); setPickedLibreVariant(null); }} className="text-neutral-500 hover:text-neutral-300">
                   <X className="w-5 h-5" />
                 </button>
               </div>

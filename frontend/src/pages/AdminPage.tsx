@@ -249,7 +249,7 @@ export default function AdminPage() {
             .filter((v) => v.name.trim())
             .map((v) => ({
               name: v.name.trim(),
-              ...(isLibre ? {} : { price: Number(v.price) || 0 }),
+              ...(isLibre ? {} : { price: v.price !== null && v.price !== undefined ? Number(v.price) : undefined }),
               ingredients: v.ingredients.filter((i) => i.stockItemId && i.quantityNeeded > 0),
             })),
         };
@@ -1020,6 +1020,11 @@ export default function AdminPage() {
                     Ex. Petit / Grand. Si tu ajoutes des déclinaisons, le client choisit la variante à la caisse ;
                     {form.priceType === 'libre' ? ' chacune a sa recette (pas de prix propre — le prix est saisi en caisse).' : ' chacune a son prix et sa recette.'}
                   </p>
+                  {form.priceType !== 'libre' && variants.some((v) => v.price === null || v.price === undefined) && (
+                    <p className="text-xs text-amber-400 mb-2">
+                      ⚠ Renseigner un prix pour chaque variante (mode fixe).
+                    </p>
+                  )}
                   <div className="space-y-3">
                     {variants.map((v, vi) => (
                       <div key={vi} className="border border-neutral-800 rounded-lg p-2 bg-neutral-900/50">

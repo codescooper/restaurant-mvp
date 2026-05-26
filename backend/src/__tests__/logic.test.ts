@@ -115,7 +115,7 @@ describe('evaluateManagerApproval (PIN annulation/remboursement)', () => {
   });
 });
 
-import { createDishSchema } from '../validators/schemas';
+import { createDishSchema, updateDishSchema } from '../validators/schemas';
 
 describe('createDishSchema — variantes en libre', () => {
   it('autorise un plat libre avec variantes sans prix', () => {
@@ -146,6 +146,15 @@ describe('createDishSchema — variantes en libre', () => {
       priceMin: 1000,
       priceMax: 5000,
       variants: [{ name: 'Petit', price: 2000 }],
+    });
+    expect(res.success).toBe(false);
+  });
+});
+
+describe('updateDishSchema — partial sans priceType', () => {
+  it('updateDishSchema : sans priceType, variantes sans prix → traitees comme fixe → KO', () => {
+    const res = updateDishSchema.safeParse({
+      variants: [{ name: 'Petit' }],
     });
     expect(res.success).toBe(false);
   });
