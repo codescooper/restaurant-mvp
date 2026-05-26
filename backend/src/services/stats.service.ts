@@ -5,8 +5,6 @@ import {
 import { prisma } from '../config/prisma';
 import { STOCK_PURCHASE_CATEGORY } from '../constants';
 
-export type Period = 'today' | 'week' | 'month';
-
 export interface Range {
   start: Date;
   end: Date;

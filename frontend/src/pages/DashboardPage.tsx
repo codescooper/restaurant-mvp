@@ -38,9 +38,8 @@ function GrowthBadge({ value }: { value: number }) {
 export default function DashboardPage() {
   const clock = useClock();
   const { socket } = useWebSocket();
-  const initial = shortcutToRange('today');
-  const [from, setFrom] = useState(initial.from);
-  const [to, setTo] = useState(initial.to);
+  const [from, setFrom] = useState(() => shortcutToRange('today').from);
+  const [to, setTo] = useState(() => shortcutToRange('today').to);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [exportError, setExportError] = useState('');
