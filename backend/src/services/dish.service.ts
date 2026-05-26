@@ -10,7 +10,7 @@ interface IngredientInput {
 
 interface VariantInput {
   name: string;
-  price: number;
+  price?: number;
   isActive?: boolean;
   sortOrder?: number;
   ingredients?: IngredientInput[];
@@ -151,8 +151,8 @@ export async function createDish(data: DishInput) {
       ingredients: data.ingredients
         ? { create: data.ingredients.map((i) => ({ stockItemId: i.stockItemId, quantityNeeded: i.quantityNeeded })) }
         : undefined,
-      // Un plat à prix libre n'a pas de variantes.
-      variants: !isLibre && data.variants ? { create: variantCreateData(data.variants) } : undefined,
+      // Variantes autorisées dans les deux modes (libre OU fixe).
+      variants: data.variants?.length ? { create: variantCreateData(data.variants) } : undefined,
     },
     include: dishInclude,
   });
@@ -167,10 +167,7 @@ export async function updateDish(id: number, data: DishInput) {
         data: data.ingredients.map((i) => ({ dishId: id, stockItemId: i.stockItemId, quantityNeeded: i.quantityNeeded })),
       });
     }
-    if (data.priceType === 'libre') {
-      // Bascule en prix libre : on retire toute variante (incompatible).
-      await tx.dishVariant.deleteMany({ where: { dishId: id } });
-    } else if (data.variants) {
+    if (data.variants) {
       // Remplace les variantes (les anciennes commandes gardent variantName ; variantId passe à null).
       await tx.dishVariant.deleteMany({ where: { dishId: id } });
       for (const [idx, v] of data.variants.entries()) {

@@ -24,7 +24,7 @@ import {
 
 export interface VariantInput {
   name: string;
-  price: number;
+  price?: number;
   isActive?: boolean;
   ingredients?: { stockItemId: number; quantityNeeded: number }[];
 }

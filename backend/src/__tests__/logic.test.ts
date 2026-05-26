@@ -114,3 +114,39 @@ describe('evaluateManagerApproval (PIN annulation/remboursement)', () => {
     expect(() => evaluateManagerApproval('caissier', 'HASH:1234', undefined, verify)).toThrowError(/Code manager/);
   });
 });
+
+import { createDishSchema } from '../validators/schemas';
+
+describe('createDishSchema — variantes en libre', () => {
+  it('autorise un plat libre avec variantes sans prix', () => {
+    const res = createDishSchema.safeParse({
+      name: 'Poisson du jour',
+      price: 3000,
+      priceType: 'libre',
+      priceMin: 2000,
+      priceMax: 6000,
+      variants: [{ name: 'Petit' }, { name: 'Grand' }],
+    });
+    expect(res.success).toBe(true);
+  });
+  it('refuse un plat fixe avec variante sans prix', () => {
+    const res = createDishSchema.safeParse({
+      name: 'Plat',
+      price: 3000,
+      priceType: 'fixe',
+      variants: [{ name: 'Petit' }],
+    });
+    expect(res.success).toBe(false);
+  });
+  it('refuse un plat libre avec variante portant un prix', () => {
+    const res = createDishSchema.safeParse({
+      name: 'Plat',
+      price: 3000,
+      priceType: 'libre',
+      priceMin: 1000,
+      priceMax: 5000,
+      variants: [{ name: 'Petit', price: 2000 }],
+    });
+    expect(res.success).toBe(false);
+  });
+});

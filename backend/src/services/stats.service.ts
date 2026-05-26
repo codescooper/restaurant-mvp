@@ -129,6 +129,7 @@ export async function getDashboard(period: Period) {
     const activeVariants = d.variants.filter((v) => v.isActive);
     if (activeVariants.length) {
       for (const v of activeVariants) {
+        if (v.price == null) continue; // variantes sur plat libre : pas de prix propre
         const cost = variantCost.get(v.id) ?? 0;
         dishMargins.push({ name: `${d.name} (${v.name})`, cost, price: v.price, marginPct: v.price ? Math.round(((v.price - cost) / v.price) * 100) : 0 });
       }

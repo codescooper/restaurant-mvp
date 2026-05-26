@@ -89,7 +89,7 @@ const ROLE_BADGE: Record<string, string> = {
 };
 
 interface Ingredient { stockItemId: number; quantityNeeded: number }
-interface VariantForm { name: string; price: number; ingredients: Ingredient[] }
+interface VariantForm { name: string; price: number | null; ingredients: Ingredient[] }
 
 export default function AdminPage() {
   const [tab, setTab] = useState<Tab>('stock');
@@ -244,16 +244,14 @@ export default function AdminPage() {
           isActive: Boolean(form.isActive),
           imageUrl: form.imageUrl !== undefined ? String(form.imageUrl ?? '') : undefined,
           ingredients: ingredients.filter((i) => i.stockItemId && i.quantityNeeded > 0),
-          // Prix libre et variantes sont exclusifs : on n'envoie pas de variantes en mode libre.
-          variants: isLibre
-            ? []
-            : variants
-                .filter((v) => v.name.trim())
-                .map((v) => ({
-                  name: v.name.trim(),
-                  price: Number(v.price) || 0,
-                  ingredients: v.ingredients.filter((i) => i.stockItemId && i.quantityNeeded > 0),
-                })),
+          // Variantes autorisées dans les deux modes. En libre, le prix est omis ; en fixe, il est requis.
+          variants: variants
+            .filter((v) => v.name.trim())
+            .map((v) => ({
+              name: v.name.trim(),
+              ...(isLibre ? {} : { price: Number(v.price) || 0 }),
+              ingredients: v.ingredients.filter((i) => i.stockItemId && i.quantityNeeded > 0),
+            })),
         };
         if (editing) await dishApi.update((editing as Dish).id, payload);
         else await dishApi.create(payload);
@@ -540,7 +538,7 @@ export default function AdminPage() {
                           <div key={v.id} className="flex justify-between">
                             <span className="text-neutral-300">{v.name}</span>
                             <span className="text-neutral-400">
-                              Coût {formatFCFA(cost)} · Vente {formatFCFA(v.price)} · Marge {pct}%
+                              Coût {formatFCFA(cost)} · Vente {v.price != null ? formatFCFA(v.price) : 'prix libre'} · Marge {pct}%
                             </span>
                           </div>
                         );
@@ -1006,14 +1004,13 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* Déclinaisons / variantes (optionnel) — incompatibles avec un prix libre */}
-                {form.priceType !== 'libre' && (
+                {/* Déclinaisons / variantes (optionnel) — toujours disponible (prix masqué en mode libre) */}
                 <div>
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-sm font-medium text-neutral-200">Déclinaisons (optionnel)</span>
                     <button
                       type="button"
-                      onClick={() => setVariants([...variants, { name: '', price: Number(form.price) || 0, ingredients: [] }])}
+                      onClick={() => setVariants([...variants, { name: '', price: form.priceType === 'libre' ? null : (Number(form.price) || 0), ingredients: [] }])}
                       className="text-xs text-gold-400"
                     >
                       + Variante
@@ -1021,7 +1018,7 @@ export default function AdminPage() {
                   </div>
                   <p className="text-xs text-neutral-500 mb-2">
                     Ex. Petit / Grand. Si tu ajoutes des déclinaisons, le client choisit la variante à la caisse ;
-                    chacune a son prix et sa recette.
+                    {form.priceType === 'libre' ? ' chacune a sa recette (pas de prix propre — le prix est saisi en caisse).' : ' chacune a son prix et sa recette.'}
                   </p>
                   <div className="space-y-3">
                     {variants.map((v, vi) => (
@@ -1037,17 +1034,19 @@ export default function AdminPage() {
                               setVariants(n);
                             }}
                           />
+                          {form.priceType !== 'libre' && (
                           <input
                             type="number"
                             className="input w-28"
                             placeholder="Prix"
-                            value={v.price}
+                            value={v.price ?? ''}
                             onChange={(e) => {
                               const n = [...variants];
                               n[vi] = { ...v, price: Number(e.target.value) };
                               setVariants(n);
                             }}
                           />
+                          )}
                           <button type="button" onClick={() => setVariants(variants.filter((_, i) => i !== vi))} className="text-rose-400">
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -1121,7 +1120,6 @@ export default function AdminPage() {
                     )}
                   </div>
                 </div>
-                )}
               </div>
             )}
 
