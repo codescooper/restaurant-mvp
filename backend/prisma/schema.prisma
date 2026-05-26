@@ -226,7 +226,7 @@ model DishVariant {
   id        Int     @id @default(autoincrement())
   dishId    Int     @map("dish_id")
   name      String  @db.VarChar(50)
-  price     Int
+  price     Int?
   isActive  Boolean @default(true) @map("is_active")
   sortOrder Int     @default(0) @map("sort_order")
 
