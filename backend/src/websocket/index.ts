@@ -53,7 +53,7 @@ export function emitToRole(role: Role, event: string, payload: unknown): void {
 export function emitToRestaurant(event: string, payload: unknown): void {
   const restaurantId = getTenantId();
   if (restaurantId == null) return;
-  for (const role of ['administrateur', 'caissier', 'cuisinier', 'serveur'] as Role[]) {
+  for (const role of ['propriétaire', 'administrateur', 'caissier', 'cuisinier', 'serveur'] as Role[]) {
     io?.to(room(restaurantId, role)).emit(event, payload);
   }
 }
