@@ -24,7 +24,7 @@ export interface AuthResponse {
 export interface MenuVariant {
   id: number;
   name: string;
-  price: number;
+  price: number | null;
   available: boolean;
 }
 
@@ -54,7 +54,7 @@ export interface DishIngredient {
 export interface DishVariant {
   id: number;
   name: string;
-  price: number;
+  price: number | null;
   isActive: boolean;
   sortOrder?: number;
   costPrice?: number;

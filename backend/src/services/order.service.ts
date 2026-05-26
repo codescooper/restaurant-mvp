@@ -136,12 +136,23 @@ export async function createOrder(input: CreateOrderInput, userId?: number, mark
     let recipe: { stockItemId: number; quantityNeeded: number }[] = dish.ingredients;
     const activeVariants = dish.variants.filter((v) => v.isActive);
     if (dish.priceType === 'libre') {
-      // Prix libre : re-validé contre les bornes (on ne fait pas confiance au prix envoyé par le client).
+      // Prix libre : re-validé contre les bornes du plat (jamais confiance au client).
       unitPrice = resolveLibrePrice(dish, item.customPrice);
+      // Si le plat a des variantes actives, le caissier doit en choisir une (recette + nom).
+      if (activeVariants.length > 0) {
+        if (!item.variantId) throw new AppError(400, 'VALIDATION_001', `Variante requise pour ${dish.name}`);
+        const variant = dish.variants.find((v) => v.id === item.variantId);
+        if (!variant) throw new AppError(404, 'DISH_001', `Variante introuvable pour ${dish.name}`);
+        if (!variant.isActive) throw new AppError(400, 'DISH_002', `${dish.name} (${variant.name}) indisponible`);
+        variantId = variant.id;
+        variantName = variant.name;
+        recipe = variant.ingredients;
+      }
     } else if (item.variantId) {
       const variant = dish.variants.find((v) => v.id === item.variantId);
       if (!variant) throw new AppError(404, 'DISH_001', `Variante introuvable pour ${dish.name}`);
       if (!variant.isActive) throw new AppError(400, 'DISH_002', `${dish.name} (${variant.name}) indisponible`);
+      if (variant.price == null) throw new AppError(400, 'VALIDATION_001', `Variante sans prix sur plat fixe`);
       unitPrice = variant.price;
       variantId = variant.id;
       variantName = variant.name;

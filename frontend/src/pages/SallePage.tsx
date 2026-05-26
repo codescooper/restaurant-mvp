@@ -250,7 +250,8 @@ export default function SallePage() {
       setError('Choisissez une variante');
       return;
     }
-    const unitPrice = variant ? variant.price : dish.price;
+    // variant.price est null pour les variantes sur plat libre → on utilise dish.price (prix suggéré).
+    const unitPrice = (variant?.price != null ? variant.price : null) ?? dish.price;
     const next = [...resItems];
     // Regroupe si même plat+variante déjà présent.
     const existing = next.find((i) => i.dishId === dish.id && i.variantId === (variant?.id ?? undefined));

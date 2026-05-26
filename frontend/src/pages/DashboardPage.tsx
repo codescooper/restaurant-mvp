@@ -20,9 +20,8 @@ import { useWebSocket } from '../contexts/WebSocketContext';
 import { statsApi } from '../services/endpoints';
 import { DashboardData } from '../types';
 import { formatFCFA, formatTime } from '../utils/format';
+import { shortcutToRange } from '../utils/date-range';
 
-type Period = 'today' | 'week' | 'month';
-const PERIOD_LABELS: Record<Period, string> = { today: "Aujourd'hui", week: 'Cette semaine', month: 'Ce mois' };
 const CHANNEL_LABELS: Record<string, string> = { sur_place: 'Sur place', emporter: 'À emporter', livraison: 'Livraison' };
 
 function GrowthBadge({ value }: { value: number }) {
@@ -39,7 +38,8 @@ function GrowthBadge({ value }: { value: number }) {
 export default function DashboardPage() {
   const clock = useClock();
   const { socket } = useWebSocket();
-  const [period, setPeriod] = useState<Period>('today');
+  const [from, setFrom] = useState(() => shortcutToRange('today').from);
+  const [to, setTo] = useState(() => shortcutToRange('today').to);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [exportError, setExportError] = useState('');
@@ -47,11 +47,11 @@ export default function DashboardPage() {
   const load = useCallback(() => {
     setLoading(true);
     statsApi
-      .dashboard(period)
+      .dashboard(from, to)
       .then(setData)
       .catch(() => setData(null))
       .finally(() => setLoading(false));
-  }, [period]);
+  }, [from, to]);
 
   useEffect(() => {
     load();
@@ -66,9 +66,6 @@ export default function DashboardPage() {
     };
   }, [socket, load]);
 
-  // Téléchargement natif du navigateur : lien direct vers le backend (Content-Disposition:
-  // attachment). Synchrone, donc le « geste utilisateur » est préservé — Chrome ne bloque plus
-  // le téléchargement (problème des téléchargements déclenchés après un await).
   const handleExport = (format: 'pdf' | 'csv') => {
     setExportError('');
     const token = localStorage.getItem('accessToken');
@@ -76,14 +73,24 @@ export default function DashboardPage() {
       setExportError('Session expirée. Reconnectez-vous puis réessayez.');
       return;
     }
-    const base = import.meta.env.VITE_API_URL as string;
-    const url = `${base}/stats/export?period=${period}&format=${format}&token=${encodeURIComponent(token)}`;
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `rapport-${period}.${format}`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    // POST avec body via fetch (Content-Disposition pour le téléchargement).
+    fetch(`${import.meta.env.VITE_API_URL}/stats/export`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ from, to, format }),
+    })
+      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error('Export impossible'))))
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `rapport-${from}_${to}.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      })
+      .catch(() => setExportError('Export impossible. Vérifiez la plage et réessayez.'));
   };
 
   const maxSale = data ? Math.max(1, ...data.salesByHour.map((s) => s.amount)) : 1;
@@ -105,16 +112,19 @@ export default function DashboardPage() {
         <div className="text-sm font-mono">{formatTime(clock)}</div>
       </div>
 
-      <div className="flex gap-2 mb-4">
-        {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => (
-          <button
-            key={p}
-            onClick={() => setPeriod(p)}
-            className={`px-4 py-2 rounded-lg font-medium ${period === p ? 'bg-gold-400 text-black' : 'bg-neutral-900 text-neutral-300 hover:bg-neutral-800'}`}
-          >
-            {PERIOD_LABELS[p]}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-neutral-100" />
+        <span className="text-neutral-500">→</span>
+        <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-neutral-100" />
+        {(['today', 'last7', 'thisMonth', 'lastMonth'] as const).map((s) => {
+          const labels = { today: "Aujourd'hui", last7: '7 derniers jours', thisMonth: 'Ce mois-ci', lastMonth: 'Mois dernier' };
+          return (
+            <button key={s} onClick={() => { const r = shortcutToRange(s); setFrom(r.from); setTo(r.to); }}
+              className="px-3 py-1.5 rounded-lg bg-neutral-900 border border-neutral-800 text-neutral-300 hover:bg-neutral-800 text-sm">
+              {labels[s]}
+            </button>
+          );
+        })}
       </div>
 
       {exportError && (
@@ -462,7 +472,7 @@ export default function DashboardPage() {
               >
                 <Download className="w-6 h-6" />
                 <div>
-                  <div className="font-semibold">Rapport ({PERIOD_LABELS[period]})</div>
+                  <div className="font-semibold">Rapport ({from} → {to})</div>
                   <div className="text-sm opacity-90">Télécharger PDF</div>
                 </div>
               </button>

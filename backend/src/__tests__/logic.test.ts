@@ -114,3 +114,85 @@ describe('evaluateManagerApproval (PIN annulation/remboursement)', () => {
     expect(() => evaluateManagerApproval('caissier', 'HASH:1234', undefined, verify)).toThrowError(/Code manager/);
   });
 });
+
+import { createDishSchema, updateDishSchema, dashboardRangeSchema } from '../validators/schemas';
+
+describe('createDishSchema — variantes en libre', () => {
+  it('autorise un plat libre avec variantes sans prix', () => {
+    const res = createDishSchema.safeParse({
+      name: 'Poisson du jour',
+      price: 3000,
+      priceType: 'libre',
+      priceMin: 2000,
+      priceMax: 6000,
+      variants: [{ name: 'Petit' }, { name: 'Grand' }],
+    });
+    expect(res.success).toBe(true);
+  });
+  it('refuse un plat fixe avec variante sans prix', () => {
+    const res = createDishSchema.safeParse({
+      name: 'Plat',
+      price: 3000,
+      priceType: 'fixe',
+      variants: [{ name: 'Petit' }],
+    });
+    expect(res.success).toBe(false);
+  });
+  it('refuse un plat libre avec variante portant un prix', () => {
+    const res = createDishSchema.safeParse({
+      name: 'Plat',
+      price: 3000,
+      priceType: 'libre',
+      priceMin: 1000,
+      priceMax: 5000,
+      variants: [{ name: 'Petit', price: 2000 }],
+    });
+    expect(res.success).toBe(false);
+  });
+});
+
+describe('updateDishSchema — partial sans priceType', () => {
+  it('updateDishSchema : sans priceType, variantes sans prix → traitees comme fixe → KO', () => {
+    const res = updateDishSchema.safeParse({
+      variants: [{ name: 'Petit' }],
+    });
+    expect(res.success).toBe(false);
+  });
+});
+
+import { getRangeFromDates } from '../services/stats.service';
+
+describe('getRangeFromDates', () => {
+  it('plage 1 jour : prevEnd = start, prev de meme duree', () => {
+    const from = new Date('2026-05-14T00:00:00Z');
+    const to = new Date('2026-05-14T00:00:00Z');
+    const r = getRangeFromDates(from, to);
+    expect(r.prevEnd.getTime()).toBe(r.start.getTime());
+    expect(r.end.getTime() - r.start.getTime()).toBe(r.prevEnd.getTime() - r.prevStart.getTime());
+  });
+  it('plage 7 jours : duree preservee', () => {
+    const r = getRangeFromDates(new Date('2026-05-01'), new Date('2026-05-07'));
+    const dur = r.end.getTime() - r.start.getTime();
+    expect(dur).toBe(r.prevEnd.getTime() - r.prevStart.getTime());
+    expect(r.prevEnd.getTime()).toBe(r.start.getTime());
+  });
+});
+
+describe('dashboardRangeSchema', () => {
+  it('accepte une plage valide YYYY-MM-DD avec from <= to', () => {
+    const res = dashboardRangeSchema.safeParse({ from: '2026-05-01', to: '2026-05-07' });
+    expect(res.success).toBe(true);
+  });
+  it('refuse from > to', () => {
+    const res = dashboardRangeSchema.safeParse({ from: '2026-05-20', to: '2026-05-01' });
+    expect(res.success).toBe(false);
+  });
+  it('refuse une plage > 366 jours', () => {
+    const res = dashboardRangeSchema.safeParse({ from: '2024-01-01', to: '2025-12-31' });
+    expect(res.success).toBe(false);
+  });
+  it('refuse un format de date invalide', () => {
+    const res = dashboardRangeSchema.safeParse({ from: '01/05/2026', to: '07/05/2026' });
+    expect(res.success).toBe(false);
+  });
+});

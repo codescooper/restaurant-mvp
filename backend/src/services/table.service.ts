@@ -145,10 +145,22 @@ export async function updateTable(id: number, data: { name?: string; capacity?: 
 }
 
 export async function deleteTable(id: number) {
+  // Garde-fou 1 : commande active (non annulée et non payée OU non servie).
   const occupying = await prisma.order.findFirst({ where: { tableId: id, ...OCCUPYING_WHERE } });
-  if (occupying) throw new AppError(400, 'VALIDATION_001', 'Table occupée, suppression impossible');
-  await prisma.order.updateMany({ where: { tableId: id }, data: { tableId: null } });
-  await prisma.table.delete({ where: { id } });
+  if (occupying) {
+    throw new AppError(409, 'TABLE_001', 'Table occupée par une commande active');
+  }
+  // Garde-fou 2 : réservation active.
+  const activeRes = await prisma.reservation.findFirst({ where: { tableId: id, status: 'active' } });
+  if (activeRes) {
+    throw new AppError(409, 'TABLE_001', 'Table avec une réservation active');
+  }
+  // OK : on détache les commandes historiques (FK SetNull manuel pour cohérence) puis on supprime.
+  // Les réservations annulées/honorées sont cascade-supprimées par la FK (acceptable : pas de données financières dessus).
+  await prisma.$transaction([
+    prisma.order.updateMany({ where: { tableId: id }, data: { tableId: null } }),
+    prisma.table.delete({ where: { id } }),
+  ]);
   return { id };
 }
 
@@ -340,7 +352,8 @@ async function buildReservationItems(items: ReservationItemInput[]) {
       if (!dish) throw new AppError(404, 'DISH_001', `Plat ${i.dishId} introuvable`);
       const variant = i.variantId ? dish.variants.find((v) => v.id === i.variantId) : undefined;
       if (i.variantId && !variant) throw new AppError(404, 'DISH_001', `Variante introuvable pour ${dish.name}`);
-      const unitPrice = variant ? variant.price : dish.price;
+      // variant.price est null pour les variantes sur plat libre → on utilise dish.price (prix suggéré).
+      const unitPrice = (variant?.price != null ? variant.price : null) ?? dish.price;
       const subtotal = unitPrice * i.quantity;
       itemsTotal += subtotal;
       return {

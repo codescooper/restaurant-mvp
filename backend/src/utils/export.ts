@@ -1,21 +1,15 @@
 import PDFDocument from 'pdfkit';
 import { Response } from 'express';
-import { DashboardData, Period } from '../services/stats.service';
-
-const PERIOD_LABEL: Record<Period, string> = {
-  today: "Aujourd'hui",
-  week: 'Cette semaine',
-  month: 'Ce mois',
-};
+import { DashboardData } from '../services/stats.service';
 
 function escapeCsv(value: string | number): string {
   const s = String(value);
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export function dashboardToCsv(data: DashboardData, period: Period): string {
+export function dashboardToCsv(data: DashboardData, label: string): string {
   const lines: string[] = [];
-  lines.push(`Rapport,${PERIOD_LABEL[period]}`);
+  lines.push(`Rapport,${label}`);
   lines.push('');
   lines.push('Indicateur,Valeur');
   lines.push(`Ventes totales (FCFA),${data.totalSales}`);
@@ -38,14 +32,15 @@ export function dashboardToCsv(data: DashboardData, period: Period): string {
   return lines.join('\n');
 }
 
-export function streamDashboardPdf(res: Response, data: DashboardData, period: Period): void {
+export function streamDashboardPdf(res: Response, data: DashboardData, label: string): void {
   const doc = new PDFDocument({ margin: 40, size: 'A4' });
+  const fileLabel = label.replace(/[^a-zA-Z0-9_\-]/g, '_');
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="rapport-${period}.pdf"`);
+  res.setHeader('Content-Disposition', `attachment; filename="rapport-${fileLabel}.pdf"`);
   doc.pipe(res);
 
   doc.fontSize(20).text('Restaurant Pilote', { align: 'center' });
-  doc.fontSize(12).fillColor('#666').text(`Rapport - ${PERIOD_LABEL[period]}`, { align: 'center' });
+  doc.fontSize(12).fillColor('#666').text(`Rapport - ${label}`, { align: 'center' });
   doc.fillColor('#000').moveDown();
   doc.text(`Genere le ${new Date().toLocaleString('fr-FR')}`);
   doc.moveDown();

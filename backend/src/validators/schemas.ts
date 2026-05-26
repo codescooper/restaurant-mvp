@@ -104,7 +104,7 @@ const ingredientSchema = z.object({
 
 const variantSchema = z.object({
   name: z.string().min(1).max(50),
-  price: z.number().int().min(0),
+  price: z.number().int().min(0).optional(),
   isActive: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
   ingredients: z.array(ingredientSchema).optional(),
@@ -130,18 +130,28 @@ const dishObjectSchema = z.object({
 // Bornes obligatoires et cohérentes pour un prix libre.
 const dishBoundsOk = (d: { priceType?: string; priceMin?: number; priceMax?: number }) =>
   d.priceType !== 'libre' || (d.priceMin != null && d.priceMax != null && d.priceMin <= d.priceMax);
-// Prix libre et variantes sont mutuellement exclusifs.
-const dishNoVariantsIfLibre = (d: { priceType?: string; variants?: unknown[] }) =>
-  d.priceType !== 'libre' || !(d.variants && d.variants.length > 0);
+// Variantes autorisées dans les deux modes. En mode fixe, chaque variante DOIT avoir un prix.
+// En mode libre, les variantes n'ont PAS de prix propre (le prix vient du customPrice saisi en caisse).
+const dishVariantPricesOk = (d: { priceType?: string; variants?: { price?: number }[] }) => {
+  if (!d.variants || d.variants.length === 0) return true;
+  if (d.priceType === 'libre') return d.variants.every((v) => v.price == null);
+  return d.variants.every((v) => v.price != null);
+};
 
 export const createDishSchema = dishObjectSchema
   .refine(dishBoundsOk, { message: 'Prix libre : minimum et maximum requis (min ≤ max)', path: ['priceMin'] })
-  .refine(dishNoVariantsIfLibre, { message: 'Un plat à prix libre ne peut pas avoir de variantes', path: ['variants'] });
+  .refine(dishVariantPricesOk, {
+    message: 'Prix de variante : requis en mode fixe, interdit en mode libre',
+    path: ['variants'],
+  });
 
 export const updateDishSchema = dishObjectSchema
   .partial()
   .refine(dishBoundsOk, { message: 'Prix libre : minimum et maximum requis (min ≤ max)', path: ['priceMin'] })
-  .refine(dishNoVariantsIfLibre, { message: 'Un plat à prix libre ne peut pas avoir de variantes', path: ['variants'] });
+  .refine(dishVariantPricesOk, {
+    message: 'Prix de variante : requis en mode fixe, interdit en mode libre',
+    path: ['variants'],
+  });
 
 // --- Employés (RH) ---
 export const createEmployeeSchema = z.object({
@@ -369,14 +379,26 @@ export const closeCashSessionSchema = z.object({
 });
 
 // --- Stats ---
-export const periodSchema = z.object({
-  period: z.enum(['today', 'week', 'month']).default('today'),
-});
+const isoDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date au format YYYY-MM-DD')
+  .refine((s) => !Number.isNaN(new Date(s).getTime()), 'Date invalide');
 
-export const exportSchema = z.object({
-  period: z.enum(['today', 'week', 'month']).default('today'),
-  format: z.enum(['pdf', 'csv']).default('pdf'),
-});
+const rangeRefine = (d: { from: string; to: string }) => {
+  const from = new Date(d.from);
+  const to = new Date(d.to);
+  if (from > to) return false;
+  const days = Math.round((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000));
+  return days <= 366;
+};
+
+export const dashboardRangeSchema = z
+  .object({ from: isoDate, to: isoDate })
+  .refine(rangeRefine, { message: 'Plage invalide (from > to ou > 366 jours)', path: ['from'] });
+
+export const exportRangeSchema = z
+  .object({ from: isoDate, to: isoDate, format: z.enum(['pdf', 'csv']).default('pdf') })
+  .refine(rangeRefine, { message: 'Plage invalide (from > to ou > 366 jours)', path: ['from'] });
 
 // --- Sync (offline) ---
 export const syncSchema = z.object({

@@ -112,6 +112,8 @@ export default function CaissePage() {
   // Saisie de prix pour un plat à prix libre.
   const [pricePick, setPricePick] = useState<MenuDish | null>(null);
   const [priceInput, setPriceInput] = useState('');
+  // Variante sélectionnée lors d'un choix sur un plat libre avec variantes.
+  const [pickedLibreVariant, setPickedLibreVariant] = useState<MenuVariant | null>(null);
   const [category, setCategory] = useState('Tout');
   const [search, setSearch] = useState('');
   const [discountType, setDiscountType] = useState<DiscountType>('none');
@@ -346,6 +348,12 @@ export default function CaissePage() {
   const pickDish = (dish: MenuDish) => {
     if (!dish.available) return;
     if (dish.priceType === 'libre') {
+      const activeVariants = dish.variants?.filter((v) => v.available) ?? [];
+      if (activeVariants.length > 0) {
+        // Libre + variantes : sélecteur de variante d'abord, puis prix.
+        setVariantPick(dish);
+        return;
+      }
       const def = Math.min(Math.max(dish.price, dish.priceMin ?? 0), dish.priceMax ?? dish.price);
       setPriceInput(String(def || dish.priceMin || ''));
       setPricePick(dish);
@@ -372,7 +380,7 @@ export default function CaissePage() {
           variantId: variant?.id,
           variantName: variant?.name,
           name: dish.name,
-          price: customPrice ?? (variant ? variant.price : dish.price),
+          price: customPrice ?? (variant?.price != null ? variant.price : dish.price),
           customPrice,
           quantity: 1,
         },
@@ -387,9 +395,10 @@ export default function CaissePage() {
     const min = pricePick.priceMin ?? 0;
     const max = pricePick.priceMax ?? Number.MAX_SAFE_INTEGER;
     if (!Number.isFinite(value) || value < min || value > max) return;
-    addToCart(pricePick, undefined, value);
+    addToCart(pricePick, pickedLibreVariant ?? undefined, value);
     setPricePick(null);
     setPriceInput('');
+    setPickedLibreVariant(null);
   };
 
   const updateQty = (key: string, delta: number) => {
@@ -794,7 +803,7 @@ export default function CaissePage() {
                       </div>
                     ) : hasVariants ? (
                       <div className="text-gold-400 font-bold mt-1 text-sm">
-                        dès {formatFCFA(Math.min(...dish.variants!.map((v) => v.price)))}
+                        dès {formatFCFA(Math.min(...dish.variants!.map((v) => v.price ?? dish.price)))}
                         <span className="ml-1 text-xs text-neutral-400">· {dish.variants!.length} variantes</span>
                       </div>
                     ) : (
@@ -1152,7 +1161,7 @@ export default function CaissePage() {
             <div className={`${MODAL} max-w-sm p-6`}>
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold text-neutral-100">{variantPick.name}</h3>
-                <button onClick={() => setVariantPick(null)} className="text-neutral-500 hover:text-neutral-300">
+                <button onClick={() => { setVariantPick(null); setPickedLibreVariant(null); }} className="text-neutral-500 hover:text-neutral-300">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -1163,8 +1172,17 @@ export default function CaissePage() {
                     key={v.id}
                     disabled={!v.available}
                     onClick={() => {
-                      addToCart(variantPick, v);
-                      setVariantPick(null);
+                      if (variantPick.priceType === 'libre') {
+                        // Libre + variante : mémoriser la variante, passer à la saisie du prix.
+                        const def = Math.min(Math.max(variantPick.price, variantPick.priceMin ?? 0), variantPick.priceMax ?? variantPick.price);
+                        setPickedLibreVariant(v);
+                        setPriceInput(String(def || variantPick.priceMin || ''));
+                        setPricePick(variantPick);
+                        setVariantPick(null);
+                      } else {
+                        addToCart(variantPick, v);
+                        setVariantPick(null);
+                      }
                     }}
                     className={`w-full flex justify-between items-center px-4 py-3 rounded-xl border-2 transition ${
                       v.available
@@ -1176,7 +1194,7 @@ export default function CaissePage() {
                       {v.name}
                       {!v.available && <span className="ml-2 text-xs text-rose-300">indispo</span>}
                     </span>
-                    <span className="font-bold text-gold-400">{formatFCFA(v.price)}</span>
+                    {v.price != null && <span className="font-bold text-gold-400">{formatFCFA(v.price)}</span>}
                   </button>
                 ))}
               </div>
@@ -1194,8 +1212,10 @@ export default function CaissePage() {
             <div className={OVERLAY}>
               <div className={`${MODAL} max-w-sm p-6`}>
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-bold text-neutral-100">{pricePick.name}</h3>
-                  <button onClick={() => setPricePick(null)} className="text-neutral-500 hover:text-neutral-300">
+                  <h3 className="text-lg font-bold text-neutral-100">
+                    {pricePick.name}{pickedLibreVariant ? ` — ${pickedLibreVariant.name}` : ''}
+                  </h3>
+                  <button onClick={() => { setPricePick(null); setPickedLibreVariant(null); }} className="text-neutral-500 hover:text-neutral-300">
                     <X className="w-5 h-5" />
                   </button>
                 </div>

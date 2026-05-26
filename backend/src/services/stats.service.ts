@@ -1,42 +1,31 @@
 import {
   startOfDay,
-  startOfWeek,
-  startOfMonth,
-  subDays,
-  subWeeks,
-  subMonths,
   getHours,
 } from 'date-fns';
 import { prisma } from '../config/prisma';
 import { STOCK_PURCHASE_CATEGORY } from '../constants';
 
-export type Period = 'today' | 'week' | 'month';
-
-interface Range {
+export interface Range {
   start: Date;
   end: Date;
   prevStart: Date;
   prevEnd: Date;
 }
 
-function getRange(period: Period): Range {
-  const now = new Date();
-  switch (period) {
-    case 'week': {
-      const start = startOfWeek(now, { weekStartsOn: 1 });
-      return { start, end: now, prevStart: subWeeks(start, 1), prevEnd: start };
-    }
-    case 'month': {
-      const start = startOfMonth(now);
-      return { start, end: now, prevStart: subMonths(start, 1), prevEnd: start };
-    }
-    case 'today':
-    default: {
-      const start = startOfDay(now);
-      return { start, end: now, prevStart: subDays(start, 1), prevEnd: start };
-    }
-  }
+// Construit la plage à partir de deux dates fournies par le caller.
+// `prevEnd = start`, `prevStart = start − (end − start)` (période précédente de même durée).
+// NOTE: date-fns startOfDay utilise le fuseau du process. Railway tourne en UTC par défaut,
+// hypothèse à préserver — sinon le delta start↔end+24h peut ne pas être exactement 24 h.
+export function getRangeFromDates(from: Date, to: Date): Range {
+  const start = startOfDay(from);
+  // On considère `to` inclusif jusqu'à la fin de la journée.
+  const end = new Date(to.getTime() + 24 * 60 * 60 * 1000); // = lendemain à 00:00 (borne exclusive)
+  const durationMs = end.getTime() - start.getTime();
+  const prevEnd = start;
+  const prevStart = new Date(start.getTime() - durationMs);
+  return { start, end, prevStart, prevEnd };
 }
+
 
 const NON_CANCELLED = { status: { not: 'annulée' } };
 
@@ -50,8 +39,8 @@ function growth(current: number, previous: number): number {
   return Math.round(((current - previous) / previous) * 1000) / 10;
 }
 
-export async function getDashboard(period: Period) {
-  const { start, end, prevStart, prevEnd } = getRange(period);
+export async function getDashboard(range: Range) {
+  const { start, end, prevStart, prevEnd } = range;
 
   const orders = await prisma.order.findMany({
     where: { ...NON_CANCELLED, createdAt: { gte: start, lt: end } },
@@ -129,6 +118,7 @@ export async function getDashboard(period: Period) {
     const activeVariants = d.variants.filter((v) => v.isActive);
     if (activeVariants.length) {
       for (const v of activeVariants) {
+        if (v.price == null) continue; // variantes sur plat libre : pas de prix propre
         const cost = variantCost.get(v.id) ?? 0;
         dishMargins.push({ name: `${d.name} (${v.name})`, cost, price: v.price, marginPct: v.price ? Math.round(((v.price - cost) / v.price) * 100) : 0 });
       }
