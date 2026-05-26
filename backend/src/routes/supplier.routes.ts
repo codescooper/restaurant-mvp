@@ -14,7 +14,7 @@ import {
 } from '../controllers/supplier.controller';
 
 const router = Router();
-router.use(authenticate, requireRole('administrateur'));
+router.use(authenticate, requireRole('propriétaire', 'administrateur'));
 
 // Achats (placés avant /:id pour éviter les collisions de routes)
 router.get('/purchases', listPurchasesController);

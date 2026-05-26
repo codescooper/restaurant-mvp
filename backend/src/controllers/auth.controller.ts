@@ -3,8 +3,14 @@ import { sendSuccess, sendError } from '../utils/response';
 import * as authService from '../services/auth.service';
 
 export const loginController = asyncHandler(async (req, res) => {
-  const { username, password } = req.body;
-  const result = await authService.login(username, password);
+  const { email, password } = req.body;
+  const result = await authService.login(email, password);
+  sendSuccess(res, result);
+});
+
+export const switchRestaurantController = asyncHandler(async (req, res) => {
+  const { restaurantId } = req.body;
+  const result = await authService.switchRestaurant(req.user!.id, restaurantId);
   sendSuccess(res, result);
 });
 
@@ -16,6 +22,6 @@ export const refreshController = asyncHandler(async (req, res) => {
 });
 
 export const meController = asyncHandler(async (req, res) => {
-  const user = await authService.getMe(req.user!.id);
-  sendSuccess(res, { user });
+  const result = await authService.getMe(req.user!.id);
+  sendSuccess(res, result);
 });

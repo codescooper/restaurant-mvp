@@ -23,6 +23,8 @@ import {
   Role,
 } from '../constants';
 
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
 const orderInclude = { items: true } as const;
 
 export interface OrderItemInput {
@@ -63,7 +65,7 @@ export function formatOrderNumber(prefix: string, existingCount: number): string
   return `${prefix}-${String(existingCount + 1).padStart(3, '0')}`;
 }
 
-async function generateOrderNumber(tx: Prisma.TransactionClient): Promise<string> {
+async function generateOrderNumber(tx: Tx): Promise<string> {
   const prefix = format(new Date(), 'yyyyMMdd');
   const count = await tx.order.count({ where: { orderNumber: { startsWith: prefix } } });
   return formatOrderNumber(prefix, count);

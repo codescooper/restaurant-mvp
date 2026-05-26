@@ -2,15 +2,17 @@ import bcrypt from 'bcrypt';
 import { prisma } from '../config/prisma';
 import { AppError } from '../utils/errors';
 import { SETTING_MAX_DISCOUNT, SETTING_MANAGER_PIN, Role } from '../constants';
+import { getTenantIdOrThrow } from '../config/tenant-context';
 
 export async function getSetting(key: string): Promise<string | null> {
-  const s = await prisma.appSetting.findUnique({ where: { settingKey: key } });
+  const s = await prisma.appSetting.findFirst({ where: { settingKey: key } });
   return s?.settingValue ?? null;
 }
 
 export async function setSetting(key: string, value: string, description?: string) {
+  const restaurantId = getTenantIdOrThrow();
   return prisma.appSetting.upsert({
-    where: { settingKey: key },
+    where: { restaurantId_settingKey: { restaurantId, settingKey: key } },
     update: { settingValue: value },
     create: { settingKey: key, settingValue: value, description },
   });
@@ -52,7 +54,7 @@ export function evaluateManagerApproval(
   providedPin: string | undefined,
   verify: (pin: string, hash: string) => boolean
 ): boolean {
-  if (role === 'administrateur') return false;
+  if (role === 'administrateur' || role === 'propriétaire') return false;
   if (!configuredHash) return false;
   if (!providedPin || !verify(providedPin.trim(), configuredHash)) {
     throw new AppError(403, 'PIN_001');

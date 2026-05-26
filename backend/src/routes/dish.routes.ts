@@ -16,14 +16,14 @@ const router = Router();
 router.use(authenticate);
 
 // Lectures
-router.get('/menu', requireRole('caissier', 'administrateur', 'cuisinier', 'serveur'), listMenuController);
-router.get('/:id/availability', requireRole('caissier', 'administrateur'), availabilityController);
-router.get('/', requireRole('administrateur', 'cuisinier'), listDishesController);
+router.get('/menu', requireRole('caissier', 'propriétaire', 'administrateur', 'cuisinier', 'serveur'), listMenuController);
+router.get('/:id/availability', requireRole('caissier', 'propriétaire', 'administrateur'), availabilityController);
+router.get('/', requireRole('propriétaire', 'administrateur', 'cuisinier'), listDishesController);
 
 // Ecritures (admin)
-router.post('/', requireRole('administrateur'), validate(createDishSchema), createDishController);
-router.put('/:id', requireRole('administrateur'), validate(updateDishSchema), updateDishController);
-router.patch('/:id/toggle-active', requireRole('administrateur'), toggleDishController);
-router.delete('/:id', requireRole('administrateur'), deleteDishController);
+router.post('/', requireRole('propriétaire', 'administrateur'), validate(createDishSchema), createDishController);
+router.put('/:id', requireRole('propriétaire', 'administrateur'), validate(updateDishSchema), updateDishController);
+router.patch('/:id/toggle-active', requireRole('propriétaire', 'administrateur'), toggleDishController);
+router.delete('/:id', requireRole('propriétaire', 'administrateur'), deleteDishController);
 
 export default router;

@@ -12,7 +12,7 @@ export interface ExpenseInput {
   note?: string;
 }
 
-const creatorSelect = { select: { id: true, username: true } } as const;
+const creatorSelect = { select: { id: true, displayName: true } } as const;
 
 function nz(v?: string): string | null {
   if (v == null) return null;

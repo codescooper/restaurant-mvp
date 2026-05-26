@@ -7,7 +7,8 @@ export const listUsersController = asyncHandler(async (_req, res) => {
 });
 
 export const createUserController = asyncHandler(async (req, res) => {
-  sendSuccess(res, await userService.createUser(req.body), 201);
+  const { email, password, role, displayName } = req.body;
+  sendSuccess(res, await userService.createUser({ email, password, role, displayName }), 201);
 });
 
 export const updateUserController = asyncHandler(async (req, res) => {

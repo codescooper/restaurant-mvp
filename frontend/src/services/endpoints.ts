@@ -19,6 +19,7 @@ import {
   Promotion,
   Employee,
   Expense,
+  MembershipView,
 } from '../types';
 
 export interface VariantInput {
@@ -66,9 +67,12 @@ export interface CreateOrderPayload {
 }
 
 export const authApi = {
-  login: (username: string, password: string) =>
-    api.post('/auth/login', { username, password }).then((r) => r.data.data as AuthResponse),
-  me: () => api.get('/auth/me').then((r) => r.data.data.user as User),
+  login: (email: string, password: string) =>
+    api.post('/auth/login', { email, password }).then((r) => r.data.data as AuthResponse),
+  me: () =>
+    api.get('/auth/me').then((r) => r.data.data as { user: User; memberships: MembershipView[] }),
+  switchRestaurant: (restaurantId: number) =>
+    api.post('/auth/switch-restaurant', { restaurantId }).then((r) => r.data.data as AuthResponse),
 };
 
 export const dishApi = {
@@ -195,14 +199,25 @@ export interface ReservationPayload {
   depositMethod?: string;
 }
 
+export interface MemberRow {
+  membershipId: number;
+  userId: number;
+  email: string;
+  displayName: string | null;
+  role: Role;
+  isActive: boolean;
+  lastLogin: string | null;
+  createdAt: string;
+}
+
 export const userApi = {
-  list: () => api.get('/users').then((r) => r.data.data as User[]),
-  create: (data: { username: string; password: string; role: Role }) =>
-    api.post('/users', data).then((r) => r.data.data as User),
-  update: (id: number, data: { username?: string; password?: string; role?: Role }) =>
-    api.put(`/users/${id}`, data).then((r) => r.data.data as User),
-  toggle: (id: number) => api.patch(`/users/${id}/toggle-active`).then((r) => r.data.data as User),
-  remove: (id: number) => api.delete(`/users/${id}`).then((r) => r.data.data),
+  list: () => api.get('/users').then((r) => r.data.data as MemberRow[]),
+  create: (data: { email: string; password: string; role: Role; displayName?: string }) =>
+    api.post('/users', data).then((r) => r.data.data as MemberRow),
+  update: (membershipId: number, data: { role?: Role; password?: string; displayName?: string }) =>
+    api.put(`/users/${membershipId}`, data).then((r) => r.data.data as MemberRow),
+  toggle: (membershipId: number) => api.patch(`/users/${membershipId}/toggle-active`).then((r) => r.data.data as MemberRow),
+  remove: (membershipId: number) => api.delete(`/users/${membershipId}`).then((r) => r.data.data),
 };
 
 export interface EmployeeInput {

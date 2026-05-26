@@ -29,7 +29,7 @@ export async function listInventories() {
   return prisma.inventory.findMany({
     orderBy: { createdAt: 'desc' },
     take: 50,
-    include: { creator: { select: { username: true } }, _count: { select: { lines: true } } },
+    include: { creator: { select: { displayName: true } }, _count: { select: { lines: true } } },
   });
 }
 

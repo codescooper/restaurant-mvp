@@ -99,7 +99,7 @@ interface ResItem {
 }
 
 export default function SallePage() {
-  const { currentUser } = useAuth();
+  const { currentRole } = useAuth();
   const { socket } = useWebSocket();
   const navigate = useNavigate();
 
@@ -138,9 +138,8 @@ export default function SallePage() {
   const [pickDishId, setPickDishId] = useState('');
   const [pickVariantId, setPickVariantId] = useState('');
 
-  const role = currentUser?.role;
-  const canSettle = role === 'caissier' || role === 'administrateur';
-  const canOrder = role === 'serveur' || role === 'caissier' || role === 'administrateur';
+  const canSettle = currentRole === 'caissier' || currentRole === 'administrateur' || currentRole === 'propriétaire';
+  const canOrder = currentRole === 'serveur' || currentRole === 'caissier' || currentRole === 'administrateur' || currentRole === 'propriétaire';
 
   const load = useCallback(() => {
     tableApi.list().then(setTables).catch((e) => setError(getApiError(e)));
@@ -414,7 +413,7 @@ export default function SallePage() {
     setError('');
     // Capturé avant closePanel (qui réinitialise la table sélectionnée).
     const tName = selected.name;
-    const sName = selected.server?.username;
+    const sName = selected.server?.displayName ?? undefined;
     const given = paymentMethod === 'espèces' ? Number(cashGiven) || 0 : undefined;
     try {
       const res = await tableApi.settle(
@@ -500,7 +499,7 @@ export default function SallePage() {
               {occupied && (
                 <div className="mt-2 text-sm">
                   <div className="font-bold text-neutral-100">{formatFCFA(t.total)}</div>
-                  {t.server && <div className="text-xs text-neutral-400">Serveur : {t.server.username}</div>}
+                  {t.server && <div className="text-xs text-neutral-400">Serveur : {t.server.displayName ?? '—'}</div>}
                   {t.hasUnpaid && <div className="text-xs text-gold-300">À régler : {formatFCFA(t.unpaidTotal)}</div>}
                 </div>
               )}
@@ -536,7 +535,7 @@ export default function SallePage() {
               <span className={`px-2 py-0.5 rounded-full ${STATUS_BADGE[selected.status] ?? STATUS_BADGE.libre}`}>
                 {STATUS_LABELS[selected.status] ?? selected.status}
               </span>
-              {selected.server && <span className="text-neutral-400">Serveur : {selected.server.username}</span>}
+              {selected.server && <span className="text-neutral-400">Serveur : {selected.server.displayName ?? '—'}</span>}
             </div>
 
             {error && <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-lg p-2 mb-3 text-sm">{error}</div>}

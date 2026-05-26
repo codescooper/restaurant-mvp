@@ -12,11 +12,11 @@ import {
 const router = Router();
 router.use(authenticate);
 
-router.get('/max-discount', requireRole('serveur', 'caissier', 'administrateur'), getMaxDiscountController);
-router.put('/max-discount', requireRole('administrateur'), validate(setMaxDiscountSchema), setMaxDiscountController);
+router.get('/max-discount', requireRole('serveur', 'caissier', 'propriétaire', 'administrateur'), getMaxDiscountController);
+router.put('/max-discount', requireRole('propriétaire', 'administrateur'), validate(setMaxDiscountSchema), setMaxDiscountController);
 
 // Statut lisible par le caissier (pour savoir s'il faut demander le PIN) ; modification réservée à l'admin.
-router.get('/manager-pin/status', requireRole('caissier', 'administrateur'), getManagerPinStatusController);
-router.put('/manager-pin', requireRole('administrateur'), validate(setManagerPinSchema), setManagerPinController);
+router.get('/manager-pin/status', requireRole('caissier', 'propriétaire', 'administrateur'), getManagerPinStatusController);
+router.put('/manager-pin', requireRole('propriétaire', 'administrateur'), validate(setManagerPinSchema), setManagerPinController);
 
 export default router;

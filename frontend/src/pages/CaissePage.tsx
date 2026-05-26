@@ -97,7 +97,7 @@ const MODAL = 'bg-neutral-950 border border-neutral-800 ring-1 ring-white/10 rou
 const BTN_GOLD = 'bg-gold-400 hover:bg-gold-300 text-black font-bold transition disabled:opacity-40 disabled:cursor-not-allowed';
 
 export default function CaissePage() {
-  const { currentUser } = useAuth();
+  const { currentUser, currentRole } = useAuth();
   const clock = useClock();
   const navigate = useNavigate();
   const { online, queuedCount } = useOfflineSync();
@@ -121,7 +121,7 @@ export default function CaissePage() {
   const [couponInput, setCouponInput] = useState('');
   const [couponError, setCouponError] = useState('');
   // Le serveur prend la commande mais n'encaisse jamais : règlement à la caisse uniquement.
-  const isServer = currentUser?.role === 'serveur';
+  const isServer = currentRole === 'serveur';
   const [showPayment, setShowPayment] = useState(false);
   const [payNow, setPayNow] = useState(!tableId && !isServer);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('');
@@ -137,7 +137,7 @@ export default function CaissePage() {
   const [submitting, setSubmitting] = useState(false);
 
   // Caisse (ouverture / fermeture / tiroir)
-  const canManageCash = currentUser?.role === 'caissier' || currentUser?.role === 'administrateur';
+  const canManageCash = currentRole === 'caissier' || currentRole === 'administrateur' || currentRole === 'propriétaire';
   const [session, setSession] = useState<CashSessionSummary | null>(null);
   const [cashModal, setCashModal] = useState<'open' | 'close' | null>(null);
   const [openingFloat, setOpeningFloat] = useState('');
@@ -158,8 +158,8 @@ export default function CaissePage() {
   const [actionError, setActionError] = useState('');
   const [actionBusy, setActionBusy] = useState(false);
 
-  // Le PIN n'est exigé que pour le caissier (l'admin est le manager) et seulement s'il est configuré.
-  const pinRequired = currentUser?.role === 'caissier' && pinConfigured;
+  // Le PIN n'est exigé que pour le caissier (l'admin/propriétaire est le manager) et seulement s'il est configuré.
+  const pinRequired = currentRole === 'caissier' && pinConfigured;
 
   const loadOrders = () => {
     setOrdersBusy(true);
@@ -474,7 +474,7 @@ export default function CaissePage() {
       tip: payNow && tipNum > 0 ? tipNum : undefined,
       deferred: !payNow,
       tableName,
-      serverName: isServer ? currentUser?.username : undefined,
+      serverName: isServer ? (currentUser?.displayName ?? currentUser?.email) : undefined,
       discountLabel,
       channelLabel: tableId
         ? undefined
@@ -648,7 +648,7 @@ export default function CaissePage() {
             )}
           </div>
           <div className="text-right">
-            <div className="text-sm text-neutral-200">{currentUser?.username}</div>
+            <div className="text-sm text-neutral-200">{currentUser?.displayName ?? currentUser?.email}</div>
             <div className="text-xs text-neutral-500">{formatDateTime(clock)}</div>
           </div>
         </div>

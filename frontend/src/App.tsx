@@ -8,6 +8,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { Layout } from './components/Layout';
 
 const LoginPage = lazy(() => import('./pages/LoginPage'));
+const SelectRestaurantPage = lazy(() => import('./pages/SelectRestaurantPage'));
 const CaissePage = lazy(() => import('./pages/CaissePage'));
 const SallePage = lazy(() => import('./pages/SallePage'));
 const ServicePage = lazy(() => import('./pages/ServicePage'));
@@ -41,11 +42,12 @@ export default function App() {
             <Suspense fallback={<Loading />}>
               <Routes>
                 <Route path="/" element={<LoginPage />} />
+                <Route path="/select-restaurant" element={<SelectRestaurantPage />} />
 
                 <Route
                   path="/caisse"
                   element={
-                    <ProtectedRoute allowedRoles={['caissier', 'administrateur', 'serveur']}>
+                    <ProtectedRoute allowedRoles={['propriétaire', 'administrateur', 'caissier', 'serveur']}>
                       <Layout>
                         <CaissePage />
                       </Layout>
@@ -55,7 +57,7 @@ export default function App() {
                 <Route
                   path="/salle"
                   element={
-                    <ProtectedRoute allowedRoles={['serveur', 'caissier', 'administrateur']}>
+                    <ProtectedRoute allowedRoles={['propriétaire', 'administrateur', 'caissier', 'serveur']}>
                       <Layout>
                         <SallePage />
                       </Layout>
@@ -65,7 +67,7 @@ export default function App() {
                 <Route
                   path="/service"
                   element={
-                    <ProtectedRoute allowedRoles={['serveur', 'caissier', 'administrateur']}>
+                    <ProtectedRoute allowedRoles={['propriétaire', 'administrateur', 'caissier', 'serveur']}>
                       <Layout>
                         <ServicePage />
                       </Layout>
@@ -75,7 +77,7 @@ export default function App() {
                 <Route
                   path="/cuisine"
                   element={
-                    <ProtectedRoute allowedRoles={['cuisinier', 'administrateur']}>
+                    <ProtectedRoute allowedRoles={['propriétaire', 'administrateur', 'cuisinier']}>
                       <Layout>
                         <CuisinePage />
                       </Layout>
@@ -85,7 +87,7 @@ export default function App() {
                 <Route
                   path="/admin"
                   element={
-                    <ProtectedRoute allowedRoles={['administrateur']}>
+                    <ProtectedRoute allowedRoles={['propriétaire', 'administrateur']}>
                       <Layout>
                         <AdminPage />
                       </Layout>
@@ -95,7 +97,7 @@ export default function App() {
                 <Route
                   path="/dashboard"
                   element={
-                    <ProtectedRoute allowedRoles={['administrateur', 'caissier']}>
+                    <ProtectedRoute allowedRoles={['propriétaire', 'administrateur', 'caissier']}>
                       <Layout>
                         <DashboardPage />
                       </Layout>

@@ -1,62 +1,58 @@
 import { useEffect, useRef, useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChefHat, User, Lock, Eye, EyeOff, LogIn, AlertCircle, Loader2 } from 'lucide-react';
+import { ChefHat, Mail, Lock, Eye, EyeOff, LogIn, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { Role } from '../types';
+import { homeForRole } from '../services/auth-helpers';
 import { getApiError } from '../services/api';
 
-const HOME: Record<Role, string> = {
-  administrateur: '/dashboard',
-  caissier: '/caisse',
-  cuisinier: '/cuisine',
-  serveur: '/salle',
-};
-
 const DEMO_ACCOUNTS = [
-  { label: 'Administrateur', emoji: '👨‍💼', username: 'admin', password: 'admin123' },
-  { label: 'Caissier', emoji: '🧾', username: 'caisse1', password: 'caisse123' },
-  { label: 'Cuisinier', emoji: '👨‍🍳', username: 'chef1', password: 'chef123' },
-  { label: 'Serveur', emoji: '🧑‍🍽️', username: 'serveur1', password: 'serveur123' },
+  { label: 'Propriétaire', emoji: '👑', email: 'admin@restaurant-pilote.local', password: 'admin123' },
+  { label: 'Caissier', emoji: '🧾', email: 'caisse1@restaurant-pilote.local', password: 'caisse123' },
+  { label: 'Cuisinier', emoji: '👨‍🍳', email: 'chef1@restaurant-pilote.local', password: 'chef123' },
+  { label: 'Serveur', emoji: '🧑‍🍽️', email: 'serveur1@restaurant-pilote.local', password: 'serveur123' },
 ];
 
 export default function LoginPage() {
-  const { login, isAuthenticated, currentUser } = useAuth();
+  const { login, isAuthenticated, hasActiveRestaurant, currentRole } = useAuth();
   const navigate = useNavigate();
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const usernameRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    usernameRef.current?.focus();
+    emailRef.current?.focus();
   }, []);
 
+  // Déjà authentifié avec un restaurant actif → aller à la page du rôle.
   useEffect(() => {
-    if (isAuthenticated && currentUser) navigate(HOME[currentUser.role], { replace: true });
-  }, [isAuthenticated, currentUser, navigate]);
+    if (isAuthenticated && hasActiveRestaurant && currentRole) {
+      navigate(homeForRole(currentRole), { replace: true });
+    }
+  }, [isAuthenticated, hasActiveRestaurant, currentRole, navigate]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!username || !password) {
+    if (!email || !password) {
       setError('Veuillez remplir tous les champs');
       return;
     }
     setError('');
     setLoading(true);
     try {
-      const user = await login(username, password);
-      navigate(HOME[user.role], { replace: true });
+      const { autoSelected, role } = await login(email, password);
+      navigate(autoSelected && role ? homeForRole(role) : '/select-restaurant', { replace: true });
     } catch (err) {
-      setError(getApiError(err, "Nom d'utilisateur ou mot de passe incorrect"));
+      setError(getApiError(err, 'Email ou mot de passe incorrect'));
     } finally {
       setLoading(false);
     }
   };
 
-  const fillDemo = (u: string, p: string) => {
-    setUsername(u);
+  const fillDemo = (em: string, p: string) => {
+    setEmail(em);
     setPassword(p);
     setError('');
   };
@@ -81,26 +77,28 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-neutral-300 mb-1">Nom d'utilisateur</label>
+            <label htmlFor="email" className="block text-sm font-medium text-neutral-300 mb-1">Email</label>
             <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
               <input
-                ref={usernameRef}
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                id="email"
+                ref={emailRef}
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="w-full pl-10 pr-3 py-2.5 bg-neutral-900 border border-neutral-700 rounded-lg text-neutral-100 placeholder-neutral-500 focus:ring-2 focus:ring-gold-400/60 focus:border-gold-400 outline-none"
-                placeholder="admin"
-                autoComplete="username"
+                placeholder="vous@exemple.com"
+                autoComplete="email"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-neutral-300 mb-1">Mot de passe</label>
+            <label htmlFor="password" className="block text-sm font-medium text-neutral-300 mb-1">Mot de passe</label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
               <input
+                id="password"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -133,15 +131,15 @@ export default function LoginPage() {
           <div className="space-y-2">
             {DEMO_ACCOUNTS.map((acc) => (
               <button
-                key={acc.username}
-                onClick={() => fillDemo(acc.username, acc.password)}
+                key={acc.email}
+                onClick={() => fillDemo(acc.email, acc.password)}
                 className="w-full flex items-center gap-3 px-3 py-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-lg text-left text-sm transition"
               >
                 <span className="text-xl">{acc.emoji}</span>
                 <div>
                   <div className="font-medium text-neutral-100">{acc.label}</div>
                   <div className="text-xs text-neutral-400">
-                    {acc.username} / {acc.password}
+                    {acc.email} / {acc.password}
                   </div>
                 </div>
               </button>

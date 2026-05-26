@@ -23,14 +23,14 @@ interface RouteDef {
 }
 
 export function Navigation() {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, currentRole, memberships, activeRestaurantId, selectRestaurant, logout } = useAuth();
   const { connected } = useWebSocket();
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
-  if (!currentUser) return null;
+  if (!currentUser || !currentRole) return null;
 
   const routes: RouteDef[] = [];
-  if (currentUser.role === 'administrateur') {
+  if (currentRole === 'administrateur' || currentRole === 'propriétaire') {
     routes.push(
       { path: '/dashboard', label: 'Dashboard', icon: BarChart3 },
       { path: '/admin', label: 'Gestion', icon: Package },
@@ -39,21 +39,23 @@ export function Navigation() {
       { path: '/service', label: 'Service', icon: BellRing },
       { path: '/cuisine', label: 'Cuisine', icon: ChefHat }
     );
-  } else if (currentUser.role === 'caissier') {
+  } else if (currentRole === 'caissier') {
     routes.push(
       { path: '/caisse', label: 'Caisse', icon: ShoppingCart },
       { path: '/salle', label: 'Salle', icon: LayoutGrid },
       { path: '/service', label: 'Service', icon: BellRing },
       { path: '/dashboard', label: 'Statistiques', icon: BarChart3 }
     );
-  } else if (currentUser.role === 'serveur') {
+  } else if (currentRole === 'serveur') {
     routes.push(
       { path: '/salle', label: 'Salle', icon: LayoutGrid },
       { path: '/service', label: 'Service', icon: BellRing }
     );
-  } else if (currentUser.role === 'cuisinier') {
+  } else if (currentRole === 'cuisinier') {
     routes.push({ path: '/cuisine', label: 'Cuisine', icon: ChefHat });
   }
+
+  const activeMembership = memberships.find((m) => m.restaurantId === activeRestaurantId);
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition ${
@@ -67,8 +69,10 @@ export function Navigation() {
           <Link to="/" className="flex items-center gap-3">
             <ChefHat className="w-8 h-8 text-gold-400" />
             <div>
-              <h1 className="font-bold text-neutral-100 leading-tight">Restaurant Pilote</h1>
-              <p className="text-xs text-neutral-400 capitalize">{currentUser.role}</p>
+              <h1 className="font-bold text-neutral-100 leading-tight">
+                {activeMembership?.restaurantName ?? 'Restaurant'}
+              </h1>
+              <p className="text-xs text-neutral-400 capitalize">{currentRole}</p>
             </div>
           </Link>
 
@@ -82,11 +86,25 @@ export function Navigation() {
             <span
               title={connected ? 'Connecté en temps réel' : 'Hors-ligne'}
               className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${
-                connected ? 'text-emerald-400' : 'text-rose-400' // statut temps réel (conservé)
+                connected ? 'text-emerald-400' : 'text-rose-400'
               }`}
             >
               {connected ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
             </span>
+            {memberships.length > 1 && (
+              <select
+                value={activeRestaurantId ?? ''}
+                onChange={(e) => { selectRestaurant(Number(e.target.value)).catch(console.error); }}
+                className="ml-2 bg-neutral-900 border border-neutral-800 text-neutral-200 text-sm rounded-lg px-2 py-1.5"
+                title="Changer de restaurant"
+              >
+                {memberships.map((m) => (
+                  <option key={m.restaurantId} value={m.restaurantId}>
+                    {m.restaurantName}
+                  </option>
+                ))}
+              </select>
+            )}
             <button
               onClick={logout}
               className="ml-2 flex items-center gap-2 px-3 py-2 rounded-lg text-rose-400 hover:bg-rose-500/10 font-medium"
@@ -117,6 +135,20 @@ export function Navigation() {
                 {route.label}
               </NavLink>
             ))}
+            {memberships.length > 1 && (
+              <select
+                value={activeRestaurantId ?? ''}
+                onChange={(e) => { selectRestaurant(Number(e.target.value)).catch(console.error); setShowMobileMenu(false); }}
+                className="w-full bg-neutral-900 border border-neutral-800 text-neutral-200 text-sm rounded-lg px-3 py-2"
+                title="Changer de restaurant"
+              >
+                {memberships.map((m) => (
+                  <option key={m.restaurantId} value={m.restaurantId}>
+                    {m.restaurantName}
+                  </option>
+                ))}
+              </select>
+            )}
             <button
               onClick={logout}
               className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-rose-400 hover:bg-rose-500/10 font-medium"

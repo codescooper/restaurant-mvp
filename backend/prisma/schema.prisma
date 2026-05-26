@@ -12,14 +12,67 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Restaurant = tenant. Toutes les entités opérationnelles lui appartiennent via restaurantId.
+model Restaurant {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(120)
+  slug      String   @unique @db.VarChar(140)
+  status    String   @default("active") @db.VarChar(20) // 'pending' | 'active' | 'suspended'
+  createdAt DateTime @default(now()) @map("created_at")
+
+  memberships    Membership[]
+  users          User[] // utilisateurs dont c'est le restaurant "principal" historique (nullable)
+  dishes         Dish[]
+  stockItems     StockItem[]
+  orders         Order[]
+  tables         Table[]
+  cashSessions   CashSession[]
+  reservations   Reservation[]
+  promotions     Promotion[]
+  expenses       Expense[]
+  employees      Employee[]
+  suppliers      Supplier[]
+  purchases      Purchase[]
+  inventories    Inventory[]
+  notifications  Notification[]
+  auditLogs      AuditLog[]
+  appSettings    AppSetting[]
+  stockMovements StockMovement[]
+
+  @@map("restaurants")
+}
+
+// Appartenance d'un utilisateur à un restaurant, avec son rôle dans ce restaurant.
+model Membership {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @map("user_id")
+  restaurantId Int      @map("restaurant_id")
+  role         String   @db.VarChar(20) // 'propriétaire' | 'administrateur' | 'caissier' | 'cuisinier' | 'serveur'
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, restaurantId])
+  @@index([restaurantId], map: "idx_memberships_restaurant")
+  @@map("memberships")
+}
+
 model User {
   id           Int       @id @default(autoincrement())
-  username     String    @unique @db.VarChar(50)
+  email        String    @unique @db.VarChar(190)
   passwordHash String    @map("password_hash") @db.VarChar(255)
-  role         String    @db.VarChar(20)
+  displayName  String?   @map("display_name") @db.VarChar(80)
+  isSuperAdmin Boolean   @default(false) @map("is_super_admin")
   isActive     Boolean   @default(true) @map("is_active")
   createdAt    DateTime  @default(now()) @map("created_at")
   lastLogin    DateTime? @map("last_login")
+
+  // Restaurant "principal" historique (nullable, info ; le contexte vient des memberships).
+  restaurantId Int?         @map("restaurant_id")
+  restaurant   Restaurant?  @relation(fields: [restaurantId], references: [id])
+  memberships  Membership[]
 
   createdOrders     Order[]            @relation("CreatedOrders")
   servedOrders      Order[]            @relation("ServerOrders")
@@ -51,48 +104,54 @@ model Expense {
   note          String?  @db.Text
   createdBy     Int?     @map("created_by")
   createdAt     DateTime @default(now()) @map("created_at")
+  restaurantId  Int?     @map("restaurant_id")
 
-  creator User? @relation(fields: [createdBy], references: [id])
+  creator    User?       @relation(fields: [createdBy], references: [id])
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@index([expenseDate], map: "idx_expenses_date")
   @@index([category], map: "idx_expenses_category")
+  @@index([restaurantId], map: "idx_expenses_restaurant")
   @@map("expenses")
 }
 
 // Fiche employé (RH) : distincte du compte de connexion (User), reliée optionnellement via userId.
 // Gère aussi le personnel sans accès à l'app. Données sensibles (salaire) : routes réservées à l'admin.
 model Employee {
-  id        Int      @id @default(autoincrement())
+  id               Int       @id @default(autoincrement())
   // Identité & contact
-  firstName String   @map("first_name") @db.VarChar(50)
-  lastName  String   @map("last_name") @db.VarChar(50)
-  phone     String?  @db.VarChar(30)
-  email     String?  @db.VarChar(100)
-  address   String?  @db.Text
-  photoUrl  String?  @map("photo_url") @db.Text
+  firstName        String    @map("first_name") @db.VarChar(50)
+  lastName         String    @map("last_name") @db.VarChar(50)
+  phone            String?   @db.VarChar(30)
+  email            String?   @db.VarChar(100)
+  address          String?   @db.Text
+  photoUrl         String?   @map("photo_url") @db.Text
   // Contrat
-  position     String?   @db.VarChar(60)
-  contractType String?   @map("contract_type") @db.VarChar(20)
-  hireDate     DateTime? @map("hire_date")
-  endDate      DateTime? @map("end_date")
+  position         String?   @db.VarChar(60)
+  contractType     String?   @map("contract_type") @db.VarChar(20)
+  hireDate         DateTime? @map("hire_date")
+  endDate          DateTime? @map("end_date")
   // Rémunération (FCFA, sans centimes)
-  salary        Int?
-  salaryPeriod  String? @map("salary_period") @db.VarChar(15)
-  paymentMethod String? @map("payment_method") @db.VarChar(20)
+  salary           Int?
+  salaryPeriod     String?   @map("salary_period") @db.VarChar(15)
+  paymentMethod    String?   @map("payment_method") @db.VarChar(20)
   // RH & urgence
-  emergencyContact String? @map("emergency_contact") @db.VarChar(100)
-  emergencyPhone   String? @map("emergency_phone") @db.VarChar(30)
-  idNumber         String? @map("id_number") @db.VarChar(50)
-  notes            String? @db.Text
+  emergencyContact String?   @map("emergency_contact") @db.VarChar(100)
+  emergencyPhone   String?   @map("emergency_phone") @db.VarChar(30)
+  idNumber         String?   @map("id_number") @db.VarChar(50)
+  notes            String?   @db.Text
   // Statut & lien compte
-  isActive  Boolean  @default(true) @map("is_active")
-  userId    Int?     @unique @map("user_id")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  isActive         Boolean   @default(true) @map("is_active")
+  userId           Int?      @unique @map("user_id")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  restaurantId     Int?      @map("restaurant_id")
 
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@index([isActive], map: "idx_employees_active")
+  @@index([restaurantId], map: "idx_employees_restaurant")
   @@map("employees")
 }
 
@@ -106,6 +165,7 @@ model StockItem {
   alertThreshold Float    @default(10) @map("alert_threshold")
   lastUpdated    DateTime @default(now()) @map("last_updated")
   createdAt      DateTime @default(now()) @map("created_at")
+  restaurantId   Int?     @map("restaurant_id")
 
   dishIngredients    DishIngredient[]
   variantIngredients VariantIngredient[]
@@ -113,8 +173,10 @@ model StockItem {
   notifications      Notification[]
   purchases          Purchase[]
   inventoryLines     InventoryLine[]
+  restaurant         Restaurant?         @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@index([quantity, alertThreshold], map: "idx_stock_items_alert")
+  @@index([restaurantId], map: "idx_stock_items_restaurant")
   @@map("stock_items")
 }
 
@@ -133,13 +195,16 @@ model Dish {
   preparationTime Int?     @map("preparation_time")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
+  restaurantId    Int?     @map("restaurant_id")
 
-  ingredients DishIngredient[]
-  variants    DishVariant[]
-  orderItems  OrderItem[]
+  ingredients      DishIngredient[]
+  variants         DishVariant[]
+  orderItems       OrderItem[]
   reservationItems ReservationItem[]
+  restaurant       Restaurant?       @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@index([isActive], map: "idx_dishes_active")
+  @@index([restaurantId], map: "idx_dishes_restaurant")
   @@map("dishes")
 }
 
@@ -165,9 +230,9 @@ model DishVariant {
   isActive  Boolean @default(true) @map("is_active")
   sortOrder Int     @default(0) @map("sort_order")
 
-  dish        Dish                @relation(fields: [dishId], references: [id], onDelete: Cascade)
-  ingredients VariantIngredient[]
-  orderItems  OrderItem[]
+  dish             Dish                @relation(fields: [dishId], references: [id], onDelete: Cascade)
+  ingredients      VariantIngredient[]
+  orderItems       OrderItem[]
   reservationItems ReservationItem[]
 
   @@index([dishId], map: "idx_dish_variants_dish")
@@ -190,7 +255,7 @@ model VariantIngredient {
 
 model Order {
   id                  Int       @id @default(autoincrement())
-  orderNumber         String    @unique @map("order_number") @db.VarChar(20)
+  orderNumber         String    @map("order_number") @db.VarChar(20)
   total               Int
   discountAmount      Int       @default(0) @map("discount_amount")
   discountPercent     Float     @default(0) @map("discount_percent")
@@ -232,6 +297,7 @@ model Order {
   refundedBy          Int?      @map("refunded_by")
   refundReason        String?   @map("refund_reason") @db.Text
   isSynced            Boolean   @default(false) @map("is_synced")
+  restaurantId        Int?      @map("restaurant_id")
 
   creator        User?           @relation("CreatedOrders", fields: [createdBy], references: [id])
   server         User?           @relation("ServerOrders", fields: [serverId], references: [id])
@@ -243,12 +309,15 @@ model Order {
   items          OrderItem[]
   stockMovements StockMovement[]
   notifications  Notification[]
+  restaurant     Restaurant?     @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
+  @@unique([restaurantId, orderNumber])
   @@index([status], map: "idx_orders_status")
   @@index([createdAt], map: "idx_orders_created_at")
   @@index([orderNumber], map: "idx_orders_number")
   @@index([tableId], map: "idx_orders_table")
   @@index([cashSessionId], map: "idx_orders_cash_session")
+  @@index([restaurantId], map: "idx_orders_restaurant")
   @@map("orders")
 }
 
@@ -284,11 +353,14 @@ model StockMovement {
   note             String?  @db.Text
   createdBy        Int?     @map("created_by")
   createdAt        DateTime @default(now()) @map("created_at")
+  restaurantId     Int?     @map("restaurant_id")
 
-  stockItem StockItem @relation(fields: [stockItemId], references: [id])
-  order     Order?    @relation(fields: [orderId], references: [id])
-  creator   User?     @relation(fields: [createdBy], references: [id])
+  stockItem  StockItem   @relation(fields: [stockItemId], references: [id])
+  order      Order?      @relation(fields: [orderId], references: [id])
+  creator    User?       @relation(fields: [createdBy], references: [id])
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
+  @@index([restaurantId], map: "idx_stock_movements_restaurant")
   @@map("stock_movements")
 }
 
@@ -302,12 +374,15 @@ model Notification {
   relatedStockId Int?     @map("related_stock_id")
   isRead         Boolean  @default(false) @map("is_read")
   createdAt      DateTime @default(now()) @map("created_at")
+  restaurantId   Int?     @map("restaurant_id")
 
   relatedOrder Order?             @relation(fields: [relatedOrderId], references: [id])
   relatedStock StockItem?         @relation(fields: [relatedStockId], references: [id])
   reads        NotificationRead[]
+  restaurant   Restaurant?        @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@index([userRole, isRead], map: "idx_notifications_role")
+  @@index([restaurantId], map: "idx_notifications_restaurant")
   @@map("notifications")
 }
 
@@ -326,66 +401,78 @@ model NotificationRead {
 
 model AppSetting {
   id           Int      @id @default(autoincrement())
-  settingKey   String   @unique @map("setting_key") @db.VarChar(50)
+  settingKey   String   @map("setting_key") @db.VarChar(50)
   settingValue String   @map("setting_value") @db.Text
   description  String?  @db.Text
   updatedAt    DateTime @updatedAt @map("updated_at")
+  restaurantId Int?     @map("restaurant_id")
 
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
+
+  @@unique([restaurantId, settingKey])
+  @@index([restaurantId], map: "idx_app_settings_restaurant")
   @@map("app_settings")
 }
 
 model Table {
   id            Int      @id @default(autoincrement())
-  name          String   @unique @db.VarChar(50)
+  name          String   @db.VarChar(50)
   capacity      Int      @default(4)
   billRequested Boolean  @default(false) @map("bill_requested")
   createdAt     DateTime @default(now()) @map("created_at")
+  restaurantId  Int?     @map("restaurant_id")
 
   orders       Order[]
   reservations Reservation[]
+  restaurant   Restaurant?   @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
+  @@unique([restaurantId, name])
+  @@index([restaurantId], map: "idx_tables_restaurant")
   @@map("tables")
 }
 
 // Réservation d'une table (§D).
 model Reservation {
-  id            Int      @id @default(autoincrement())
-  tableId       Int      @map("table_id")
-  customerName  String   @map("customer_name") @db.VarChar(100)
-  customerPhone String?  @map("customer_phone") @db.VarChar(30)
-  partySize     Int?     @map("party_size")
-  reservedAt    DateTime @map("reserved_at")
+  id                   Int       @id @default(autoincrement())
+  tableId              Int       @map("table_id")
+  customerName         String    @map("customer_name") @db.VarChar(100)
+  customerPhone        String?   @map("customer_phone") @db.VarChar(30)
+  partySize            Int?      @map("party_size")
+  reservedAt           DateTime  @map("reserved_at")
   // Durée réservée du repas en minutes (heure de fin = reservedAt + durationMinutes).
   // La libération de la table ajoute ensuite 30 min de marge client + 30 min de nettoyage (cf. constants.ts).
-  durationMinutes Int    @default(90) @map("duration_minutes")
+  durationMinutes      Int       @default(90) @map("duration_minutes")
   // Pré-commande informative : nourriture/boisson réservées à l'avance (cf. hasPreOrder), SANS impact cuisine/stock.
-  hasPreOrder   Boolean  @default(false) @map("has_pre_order")
+  hasPreOrder          Boolean   @default(false) @map("has_pre_order")
   // Montants (FCFA) : coût total prévu, acompte versé. Le reste à payer = totalAmount - depositAmount (calculé à l'affichage).
-  totalAmount   Int      @default(0) @map("total_amount")
-  depositAmount Int      @default(0) @map("deposit_amount")
-  depositMethod String?  @map("deposit_method") @db.VarChar(20)
-  depositAt     DateTime? @map("deposit_at")
+  totalAmount          Int       @default(0) @map("total_amount")
+  depositAmount        Int       @default(0) @map("deposit_amount")
+  depositMethod        String?   @map("deposit_method") @db.VarChar(20)
+  depositAt            DateTime? @map("deposit_at")
   // Session de caisse ayant encaissé l'acompte en espèces → compté dans le théorique de caisse.
-  depositCashSessionId Int? @map("deposit_cash_session_id")
+  depositCashSessionId Int?      @map("deposit_cash_session_id")
   // Statut de paiement : 'aucun' | 'avance' | 'réglé' (dérivé des montants).
-  paymentStatus String   @default("aucun") @map("payment_status") @db.VarChar(15)
+  paymentStatus        String    @default("aucun") @map("payment_status") @db.VarChar(15)
   // Acompte appliqué (déduit) lors du règlement de la table → évite de le déduire deux fois.
-  depositConsumed Boolean @default(false) @map("deposit_consumed")
+  depositConsumed      Boolean   @default(false) @map("deposit_consumed")
   // Acompte remboursé au client (ex. annulation) : l'argent ressort, donc retiré du théorique de caisse.
-  depositRefunded Boolean @default(false) @map("deposit_refunded")
-  depositRefundedAt DateTime? @map("deposit_refunded_at")
-  note          String?  @db.Text
-  status        String   @default("active") @db.VarChar(20)
-  createdBy     Int?     @map("created_by")
-  createdAt     DateTime @default(now()) @map("created_at")
+  depositRefunded      Boolean   @default(false) @map("deposit_refunded")
+  depositRefundedAt    DateTime? @map("deposit_refunded_at")
+  note                 String?   @db.Text
+  status               String    @default("active") @db.VarChar(20)
+  createdBy            Int?      @map("created_by")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  restaurantId         Int?      @map("restaurant_id")
 
   table              Table             @relation(fields: [tableId], references: [id], onDelete: Cascade)
   creator            User?             @relation(fields: [createdBy], references: [id])
   depositCashSession CashSession?      @relation("ReservationDeposits", fields: [depositCashSessionId], references: [id])
   items              ReservationItem[]
+  restaurant         Restaurant?       @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@index([tableId, status], map: "idx_reservations_table")
   @@index([reservedAt], map: "idx_reservations_date")
+  @@index([restaurantId], map: "idx_reservations_restaurant")
   @@map("reservations")
 }
 
@@ -425,13 +512,16 @@ model CashSession {
   discrepancy       Int?
   discrepancyReason String?   @map("discrepancy_reason") @db.Text
   notes             String?   @db.Text
+  restaurantId      Int?      @map("restaurant_id")
 
-  cashier User    @relation("CashierSessions", fields: [cashierId], references: [id])
-  closer  User?   @relation("ClosedSessions", fields: [closedBy], references: [id])
-  orders  Order[]
+  cashier             User          @relation("CashierSessions", fields: [cashierId], references: [id])
+  closer              User?         @relation("ClosedSessions", fields: [closedBy], references: [id])
+  orders              Order[]
   reservationDeposits Reservation[] @relation("ReservationDeposits")
+  restaurant          Restaurant?   @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@index([cashierId, status], map: "idx_cash_sessions_cashier")
+  @@index([restaurantId], map: "idx_cash_sessions_restaurant")
   @@map("cash_sessions")
 }
 
@@ -446,30 +536,37 @@ model Promotion {
   startHour     Int?     @map("start_hour")
   endHour       Int?     @map("end_hour")
   days          String?  @db.VarChar(30) // jours (CSV "1,2,3", 1=lundi) ; null = tous les jours
-  code          String?  @unique @db.VarChar(30)
+  code          String?  @db.VarChar(30)
   maxUses       Int?     @map("max_uses")
   usedCount     Int      @default(0) @map("used_count")
   createdAt     DateTime @default(now()) @map("created_at")
+  restaurantId  Int?     @map("restaurant_id")
 
-  orders Order[]
+  orders     Order[]
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
+  @@unique([restaurantId, code])
+  @@index([restaurantId], map: "idx_promotions_restaurant")
   @@map("promotions")
 }
 
 // Journal d'actions sensibles : qui a fait quoi, quand (§C).
 model AuditLog {
-  id         Int      @id @default(autoincrement())
-  userId     Int?     @map("user_id")
-  action     String   @db.VarChar(40)
-  entityType String   @map("entity_type") @db.VarChar(30)
-  entityId   Int?     @map("entity_id")
-  details    Json?
-  createdAt  DateTime @default(now()) @map("created_at")
+  id           Int      @id @default(autoincrement())
+  userId       Int?     @map("user_id")
+  action       String   @db.VarChar(40)
+  entityType   String   @map("entity_type") @db.VarChar(30)
+  entityId     Int?     @map("entity_id")
+  details      Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+  restaurantId Int?     @map("restaurant_id")
 
-  user User? @relation(fields: [userId], references: [id])
+  user       User?       @relation(fields: [userId], references: [id])
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@index([action], map: "idx_audit_action")
   @@index([createdAt], map: "idx_audit_created_at")
+  @@index([restaurantId], map: "idx_audit_logs_restaurant")
   @@map("audit_logs")
 }
 
@@ -488,54 +585,63 @@ model SyncQueue {
 
 // Fournisseur (§E).
 model Supplier {
-  id        Int      @id @default(autoincrement())
-  name      String   @db.VarChar(100)
-  phone     String?  @db.VarChar(30)
-  contact   String?  @db.VarChar(100)
-  note      String?  @db.Text
-  createdAt DateTime @default(now()) @map("created_at")
+  id           Int      @id @default(autoincrement())
+  name         String   @db.VarChar(100)
+  phone        String?  @db.VarChar(30)
+  contact      String?  @db.VarChar(100)
+  note         String?  @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+  restaurantId Int?     @map("restaurant_id")
 
-  purchases Purchase[]
+  purchases  Purchase[]
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
+  @@index([restaurantId], map: "idx_suppliers_restaurant")
   @@map("suppliers")
 }
 
 // Achat fournisseur (un article par achat) ; suivi dette/échéance (§E).
 model Purchase {
-  id          Int       @id @default(autoincrement())
-  supplierId  Int       @map("supplier_id")
-  stockItemId Int       @map("stock_item_id")
-  quantity    Float
-  unitPrice   Int       @map("unit_price")
-  totalPrice  Int       @map("total_price")
-  dueDate     DateTime? @map("due_date")
-  isPaid      Boolean   @default(false) @map("is_paid")
-  paidAt      DateTime? @map("paid_at")
-  note        String?   @db.Text
-  createdBy   Int?      @map("created_by")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  id           Int       @id @default(autoincrement())
+  supplierId   Int       @map("supplier_id")
+  stockItemId  Int       @map("stock_item_id")
+  quantity     Float
+  unitPrice    Int       @map("unit_price")
+  totalPrice   Int       @map("total_price")
+  dueDate      DateTime? @map("due_date")
+  isPaid       Boolean   @default(false) @map("is_paid")
+  paidAt       DateTime? @map("paid_at")
+  note         String?   @db.Text
+  createdBy    Int?      @map("created_by")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  restaurantId Int?      @map("restaurant_id")
 
-  supplier  Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
-  stockItem StockItem @relation(fields: [stockItemId], references: [id])
-  creator   User?     @relation(fields: [createdBy], references: [id])
+  supplier   Supplier    @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  stockItem  StockItem   @relation(fields: [stockItemId], references: [id])
+  creator    User?       @relation(fields: [createdBy], references: [id])
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@index([supplierId], map: "idx_purchases_supplier")
+  @@index([restaurantId], map: "idx_purchases_restaurant")
   @@map("purchases")
 }
 
 // Session d'inventaire : théorique (système) vs réel (compté) (§C).
 model Inventory {
-  id          Int       @id @default(autoincrement())
-  type        String    @db.VarChar(20)
-  status      String    @default("en_cours") @db.VarChar(20)
-  note        String?   @db.Text
-  createdBy   Int?      @map("created_by")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  validatedAt DateTime? @map("validated_at")
+  id           Int       @id @default(autoincrement())
+  type         String    @db.VarChar(20)
+  status       String    @default("en_cours") @db.VarChar(20)
+  note         String?   @db.Text
+  createdBy    Int?      @map("created_by")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  validatedAt  DateTime? @map("validated_at")
+  restaurantId Int?      @map("restaurant_id")
 
-  creator User?           @relation(fields: [createdBy], references: [id])
-  lines   InventoryLine[]
+  creator    User?           @relation(fields: [createdBy], references: [id])
+  lines      InventoryLine[]
+  restaurant Restaurant?     @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
+  @@index([restaurantId], map: "idx_inventories_restaurant")
   @@map("inventories")
 }
 

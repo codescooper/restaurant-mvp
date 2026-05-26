@@ -1,6 +1,7 @@
 import { prisma } from '../config/prisma';
 import { Role, NotificationType } from '../constants';
 import { emitToRole } from '../websocket';
+import { AppError } from '../utils/errors';
 
 interface CreateNotificationParams {
   userRole: Role;
@@ -36,6 +37,9 @@ export async function listNotifications(role: Role) {
 }
 
 export async function markAsRead(notificationId: number, userId: number) {
+  // Lecture scopée : refuse une notification d'un autre restaurant (renvoie null → 404).
+  const notif = await prisma.notification.findFirst({ where: { id: notificationId } });
+  if (!notif) throw new AppError(404, 'NOTIF_001');
   await prisma.notificationRead.upsert({
     where: { notificationId_userId: { notificationId, userId } },
     create: { notificationId, userId },

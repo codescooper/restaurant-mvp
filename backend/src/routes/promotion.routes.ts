@@ -14,16 +14,16 @@ import {
 const router = Router();
 router.use(authenticate);
 
-const SERVICE = ['serveur', 'caissier', 'administrateur'] as const;
+const SERVICE = ['serveur', 'caissier', 'propriétaire', 'administrateur'] as const;
 
 // Lecture caisse (avant /:id)
 router.get('/happy-hour/active', requireRole(...SERVICE), activeHappyHourController);
 router.get('/coupon/:code', requireRole(...SERVICE), checkCouponController);
 
 // Gestion : admin
-router.get('/', requireRole('administrateur'), listPromotionsController);
-router.post('/', requireRole('administrateur'), validate(createPromotionSchema), createPromotionController);
-router.put('/:id', requireRole('administrateur'), validate(updatePromotionSchema), updatePromotionController);
-router.delete('/:id', requireRole('administrateur'), deletePromotionController);
+router.get('/', requireRole('propriétaire', 'administrateur'), listPromotionsController);
+router.post('/', requireRole('propriétaire', 'administrateur'), validate(createPromotionSchema), createPromotionController);
+router.put('/:id', requireRole('propriétaire', 'administrateur'), validate(updatePromotionSchema), updatePromotionController);
+router.delete('/:id', requireRole('propriétaire', 'administrateur'), deletePromotionController);
 
 export default router;

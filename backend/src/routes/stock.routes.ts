@@ -18,7 +18,7 @@ import {
 } from '../controllers/stock.controller';
 
 const router = Router();
-router.use(authenticate, requireRole('administrateur'));
+router.use(authenticate, requireRole('propriétaire', 'administrateur'));
 
 router.get('/', listStockController);
 router.get('/movements', listMovementsController);

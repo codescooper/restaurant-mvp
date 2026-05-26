@@ -153,7 +153,7 @@ export default function CuisinePage() {
             <ChefHat className="w-8 h-8 text-gold-400" />
             <div>
               <h1 className="text-2xl font-bold">Cuisine</h1>
-              <p className="text-sm text-neutral-400">{currentUser?.username}</p>
+              <p className="text-sm text-neutral-400">{currentUser?.displayName ?? currentUser?.email}</p>
             </div>
           </div>
           <div className="text-gold-400 font-mono">{formatTime(clock)}</div>

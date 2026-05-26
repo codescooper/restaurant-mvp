@@ -11,7 +11,7 @@ import {
 } from '../controllers/user.controller';
 
 const router = Router();
-router.use(authenticate, requireRole('administrateur'));
+router.use(authenticate, requireRole('propriétaire', 'administrateur'));
 
 router.get('/', listUsersController);
 router.post('/', validate(createUserSchema), createUserController);

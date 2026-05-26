@@ -11,7 +11,7 @@ import {
 } from '../controllers/inventory.controller';
 
 const router = Router();
-router.use(authenticate, requireRole('administrateur'));
+router.use(authenticate, requireRole('propriétaire', 'administrateur'));
 
 router.get('/', listInventoriesController);
 router.post('/', validate(createInventorySchema), createInventoryController);

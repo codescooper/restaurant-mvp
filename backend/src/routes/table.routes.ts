@@ -29,8 +29,8 @@ import {
 const router = Router();
 router.use(authenticate);
 
-const SERVICE = ['serveur', 'caissier', 'administrateur'] as const;
-const CAISSE = ['caissier', 'administrateur'] as const;
+const SERVICE = ['serveur', 'caissier', 'propriétaire', 'administrateur'] as const;
+const CAISSE = ['caissier', 'propriétaire', 'administrateur'] as const;
 
 // Réservations (avant /:id pour éviter toute collision de route)
 router.get('/reservations', requireRole(...SERVICE), listReservationsController);
@@ -49,8 +49,8 @@ router.post('/:id/merge', requireRole(...CAISSE), validate(mergeTableSchema), me
 router.post('/:id/settle', requireRole(...CAISSE), validate(payOrderSchema), settleTableController);
 
 // Gestion des tables (CRUD) : admin
-router.post('/', requireRole('administrateur'), validate(createTableSchema), createTableController);
-router.put('/:id', requireRole('administrateur'), validate(updateTableSchema), updateTableController);
-router.delete('/:id', requireRole('administrateur'), deleteTableController);
+router.post('/', requireRole('propriétaire', 'administrateur'), validate(createTableSchema), createTableController);
+router.put('/:id', requireRole('propriétaire', 'administrateur'), validate(updateTableSchema), updateTableController);
+router.delete('/:id', requireRole('propriétaire', 'administrateur'), deleteTableController);
 
 export default router;

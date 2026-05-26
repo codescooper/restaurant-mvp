@@ -1,18 +1,24 @@
-export type Role = 'administrateur' | 'caissier' | 'cuisinier' | 'serveur';
+export type Role = 'propriétaire' | 'administrateur' | 'caissier' | 'cuisinier' | 'serveur';
 
 export interface User {
   id: number;
-  username: string;
+  email: string;
+  displayName?: string | null;
+  isSuperAdmin?: boolean;
+}
+
+export interface MembershipView {
+  restaurantId: number;
+  restaurantName: string;
+  restaurantSlug: string;
   role: Role;
-  isActive?: boolean;
-  lastLogin?: string | null;
-  createdAt?: string;
 }
 
 export interface AuthResponse {
   user: User;
   accessToken: string;
   refreshToken: string;
+  memberships: MembershipView[];
 }
 
 export interface MenuVariant {
@@ -214,7 +220,7 @@ export interface RestaurantTable {
   capacity: number;
   status: TableStatus;
   billRequested: boolean;
-  server: { id: number; username: string } | null;
+  server: { id: number; displayName: string | null } | null;
   total: number;
   unpaidTotal: number;
   hasUnpaid: boolean;
@@ -296,7 +302,7 @@ export interface Employee {
   userId?: number | null;
   createdAt?: string;
   updatedAt?: string;
-  user?: { id: number; username: string; role: string } | null;
+  user?: { id: number; displayName: string | null } | null;
 }
 
 export interface Expense {
@@ -309,7 +315,7 @@ export interface Expense {
   note?: string | null;
   createdBy?: number | null;
   createdAt: string;
-  creator?: { id: number; username: string } | null;
+  creator?: { id: number; displayName: string | null } | null;
 }
 
 export interface Supplier {
@@ -355,7 +361,7 @@ export interface Inventory {
   note?: string | null;
   createdAt: string;
   validatedAt?: string | null;
-  creator?: { username: string } | null;
+  creator?: { displayName: string | null } | null;
   lines?: InventoryLine[];
   _count?: { lines: number };
 }
@@ -383,8 +389,8 @@ export interface CashSessionSummary {
     refundReason?: string | null;
     paidAt: string | null;
   }[];
-  cashier?: { id: number; username: string };
-  closer?: { id: number; username: string } | null;
+  cashier?: { id: number; displayName: string | null };
+  closer?: { id: number; displayName: string | null } | null;
 }
 
 export interface AuditLogEntry {
@@ -395,7 +401,7 @@ export interface AuditLogEntry {
   entityId: number | null;
   details?: Record<string, unknown> | null;
   createdAt: string;
-  user?: { id: number; username: string; role: string } | null;
+  user?: { id: number; displayName: string | null } | null;
 }
 
 export interface DashboardData {

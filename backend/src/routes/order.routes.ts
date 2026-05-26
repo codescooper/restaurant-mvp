@@ -21,17 +21,17 @@ import {
 const router = Router();
 router.use(authenticate);
 
-router.get('/', requireRole('cuisinier', 'caissier', 'administrateur', 'serveur'), listOrdersController);
+router.get('/', requireRole('cuisinier', 'caissier', 'propriétaire', 'administrateur', 'serveur'), listOrdersController);
 router.get('/:id', getOrderController);
-router.post('/', requireRole('caissier', 'administrateur', 'serveur'), validate(createOrderSchema), createOrderController);
+router.post('/', requireRole('caissier', 'propriétaire', 'administrateur', 'serveur'), validate(createOrderSchema), createOrderController);
 router.patch(
   '/:id/status',
-  requireRole('cuisinier', 'caissier', 'administrateur', 'serveur'),
+  requireRole('cuisinier', 'caissier', 'propriétaire', 'administrateur', 'serveur'),
   validate(updateStatusSchema),
   updateStatusController
 );
-router.post('/:id/cancel', requireRole('caissier', 'administrateur'), validate(cancelOrderSchema), cancelOrderController);
-router.post('/:id/pay', requireRole('caissier', 'administrateur'), validate(payOrderSchema), payOrderController);
-router.post('/:id/refund', requireRole('caissier', 'administrateur'), validate(refundOrderSchema), refundOrderController);
+router.post('/:id/cancel', requireRole('caissier', 'propriétaire', 'administrateur'), validate(cancelOrderSchema), cancelOrderController);
+router.post('/:id/pay', requireRole('caissier', 'propriétaire', 'administrateur'), validate(payOrderSchema), payOrderController);
+router.post('/:id/refund', requireRole('caissier', 'propriétaire', 'administrateur'), validate(refundOrderSchema), refundOrderController);
 
 export default router;
