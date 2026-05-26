@@ -14,6 +14,8 @@ export interface Range {
 
 // Construit la plage à partir de deux dates fournies par le caller.
 // `prevEnd = start`, `prevStart = start − (end − start)` (période précédente de même durée).
+// NOTE: date-fns startOfDay utilise le fuseau du process. Railway tourne en UTC par défaut,
+// hypothèse à préserver — sinon le delta start↔end+24h peut ne pas être exactement 24 h.
 export function getRangeFromDates(from: Date, to: Date): Range {
   const start = startOfDay(from);
   // On considère `to` inclusif jusqu'à la fin de la journée.
