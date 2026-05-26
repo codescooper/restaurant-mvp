@@ -29,6 +29,7 @@ export const ErrorCodes = {
   PIN_001: 'Code manager invalide',
   VALIDATION_001: 'Données invalides',
   INTERNAL_001: 'Erreur interne du serveur',
+  DB_001: 'Base de données momentanément indisponible',
 } as const;
 
 export type ErrorCode = keyof typeof ErrorCodes;

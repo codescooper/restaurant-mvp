@@ -12,6 +12,15 @@ export const setMaxDiscountController = asyncHandler(async (req, res) => {
   sendSuccess(res, { maxDiscountPercent: req.body.maxDiscountPercent });
 });
 
+export const getRestaurantNameController = asyncHandler(async (_req, res) => {
+  sendSuccess(res, { restaurantName: await settings.getRestaurantName() });
+});
+
+export const setRestaurantNameController = asyncHandler(async (req, res) => {
+  const restaurantName = await settings.setRestaurantName(String(req.body.restaurantName ?? ''));
+  sendSuccess(res, { restaurantName });
+});
+
 // Statut du PIN manager (booléen seulement — on n'expose jamais le code).
 export const getManagerPinStatusController = asyncHandler(async (_req, res) => {
   sendSuccess(res, { configured: await settings.isManagerPinSet() });

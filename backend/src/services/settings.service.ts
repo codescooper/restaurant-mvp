@@ -1,7 +1,13 @@
 import bcrypt from 'bcrypt';
 import { prisma } from '../config/prisma';
 import { AppError } from '../utils/errors';
-import { SETTING_MAX_DISCOUNT, SETTING_MANAGER_PIN, Role } from '../constants';
+import {
+  SETTING_MAX_DISCOUNT,
+  SETTING_MANAGER_PIN,
+  SETTING_RESTAURANT_NAME,
+  DEFAULT_RESTAURANT_NAME,
+  Role,
+} from '../constants';
 import { getTenantIdOrThrow } from '../config/tenant-context';
 
 export async function getSetting(key: string): Promise<string | null> {
@@ -16,6 +22,19 @@ export async function setSetting(key: string, value: string, description?: strin
     update: { settingValue: value },
     create: { settingKey: key, settingValue: value, description },
   });
+}
+
+// Nom du restaurant affiché en en-tête des rapports (valeur par défaut si non configuré).
+export async function getRestaurantName(): Promise<string> {
+  const v = await getSetting(SETTING_RESTAURANT_NAME);
+  const name = v?.trim();
+  return name ? name : DEFAULT_RESTAURANT_NAME;
+}
+
+export async function setRestaurantName(name: string): Promise<string> {
+  const value = name.trim();
+  await setSetting(SETTING_RESTAURANT_NAME, value, 'Nom du restaurant (en-tête des rapports)');
+  return value || DEFAULT_RESTAURANT_NAME;
 }
 
 // Plafond de remise manuelle (en %) ; 100 = pas de plafond.

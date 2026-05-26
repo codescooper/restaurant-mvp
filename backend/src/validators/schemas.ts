@@ -347,6 +347,11 @@ export const setMaxDiscountSchema = z.object({
   maxDiscountPercent: z.number().int().min(0).max(100),
 });
 
+// Nom du restaurant (en-tête des rapports). Chaîne vide => revient au nom par défaut.
+export const setRestaurantNameSchema = z.object({
+  restaurantName: z.string().max(100),
+});
+
 // PIN manager : chaîne (vide = désactive la protection).
 export const setManagerPinSchema = z.object({
   pin: z.string().max(20),
@@ -399,6 +404,7 @@ export const dashboardRangeSchema = z
 export const exportRangeSchema = z
   .object({ from: isoDate, to: isoDate, format: z.enum(['pdf', 'csv']).default('pdf') })
   .refine(rangeRefine, { message: 'Plage invalide (from > to ou > 366 jours)', path: ['from'] });
+
 
 // --- Sync (offline) ---
 export const syncSchema = z.object({

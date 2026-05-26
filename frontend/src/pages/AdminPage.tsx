@@ -81,7 +81,7 @@ const AUDIT_BADGE: Record<string, string> = {
   depense_suppression: 'bg-rose-500/15 text-rose-300',
 };
 const UNITS = ['kg', 'litre', 'unité', 'gramme', 'ml'];
-const CATEGORIES = ['Entrée', 'Plat', 'Dessert', 'Boisson'];
+const CATEGORIES = ['Entrée', 'Plat', 'Accompagnement', 'Fast-food', 'Dessert', 'Boisson'];
 const ROLE_BADGE: Record<string, string> = {
   propriétaire: 'bg-gold-400/15 text-gold-300',
   administrateur: 'bg-purple-500/15 text-purple-300',

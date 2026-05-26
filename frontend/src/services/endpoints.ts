@@ -272,6 +272,12 @@ export const statsApi = {
     api.get('/stats/dashboard', { params: { from, to } }).then((r) => r.data.data as DashboardData),
   exportReport: (from: string, to: string, format: 'pdf' | 'csv') =>
     api.post('/stats/export', { from, to, format }, { responseType: 'blob' }).then((r) => r.data as Blob),
+  // Télécharge un rapport (PDF/CSV) via requête authentifiée (le token passe par l'en-tête
+  // Authorization, pas l'URL) ; renvoie un Blob prêt à enregistrer côté navigateur.
+  downloadReport: (kind: 'report' | 'product-report', start: string, end: string, format: 'pdf' | 'csv') =>
+    api
+      .get(`/stats/${kind}`, { params: { start, end, format }, responseType: 'blob' })
+      .then((r) => r.data as Blob),
 };
 
 export const cashApi = {
@@ -306,6 +312,10 @@ export const settingsApi = {
   getMaxDiscount: () => api.get('/settings/max-discount').then((r) => r.data.data.maxDiscountPercent as number),
   setMaxDiscount: (maxDiscountPercent: number) =>
     api.put('/settings/max-discount', { maxDiscountPercent }).then((r) => r.data.data),
+  getRestaurantName: () =>
+    api.get('/settings/restaurant-name').then((r) => r.data.data.restaurantName as string),
+  setRestaurantName: (restaurantName: string) =>
+    api.put('/settings/restaurant-name', { restaurantName }).then((r) => r.data.data.restaurantName as string),
   getManagerPinStatus: () =>
     api.get('/settings/manager-pin/status').then((r) => r.data.data.configured as boolean),
   setManagerPin: (pin: string) =>

@@ -33,10 +33,12 @@ import { getApiError } from '../services/api';
 import { CartItem, MenuDish, MenuVariant, CashSessionSummary, Order } from '../types';
 import { formatFCFA, formatDateTime } from '../utils/format';
 
-const CATEGORIES = ['Tout', 'Entrée', 'Plat', 'Dessert', 'Boisson'];
+const CATEGORIES = ['Tout', 'Entrée', 'Plat', 'Accompagnement', 'Fast-food', 'Dessert', 'Boisson'];
 const EMOJI: Record<string, string> = {
   Entrée: '🥗',
   Plat: '🍛',
+  Accompagnement: '🍚',
+  'Fast-food': '🍔',
   Dessert: '🍰',
   Boisson: '🥤',
 };

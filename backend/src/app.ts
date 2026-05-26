@@ -10,7 +10,15 @@ import { sanitizeBody } from './middlewares/sanitizeMiddleware';
 export function createApp() {
   const app = express();
 
-  app.use(helmet());
+  // En dev (HTTP sur localhost), on désactive HSTS et la CSP : leurs directives
+  // (Strict-Transport-Security, upgrade-insecure-requests) forcent le navigateur à passer en
+  // HTTPS sur localhost, ce qui casse les appels API et les téléchargements de fichiers vers :3000.
+  app.use(
+    helmet({
+      hsts: env.isProd ? undefined : false,
+      contentSecurityPolicy: env.isProd ? undefined : false,
+    })
+  );
   app.use(cors({ origin: env.corsOrigin, credentials: true }));
   app.use(compression());
   app.use(express.json({ limit: '1mb' }));
