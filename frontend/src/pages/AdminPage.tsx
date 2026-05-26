@@ -23,6 +23,7 @@ import {
   ImagePlus,
   Briefcase,
   Wallet,
+  LayoutGrid,
 } from 'lucide-react';
 import { stockApi, dishApi, userApi, cashApi, auditApi, orderApi, MemberRow } from '../services/endpoints';
 import { getApiError } from '../services/api';
@@ -34,8 +35,9 @@ import InventoryTab from './admin/InventoryTab';
 import PromotionsTab from './admin/PromotionsTab';
 import EmployeesTab from './admin/EmployeesTab';
 import ExpensesTab from './admin/ExpensesTab';
+import TablesTab from './admin/TablesTab';
 
-type Tab = 'stock' | 'menu' | 'users' | 'employes' | 'depenses' | 'caisse' | 'journal' | 'fournisseurs' | 'inventaire' | 'promotions';
+type Tab = 'stock' | 'menu' | 'users' | 'employes' | 'depenses' | 'caisse' | 'journal' | 'fournisseurs' | 'inventaire' | 'promotions' | 'tables';
 type CrudTab = 'stock' | 'menu' | 'users';
 type UserEditing = MemberRow | null;
 
@@ -337,6 +339,7 @@ export default function AdminPage() {
     { id: 'fournisseurs', label: 'Fournisseurs', icon: Truck },
     { id: 'inventaire', label: 'Inventaire', icon: ClipboardCheck },
     { id: 'promotions', label: 'Promotions', icon: Tag },
+    { id: 'tables', label: 'Tables', icon: LayoutGrid },
     { id: 'caisse', label: 'Caisse', icon: Banknote },
     { id: 'journal', label: "Journal d'actions", icon: ClipboardList },
   ];
@@ -718,6 +721,9 @@ export default function AdminPage() {
 
       {/* PROMOTIONS */}
       {tab === 'promotions' && <PromotionsTab />}
+
+      {/* TABLES */}
+      {tab === 'tables' && <TablesTab />}
 
       {/* MODAL PERTE */}
       {lossItem && (

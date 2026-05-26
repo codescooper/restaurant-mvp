@@ -145,8 +145,18 @@ export async function updateTable(id: number, data: { name?: string; capacity?: 
 }
 
 export async function deleteTable(id: number) {
+  // Garde-fou 1 : commande active (non annulée et non payée OU non servie).
   const occupying = await prisma.order.findFirst({ where: { tableId: id, ...OCCUPYING_WHERE } });
-  if (occupying) throw new AppError(400, 'VALIDATION_001', 'Table occupée, suppression impossible');
+  if (occupying) {
+    throw new AppError(409, 'TABLE_001', 'Table occupée par une commande active');
+  }
+  // Garde-fou 2 : réservation active.
+  const activeRes = await prisma.reservation.findFirst({ where: { tableId: id, status: 'active' } });
+  if (activeRes) {
+    throw new AppError(409, 'TABLE_001', 'Table avec une réservation active');
+  }
+  // OK : on détache les commandes historiques (FK SetNull manuel pour cohérence) puis on supprime.
+  // Les réservations annulées/honorées sont cascade-supprimées par la FK (acceptable : pas de données financières dessus).
   await prisma.order.updateMany({ where: { tableId: id }, data: { tableId: null } });
   await prisma.table.delete({ where: { id } });
   return { id };
