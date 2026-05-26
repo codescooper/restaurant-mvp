@@ -268,10 +268,10 @@ export const expenseApi = {
 };
 
 export const statsApi = {
-  dashboard: (period: 'today' | 'week' | 'month') =>
-    api.get('/stats/dashboard', { params: { period } }).then((r) => r.data.data as DashboardData),
-  exportReport: (period: string, format: 'pdf' | 'csv') =>
-    api.post('/stats/export', { period, format }, { responseType: 'blob' }).then((r) => r.data as Blob),
+  dashboard: (from: string, to: string) =>
+    api.get('/stats/dashboard', { params: { from, to } }).then((r) => r.data.data as DashboardData),
+  exportReport: (from: string, to: string, format: 'pdf' | 'csv') =>
+    api.post('/stats/export', { from, to, format }, { responseType: 'blob' }).then((r) => r.data as Blob),
 };
 
 export const cashApi = {

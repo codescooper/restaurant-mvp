@@ -379,14 +379,26 @@ export const closeCashSessionSchema = z.object({
 });
 
 // --- Stats ---
-export const periodSchema = z.object({
-  period: z.enum(['today', 'week', 'month']).default('today'),
-});
+const isoDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date au format YYYY-MM-DD')
+  .refine((s) => !Number.isNaN(new Date(s).getTime()), 'Date invalide');
 
-export const exportSchema = z.object({
-  period: z.enum(['today', 'week', 'month']).default('today'),
-  format: z.enum(['pdf', 'csv']).default('pdf'),
-});
+const rangeRefine = (d: { from: string; to: string }) => {
+  const from = new Date(d.from);
+  const to = new Date(d.to);
+  if (from > to) return false;
+  const days = Math.round((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000));
+  return days <= 366;
+};
+
+export const dashboardRangeSchema = z
+  .object({ from: isoDate, to: isoDate })
+  .refine(rangeRefine, { message: 'Plage invalide (from > to ou > 366 jours)', path: ['from'] });
+
+export const exportRangeSchema = z
+  .object({ from: isoDate, to: isoDate, format: z.enum(['pdf', 'csv']).default('pdf') })
+  .refine(rangeRefine, { message: 'Plage invalide (from > to ou > 366 jours)', path: ['from'] });
 
 // --- Sync (offline) ---
 export const syncSchema = z.object({

@@ -159,3 +159,21 @@ describe('updateDishSchema — partial sans priceType', () => {
     expect(res.success).toBe(false);
   });
 });
+
+import { getRangeFromDates } from '../services/stats.service';
+
+describe('getRangeFromDates', () => {
+  it('plage 1 jour : prevEnd = start, prev de meme duree', () => {
+    const from = new Date('2026-05-14T00:00:00Z');
+    const to = new Date('2026-05-14T00:00:00Z');
+    const r = getRangeFromDates(from, to);
+    expect(r.prevEnd.getTime()).toBe(r.start.getTime());
+    expect(r.end.getTime() - r.start.getTime()).toBe(r.prevEnd.getTime() - r.prevStart.getTime());
+  });
+  it('plage 7 jours : duree preservee', () => {
+    const r = getRangeFromDates(new Date('2026-05-01'), new Date('2026-05-07'));
+    const dur = r.end.getTime() - r.start.getTime();
+    expect(dur).toBe(r.prevEnd.getTime() - r.prevStart.getTime());
+    expect(r.prevEnd.getTime()).toBe(r.start.getTime());
+  });
+});
