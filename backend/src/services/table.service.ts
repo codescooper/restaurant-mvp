@@ -157,8 +157,10 @@ export async function deleteTable(id: number) {
   }
   // OK : on détache les commandes historiques (FK SetNull manuel pour cohérence) puis on supprime.
   // Les réservations annulées/honorées sont cascade-supprimées par la FK (acceptable : pas de données financières dessus).
-  await prisma.order.updateMany({ where: { tableId: id }, data: { tableId: null } });
-  await prisma.table.delete({ where: { id } });
+  await prisma.$transaction([
+    prisma.order.updateMany({ where: { tableId: id }, data: { tableId: null } }),
+    prisma.table.delete({ where: { id } }),
+  ]);
   return { id };
 }
 

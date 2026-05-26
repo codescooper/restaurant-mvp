@@ -45,6 +45,8 @@ export default function TablesTab() {
     setModal(true);
   };
 
+  const closeModal = () => { setError(''); setModal(false); };
+
   const submit = async () => {
     const name = form.name.trim();
     const capacity = Number(form.capacity);
@@ -64,7 +66,7 @@ export default function TablesTab() {
   };
 
   const remove = async (t: RestaurantTable) => {
-    if (!confirm(`Supprimer ${t.name} ?`)) return;
+    if (!window.confirm(`Supprimer ${t.name} ?`)) return;
     setError('');
     try {
       await tableApi.remove(t.id);
@@ -121,11 +123,11 @@ export default function TablesTab() {
       </div>
 
       {modal && (
-        <div className={OVERLAY} onClick={() => !busy && setModal(false)}>
+        <div className={OVERLAY} onClick={() => !busy && closeModal()}>
           <div className={MODAL} onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-neutral-100">{editing ? 'Éditer table' : 'Nouvelle table'}</h3>
-              <button onClick={() => setModal(false)} disabled={busy} className="text-neutral-400 hover:text-neutral-200">
+              <button onClick={closeModal} disabled={busy} className="text-neutral-400 hover:text-neutral-200">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -135,7 +137,7 @@ export default function TablesTab() {
             <label className="block text-sm text-neutral-300 mt-3 mb-1">Capacité</label>
             <input className={INPUT} type="number" min={1} value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })} />
             <div className="mt-5 flex justify-end gap-2">
-              <button onClick={() => setModal(false)} disabled={busy} className="px-3 py-2 rounded-lg text-neutral-300 hover:bg-neutral-900">Annuler</button>
+              <button onClick={closeModal} disabled={busy} className="px-3 py-2 rounded-lg text-neutral-300 hover:bg-neutral-900">Annuler</button>
               <button onClick={submit} disabled={busy} className={`${BTN_GOLD} px-4 py-2 rounded-lg`}>{busy ? '…' : 'Enregistrer'}</button>
             </div>
           </div>
