@@ -19,6 +19,7 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const SuspendedPage = lazy(() => import('./pages/SuspendedPage'));
 const RejectedPage = lazy(() => import('./pages/RejectedPage'));
 const PendingMemberPage = lazy(() => import('./pages/PendingMemberPage'));
+const InviteAcceptPage = lazy(() => import('./pages/InviteAcceptPage'));
 
 function Loading() {
   return <div className="min-h-screen flex items-center justify-center text-gray-500">Chargement...</div>;
@@ -120,6 +121,9 @@ export default function App() {
                 <Route path="/suspended" element={<SuspendedPage />} />
                 <Route path="/rejected" element={<RejectedPage />} />
                 <Route path="/pending-member" element={<PendingMemberPage />} />
+
+                {/* Page d'acceptation invitation */}
+                <Route path="/invite/:token" element={<InviteAcceptPage />} />
 
                 <Route path="*" element={<SimpleMessage title="404" message="Page introuvable." />} />
               </Routes>
