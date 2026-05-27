@@ -3,7 +3,7 @@ import { basePrisma } from '../config/prisma';
 import { AppError } from '../utils/errors';
 import { signAccessToken, signRefreshToken } from '../utils/jwt';
 import { slugify } from '../utils/slug';
-import { listActiveMembershipsForUser } from './membership.service';
+import { MembershipView } from './membership.service';
 
 interface SignupInput {
   email: string;
@@ -48,7 +48,14 @@ export async function signup(input: SignupInput) {
     return { user, restaurant };
   });
 
-  const memberships = await listActiveMembershipsForUser(user.id);
+  // Construit inline : listActiveMembershipsForUser filtre restaurant.status === 'active',
+  // or le resto vient d'être créé avec status 'pending' — il serait introuvable.
+  const memberships: MembershipView[] = [{
+    restaurantId: restaurant.id,
+    restaurantName: restaurant.name,
+    restaurantSlug: restaurant.slug,
+    role: 'propriétaire',
+  }];
   const accessToken = signAccessToken({
     userId: user.id,
     isSuperAdmin: user.isSuperAdmin,
