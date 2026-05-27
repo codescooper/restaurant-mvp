@@ -134,6 +134,12 @@ describe('slugify', () => {
   it('retire les tirets en bord', () => {
     expect(slugify('--Hello--')).toBe('hello');
   });
+  it('retourne une chaine vide pour une entree vide', () => {
+    expect(slugify('')).toBe('');
+  });
+  it('retourne une chaine vide pour des emojis seuls', () => {
+    expect(slugify('🍕🍔')).toBe('');
+  });
 });
 
 import { createDishSchema, updateDishSchema, dashboardRangeSchema } from '../validators/schemas';

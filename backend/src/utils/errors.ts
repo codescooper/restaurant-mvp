@@ -19,6 +19,7 @@ export const ErrorCodes = {
   USER_002: 'Cet utilisateur a déjà accès à ce restaurant',
   USER_003: 'Action interdite sur votre propre compte',
   USER_004: 'Au moins un propriétaire actif doit rester',
+  USER_005: 'Email déjà utilisé',
   TABLE_001: 'Table occupée (commande ou réservation active)',
   CASH_001: 'Aucune caisse ouverte : encaissement espèces impossible',
   CASH_002: 'Une caisse est déjà ouverte',

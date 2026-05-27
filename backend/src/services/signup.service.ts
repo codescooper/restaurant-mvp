@@ -28,7 +28,7 @@ export async function signup(input: SignupInput) {
   const restaurantName = input.restaurantName.trim();
 
   const existing = await basePrisma.user.findUnique({ where: { email } });
-  if (existing) throw new AppError(409, 'USER_002', 'Email déjà utilisé');
+  if (existing) throw new AppError(409, 'USER_005');
 
   const slug = await findFreeSlug(slugify(restaurantName));
 
