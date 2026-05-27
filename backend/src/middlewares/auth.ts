@@ -27,9 +27,13 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     req.user = { id: user.id, isSuperAdmin: user.isSuperAdmin };
 
     // Contexte restaurant : vérifie que le membership est toujours actif.
+    // Le filtre `restaurant.status === 'active'` est retiré intentionnellement : un propriétaire
+    // d'un resto pending/suspended doit pouvoir s'authentifier pour appeler /auth/me et être routé
+    // vers les écrans dédiés côté frontend (ProtectedRoute M5). Le routage par statut est géré
+    // côté frontend, pas ici.
     if (decoded.restaurantId != null) {
       const membership = await basePrisma.membership.findFirst({
-        where: { userId: user.id, restaurantId: decoded.restaurantId, isActive: true, restaurant: { status: 'active' } },
+        where: { userId: user.id, restaurantId: decoded.restaurantId, isActive: true },
       });
       if (!membership) return sendError(res, 403, 'AUTH_005');
       req.restaurantId = decoded.restaurantId;
