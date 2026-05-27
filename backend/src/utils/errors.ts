@@ -6,6 +6,7 @@ export const ErrorCodes = {
   AUTH_004: 'Compte désactivé',
   AUTH_005: 'Permissions insuffisantes',
   AUTH_006: 'Aucun restaurant sélectionné',
+  AUTH_007: 'Trop d\'inscriptions depuis cette adresse',
   STOCK_001: 'Stock insuffisant',
   STOCK_002: 'Article introuvable',
   ORDER_001: 'Commande introuvable',

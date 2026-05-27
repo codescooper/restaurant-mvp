@@ -1,4 +1,5 @@
 import rateLimit from 'express-rate-limit';
+import { sendError } from '../utils/response';
 
 // Limite les tentatives de connexion (§14.5).
 export const loginLimiter = rateLimit({
@@ -13,4 +14,12 @@ export const loginLimiter = rateLimit({
       message: 'Trop de tentatives de connexion, réessayez dans 15 minutes',
     },
   },
+});
+
+export const signupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => sendError(res, 429, 'AUTH_007', 'Trop d\'inscriptions depuis cette adresse, réessayez plus tard'),
 });
