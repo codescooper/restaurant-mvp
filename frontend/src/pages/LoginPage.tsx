@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { ChefHat, Mail, Lock, Eye, EyeOff, LogIn, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { homeForRole } from '../services/auth-helpers';
@@ -125,6 +125,12 @@ export default function LoginPage() {
             Se connecter
           </button>
         </form>
+
+        <div className="mt-4 text-center text-sm">
+          <Link to="/signup" className="text-gold-400 hover:text-gold-300 font-medium">
+            Créer un nouveau restaurant
+          </Link>
+        </div>
 
         <div className="mt-6 pt-6 border-t border-neutral-800">
           <p className="text-xs text-neutral-500 text-center mb-3">Comptes de démonstration</p>
