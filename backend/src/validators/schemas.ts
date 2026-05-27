@@ -16,12 +16,21 @@ import {
   SALARY_PAYMENT_METHODS,
   EXPENSE_CATEGORIES,
   EXPENSE_PAYMENT_METHODS,
+  INVITABLE_ROLES,
+  Role,
 } from '../constants';
 
 // --- Auth ---
 export const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+});
+
+export const signupSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6, 'Au moins 6 caractères'),
+  displayName: z.string().min(1).max(80),
+  restaurantName: z.string().min(1).max(120),
 });
 
 export const switchRestaurantSchema = z.object({
@@ -405,6 +414,26 @@ export const exportRangeSchema = z
   .object({ from: isoDate, to: isoDate, format: z.enum(['pdf', 'csv']).default('pdf') })
   .refine(rangeRefine, { message: 'Plage invalide (from > to ou > 366 jours)', path: ['from'] });
 
+
+// --- Invitations ---
+export const createInvitationSchema = z.object({
+  email: z.string().email(),
+  role: z.enum(INVITABLE_ROLES as unknown as [Role, ...Role[]]),
+});
+
+export const acceptInvitationSchema = z.object({
+  password: z.string().min(6),
+  displayName: z.string().min(1).max(80).optional(),
+});
+
+// --- Super-admin ---
+export const adminReasonSchema = z.object({
+  reason: z.string().max(500).optional(),
+});
+
+export const adminListQuerySchema = z.object({
+  status: z.enum(['pending', 'active', 'suspended', 'rejected']).optional(),
+});
 
 // --- Sync (offline) ---
 export const syncSchema = z.object({

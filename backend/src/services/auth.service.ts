@@ -50,7 +50,8 @@ export async function switchRestaurant(userId: number, restaurantId: number) {
   if (!user || !user.isActive) throw new AppError(403, 'AUTH_004');
   const membership = await getActiveMembership(userId, restaurantId);
   if (!membership) throw new AppError(403, 'AUTH_005');
-  return buildAuthResponse(user, { restaurantId, role: membership.role as Role });
+  const memberships = await listActiveMembershipsForUser(userId);
+  return { ...buildAuthResponse(user, { restaurantId, role: membership.role as Role }), memberships };
 }
 
 export async function refresh(refreshToken: string) {
@@ -69,9 +70,21 @@ export async function refresh(refreshToken: string) {
   return { ...buildAuthResponse(user, selected), memberships };
 }
 
-export async function getMe(userId: number) {
+export async function getMe(userId: number, restaurantId?: number) {
   const user = await basePrisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new AppError(404, 'USER_001');
   const memberships = await listActiveMembershipsForUser(user.id);
-  return { user: publicUser(user), memberships };
+  let currentRestaurant = null;
+  if (restaurantId != null) {
+    const r = await basePrisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { id: true, name: true, slug: true, status: true, rejectedReason: true, suspendedReason: true },
+    });
+    if (r) currentRestaurant = r;
+  }
+  return {
+    user: publicUser(user),
+    memberships,
+    currentRestaurant,
+  };
 }

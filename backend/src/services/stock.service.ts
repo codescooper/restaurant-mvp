@@ -36,6 +36,7 @@ export async function createStock(
     data: {
       name: data.name,
       quantity,
+      baselineQuantity: quantity, // P2a : baseline = quantité initiale
       unit: data.unit,
       unitCost,
       alertThreshold: roundQty(data.alertThreshold),
@@ -57,7 +58,7 @@ export async function updateStock(
     where: { id },
     data: {
       ...(data.name !== undefined ? { name: data.name } : {}),
-      ...(data.quantity !== undefined ? { quantity: roundQty(data.quantity) } : {}),
+      ...(data.quantity !== undefined ? { quantity: roundQty(data.quantity), baselineQuantity: roundQty(data.quantity) } : {}),
       ...(data.unit !== undefined ? { unit: data.unit } : {}),
       ...(data.unitCost !== undefined ? { unitCost: data.unitCost } : {}),
       ...(data.alertThreshold !== undefined ? { alertThreshold: roundQty(data.alertThreshold) } : {}),
@@ -77,7 +78,13 @@ export async function deleteStock(id: number) {
   return { id };
 }
 
-// Reapprovisionnement : enregistre un mouvement "entree" (§9.5).
+/**
+ * Réapprovisionnement manuel d'un article de stock.
+ * Met aussi a jour `baselineQuantity` (cf. P2a mode preparation : toute edition
+ * manuelle redefini la baseline ; les decrements de commande NE touchent PAS le baseline).
+ * Appel reserve aux ajouts manuels — ne pas utiliser pour des restaurations
+ * automatiques (annulations de commande, etc.) qui doivent ecrire `quantity` directement.
+ */
 export async function addQuantity(id: number, quantity: number, userId?: number) {
   const item = await getStock(id);
   const newQuantity = roundQty(item.quantity + quantity);
@@ -85,7 +92,7 @@ export async function addQuantity(id: number, quantity: number, userId?: number)
   const updated = await prisma.$transaction(async (tx) => {
     const result = await tx.stockItem.update({
       where: { id },
-      data: { quantity: newQuantity, lastUpdated: new Date() },
+      data: { quantity: newQuantity, baselineQuantity: newQuantity, lastUpdated: new Date() },
     });
     await tx.stockMovement.create({
       data: {
@@ -124,7 +131,7 @@ export async function recordLoss(
   const updated = await prisma.$transaction(async (tx) => {
     const result = await tx.stockItem.update({
       where: { id },
-      data: { quantity: newQuantity, lastUpdated: new Date() },
+      data: { quantity: newQuantity, baselineQuantity: newQuantity, lastUpdated: new Date() },
     });
     await tx.stockMovement.create({
       data: {

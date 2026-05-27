@@ -72,7 +72,7 @@ export async function validateInventory(id: number, userId?: number) {
       if (newQuantity === item.quantity) continue; // pas d'écart : rien à ajuster
       await tx.stockItem.update({
         where: { id: line.stockItemId },
-        data: { quantity: newQuantity, lastUpdated: new Date() },
+        data: { quantity: newQuantity, baselineQuantity: newQuantity, lastUpdated: new Date() },
       });
       await tx.stockMovement.create({
         data: {

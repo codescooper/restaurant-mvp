@@ -115,6 +115,33 @@ describe('evaluateManagerApproval (PIN annulation/remboursement)', () => {
   });
 });
 
+import { slugify } from '../utils/slug';
+
+describe('slugify', () => {
+  it('convertit en kebab-case sans accents', () => {
+    expect(slugify('Chez Fatou')).toBe('chez-fatou');
+    expect(slugify('Café Crème')).toBe('cafe-creme');
+    expect(slugify('La Maison N°7')).toBe('la-maison-no-7');
+  });
+  it('compresse les espaces et separateurs', () => {
+    expect(slugify('   Le  Vieux    Port  ')).toBe('le-vieux-port');
+    expect(slugify('A & B / C')).toBe('a-and-b-c');
+  });
+  it('tronque a 60 caracteres', () => {
+    const long = 'a'.repeat(120);
+    expect(slugify(long).length).toBeLessThanOrEqual(60);
+  });
+  it('retire les tirets en bord', () => {
+    expect(slugify('--Hello--')).toBe('hello');
+  });
+  it('retourne une chaine vide pour une entree vide', () => {
+    expect(slugify('')).toBe('');
+  });
+  it('retourne une chaine vide pour des emojis seuls', () => {
+    expect(slugify('🍕🍔')).toBe('');
+  });
+});
+
 import { createDishSchema, updateDishSchema, dashboardRangeSchema } from '../validators/schemas';
 
 describe('createDishSchema — variantes en libre', () => {

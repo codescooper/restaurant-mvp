@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { authenticate } from '../middlewares/auth';
+import { authenticate, requireActiveRestaurant } from '../middlewares/auth';
 import { tenantContext } from '../middlewares/tenant';
 import { sendError } from '../utils/response';
 import authRoutes from './auth.routes';
@@ -19,16 +19,22 @@ import expenseRoutes from './expense.routes';
 import inventoryRoutes from './inventory.routes';
 import promotionRoutes from './promotion.routes';
 import settingsRoutes from './settings.routes';
+import publicRoutes from './public.routes';
+import invitationRoutes from './invitation.routes';
+import adminRoutes from './admin.routes';
 
 const router = Router();
 
 router.get('/health', (_req, res) => res.json({ success: true, data: { status: 'ok' } }));
 
 router.use('/auth', authRoutes);
+router.use('/public', publicRoutes);
+router.use('/admin', adminRoutes);
 
 // Toutes les routes suivantes sont scopées : auth (pose req.restaurantId) puis ouverture du contexte.
 // tenantContext est branché par route pour ne pas intercepter les routes inconnues (→ 404).
-const tenant = [authenticate, tenantContext] as const;
+// requireActiveRestaurant bloque les routes opérationnelles si le restaurant est suspendu/rejeté.
+const tenant = [authenticate, tenantContext, requireActiveRestaurant] as const;
 
 router.use('/stock', ...tenant, stockRoutes);
 router.use('/dishes', ...tenant, dishRoutes);
@@ -46,6 +52,7 @@ router.use('/expenses', ...tenant, expenseRoutes);
 router.use('/inventory', ...tenant, inventoryRoutes);
 router.use('/promotions', ...tenant, promotionRoutes);
 router.use('/settings', ...tenant, settingsRoutes);
+router.use('/invitations', invitationRoutes);
 
 // Route inconnue dans l'espace /api → 404 (l'authenticate ne doit pas intercepter avant le 404 handler global).
 router.use((_req: Request, res: Response) => sendError(res, 404, 'INTERNAL_001', 'Route introuvable'));

@@ -20,6 +20,10 @@ import {
   Employee,
   Expense,
   MembershipView,
+  CurrentRestaurant,
+  Invitation,
+  AdminRestaurantRow,
+  RestaurantStatus,
 } from '../types';
 
 export interface VariantInput {
@@ -70,9 +74,56 @@ export const authApi = {
   login: (email: string, password: string) =>
     api.post('/auth/login', { email, password }).then((r) => r.data.data as AuthResponse),
   me: () =>
-    api.get('/auth/me').then((r) => r.data.data as { user: User; memberships: MembershipView[] }),
+    api.get('/auth/me').then((r) => r.data.data as {
+      user: User;
+      memberships: MembershipView[];
+      currentRestaurant: CurrentRestaurant | null;
+    }),
   switchRestaurant: (restaurantId: number) =>
     api.post('/auth/switch-restaurant', { restaurantId }).then((r) => r.data.data as AuthResponse),
+};
+
+export const signupApi = {
+  signup: (data: { email: string; password: string; displayName: string; restaurantName: string }) =>
+    api.post('/auth/signup', data).then((r) => r.data.data as AuthResponse),
+};
+
+export const invitationApi = {
+  list: () => api.get('/invitations').then((r) => r.data.data as Invitation[]),
+  create: (email: string, role: Role) =>
+    api.post('/invitations', { email, role }).then((r) => r.data.data as Invitation),
+  revoke: (id: number) => api.delete(`/invitations/${id}`).then((r) => r.data.data),
+};
+
+export const publicInviteApi = {
+  peek: (token: string) =>
+    api.get(`/public/invitations/${token}`).then((r) => r.data.data as {
+      restaurantName: string;
+      role: Role;
+      email: string;
+      status: 'pending' | 'accepted' | 'revoked' | 'expired';
+      expiresAt: string;
+      emailExists: boolean;
+    }),
+  accept: (token: string, body: { password: string; displayName?: string }) =>
+    api.post(`/public/invitations/${token}/accept`, body).then((r) => r.data.data as AuthResponse),
+};
+
+export const adminApi = {
+  listRestaurants: (status?: RestaurantStatus) =>
+    api.get('/admin/restaurants', { params: status ? { status } : {} })
+       .then((r) => r.data.data as AdminRestaurantRow[]),
+  activate: (id: number) =>
+    api.post(`/admin/restaurants/${id}/activate`).then((r) => r.data.data as {
+      status: 'active';
+      deletedCounts: Record<string, number>;
+    }),
+  suspend: (id: number, reason?: string) =>
+    api.post(`/admin/restaurants/${id}/suspend`, { reason }).then((r) => r.data.data),
+  reactivate: (id: number) =>
+    api.post(`/admin/restaurants/${id}/reactivate`).then((r) => r.data.data),
+  reject: (id: number, reason?: string) =>
+    api.post(`/admin/restaurants/${id}/reject`, { reason }).then((r) => r.data.data),
 };
 
 export const dishApi = {

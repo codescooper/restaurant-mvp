@@ -12,6 +12,7 @@ import {
   X,
   Wifi,
   WifiOff,
+  Shield,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useWebSocket } from '../contexts/WebSocketContext';
@@ -83,6 +84,11 @@ export function Navigation() {
                 {route.label}
               </NavLink>
             ))}
+            {currentUser?.isSuperAdmin && (
+              <NavLink to="/super-admin" className={linkClass}>
+                <Shield className="w-5 h-5" /> Super-admin
+              </NavLink>
+            )}
             <span
               title={connected ? 'Connecté en temps réel' : 'Hors-ligne'}
               className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${
@@ -135,6 +141,11 @@ export function Navigation() {
                 {route.label}
               </NavLink>
             ))}
+            {currentUser?.isSuperAdmin && (
+              <NavLink to="/super-admin" onClick={() => setShowMobileMenu(false)} className={linkClass}>
+                <Shield className="w-5 h-5" /> Super-admin
+              </NavLink>
+            )}
             {memberships.length > 1 && (
               <select
                 value={activeRestaurantId ?? ''}

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, MembershipView, Role } from '../types';
+import { User, MembershipView, Role, CurrentRestaurant } from '../types';
 import { authApi } from '../services/endpoints';
 import { decodeAccessToken, resolvePostLogin } from '../services/auth-helpers';
 
@@ -8,6 +8,7 @@ interface AuthContextType {
   memberships: MembershipView[];
   activeRestaurantId: number | null;
   currentRole: Role | null;
+  currentRestaurant: CurrentRestaurant | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<{ autoSelected: boolean; role: Role | null }>;
   selectRestaurant: (restaurantId: number) => Promise<Role>;
@@ -28,6 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [memberships, setMemberships] = useState<MembershipView[]>([]);
   const [activeRestaurantId, setActiveRestaurantId] = useState<number | null>(null);
   const [currentRole, setCurrentRole] = useState<Role | null>(null);
+  const [currentRestaurant, setCurrentRestaurant] = useState<CurrentRestaurant | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Restauration de session au montage.
@@ -39,9 +41,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     authApi
       .me()
-      .then(({ user, memberships: ms }) => {
+      .then(({ user, memberships: ms, currentRestaurant: cr }) => {
         setCurrentUser(user);
         setMemberships(ms);
+        setCurrentRestaurant(cr ?? null);
         const claims = decodeAccessToken(localStorage.getItem('accessToken'));
         if (claims.restaurantId && ms.some((m) => m.restaurantId === claims.restaurantId)) {
           setActiveRestaurantId(claims.restaurantId);
@@ -69,10 +72,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setActiveRestaurantId(post.restaurantId);
       setCurrentRole(post.role);
       localStorage.setItem('activeRestaurantId', String(post.restaurantId));
+      // Synchronise currentRestaurant depuis /auth/me (round-trip supplémentaire acceptable).
+      // En cas d'erreur réseau, on ne touche pas currentRestaurant : le statut sera revérifié
+      // au prochain me() (restore de session au rechargement).
+      try {
+        const me = await authApi.me();
+        setCurrentRestaurant(me.currentRestaurant ?? null);
+      } catch (err) {
+        console.warn('me() failed après login, currentRestaurant non rafraîchi', err);
+      }
       return { autoSelected: true, role: post.role };
     }
     setActiveRestaurantId(null);
     setCurrentRole(null);
+    setCurrentRestaurant(null);
     localStorage.removeItem('activeRestaurantId');
     return { autoSelected: false, role: null };
   };
@@ -88,6 +101,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setActiveRestaurantId(restaurantId);
     setCurrentRole(role);
     localStorage.setItem('activeRestaurantId', String(restaurantId));
+    // Synchronise currentRestaurant depuis /auth/me (round-trip supplémentaire acceptable).
+    // En cas d'erreur réseau, on ne touche pas currentRestaurant : le statut sera revérifié
+    // au prochain me() (restore de session au rechargement).
+    try {
+      const me = await authApi.me();
+      setCurrentRestaurant(me.currentRestaurant ?? null);
+    } catch (err) {
+      console.warn('me() failed après selectRestaurant, currentRestaurant non rafraîchi', err);
+    }
     return role;
   };
 
@@ -99,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setMemberships([]);
     setActiveRestaurantId(null);
     setCurrentRole(null);
+    setCurrentRestaurant(null);
   };
 
   return (
@@ -108,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         memberships,
         activeRestaurantId,
         currentRole,
+        currentRestaurant,
         loading,
         login,
         selectRestaurant,

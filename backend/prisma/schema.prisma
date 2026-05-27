@@ -20,6 +20,12 @@ model Restaurant {
   status    String   @default("active") @db.VarChar(20) // 'pending' | 'active' | 'suspended'
   createdAt DateTime @default(now()) @map("created_at")
 
+  activatedAt       DateTime? @map("activated_at")
+  rejectedAt        DateTime? @map("rejected_at")
+  rejectedReason    String?   @map("rejected_reason") @db.Text
+  suspendedAt       DateTime? @map("suspended_at")
+  suspendedReason   String?   @map("suspended_reason") @db.Text
+
   memberships    Membership[]
   users          User[] // utilisateurs dont c'est le restaurant "principal" historique (nullable)
   dishes         Dish[]
@@ -38,6 +44,7 @@ model Restaurant {
   auditLogs      AuditLog[]
   appSettings    AppSetting[]
   stockMovements StockMovement[]
+  invitations    Invitation[]
 
   @@map("restaurants")
 }
@@ -59,6 +66,27 @@ model Membership {
   @@map("memberships")
 }
 
+model Invitation {
+  id           Int       @id @default(autoincrement())
+  restaurantId Int       @map("restaurant_id")
+  email        String    @db.VarChar(190)
+  role         String    @db.VarChar(20)
+  token        String    @unique @db.VarChar(64)
+  status       String    @default("pending") @db.VarChar(20)
+  expiresAt    DateTime  @map("expires_at")
+  createdBy    Int?      @map("created_by")
+  acceptedAt   DateTime? @map("accepted_at")
+  revokedAt    DateTime? @map("revoked_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
+  creator    User?      @relation("InvitationCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId, status], map: "idx_invitations_restaurant_status")
+  @@index([email, status], map: "idx_invitations_email_status")
+  @@map("invitations")
+}
+
 model User {
   id           Int       @id @default(autoincrement())
   email        String    @unique @db.VarChar(190)
@@ -74,20 +102,21 @@ model User {
   restaurant   Restaurant?  @relation(fields: [restaurantId], references: [id])
   memberships  Membership[]
 
-  createdOrders     Order[]            @relation("CreatedOrders")
-  servedOrders      Order[]            @relation("ServerOrders")
-  cancelledOrders   Order[]            @relation("CancelledOrders")
-  refundedOrders    Order[]            @relation("RefundedOrders")
-  stockMovements    StockMovement[]
-  notificationReads NotificationRead[]
-  cashSessions      CashSession[]      @relation("CashierSessions")
-  closedSessions    CashSession[]      @relation("ClosedSessions")
-  auditLogs         AuditLog[]
-  purchases         Purchase[]
-  inventories       Inventory[]
-  reservations      Reservation[]
-  employee          Employee?
-  expenses          Expense[]
+  createdOrders      Order[]            @relation("CreatedOrders")
+  servedOrders       Order[]            @relation("ServerOrders")
+  cancelledOrders    Order[]            @relation("CancelledOrders")
+  refundedOrders     Order[]            @relation("RefundedOrders")
+  stockMovements     StockMovement[]
+  notificationReads  NotificationRead[]
+  cashSessions       CashSession[]      @relation("CashierSessions")
+  closedSessions     CashSession[]      @relation("ClosedSessions")
+  auditLogs          AuditLog[]
+  purchases          Purchase[]
+  inventories        Inventory[]
+  reservations       Reservation[]
+  employee           Employee?
+  expenses           Expense[]
+  invitationsCreated Invitation[]       @relation("InvitationCreator")
 
   @@map("users")
 }
@@ -156,13 +185,14 @@ model Employee {
 }
 
 model StockItem {
-  id             Int      @id @default(autoincrement())
-  name           String   @db.VarChar(100)
-  quantity       Float    @default(0)
-  unit           String   @db.VarChar(20)
+  id               Int      @id @default(autoincrement())
+  name             String   @db.VarChar(100)
+  quantity         Float    @default(0)
+  baselineQuantity Float?   @map("baseline_quantity")
+  unit             String   @db.VarChar(20)
   // Coût d'achat par unité (FCFA). Float pour gérer les coûts au gramme/ml près. Base du coût de revient des plats.
-  unitCost       Float    @default(0) @map("unit_cost")
-  alertThreshold Float    @default(10) @map("alert_threshold")
+  unitCost         Float    @default(0) @map("unit_cost")
+  alertThreshold   Float    @default(10) @map("alert_threshold")
   lastUpdated    DateTime @default(now()) @map("last_updated")
   createdAt      DateTime @default(now()) @map("created_at")
   restaurantId   Int?     @map("restaurant_id")

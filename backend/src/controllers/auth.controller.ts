@@ -22,6 +22,6 @@ export const refreshController = asyncHandler(async (req, res) => {
 });
 
 export const meController = asyncHandler(async (req, res) => {
-  const result = await authService.getMe(req.user!.id);
+  const result = await authService.getMe(req.user!.id, req.restaurantId);
   sendSuccess(res, result);
 });
