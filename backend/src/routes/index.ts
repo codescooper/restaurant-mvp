@@ -21,6 +21,7 @@ import promotionRoutes from './promotion.routes';
 import settingsRoutes from './settings.routes';
 import publicRoutes from './public.routes';
 import invitationRoutes from './invitation.routes';
+import adminRoutes from './admin.routes';
 
 const router = Router();
 
@@ -28,6 +29,7 @@ router.get('/health', (_req, res) => res.json({ success: true, data: { status: '
 
 router.use('/auth', authRoutes);
 router.use('/public', publicRoutes);
+router.use('/admin', adminRoutes);
 
 // Toutes les routes suivantes sont scopées : auth (pose req.restaurantId) puis ouverture du contexte.
 // tenantContext est branché par route pour ne pas intercepter les routes inconnues (→ 404).
