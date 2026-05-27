@@ -413,6 +413,19 @@ export const exportRangeSchema = z
   .refine(rangeRefine, { message: 'Plage invalide (from > to ou > 366 jours)', path: ['from'] });
 
 
+// --- Invitations ---
+const INVITABLE_ROLES = ['administrateur', 'caissier', 'cuisinier', 'serveur'] as const;
+
+export const createInvitationSchema = z.object({
+  email: z.string().email(),
+  role: z.enum(INVITABLE_ROLES),
+});
+
+export const acceptInvitationSchema = z.object({
+  password: z.string().min(6),
+  displayName: z.string().min(1).max(80).optional(),
+});
+
 // --- Sync (offline) ---
 export const syncSchema = z.object({
   orders: z.array(z.object({

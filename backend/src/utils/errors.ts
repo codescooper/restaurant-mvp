@@ -32,6 +32,11 @@ export const ErrorCodes = {
   VALIDATION_001: 'Données invalides',
   INTERNAL_001: 'Erreur interne du serveur',
   DB_001: 'Base de données momentanément indisponible',
+  INV_001: 'Rôle non invitable',
+  INV_002: 'Une invitation est déjà en attente pour cet email',
+  INV_003: 'Invitation introuvable',
+  INV_004: 'Invitation non en attente',
+  INV_005: 'Lien d\'invitation expiré ou non valide',
 } as const;
 
 export type ErrorCode = keyof typeof ErrorCodes;
