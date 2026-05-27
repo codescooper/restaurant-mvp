@@ -44,6 +44,8 @@ export const ErrorCodes = {
   ADMIN_003: 'Seul un restaurant actif peut être suspendu',
   ADMIN_004: 'Statut non éligible à la réactivation',
   ADMIN_005: 'Seul un restaurant en attente peut être refusé',
+  AUTH_008: 'Restaurant non actif',
+  RESTAURANT_001: 'Restaurant introuvable',
 } as const;
 
 export type ErrorCode = keyof typeof ErrorCodes;

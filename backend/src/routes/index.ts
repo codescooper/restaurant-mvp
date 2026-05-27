@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { authenticate } from '../middlewares/auth';
+import { authenticate, requireActiveRestaurant } from '../middlewares/auth';
 import { tenantContext } from '../middlewares/tenant';
 import { sendError } from '../utils/response';
 import authRoutes from './auth.routes';
@@ -33,7 +33,8 @@ router.use('/admin', adminRoutes);
 
 // Toutes les routes suivantes sont scopées : auth (pose req.restaurantId) puis ouverture du contexte.
 // tenantContext est branché par route pour ne pas intercepter les routes inconnues (→ 404).
-const tenant = [authenticate, tenantContext] as const;
+// requireActiveRestaurant bloque les routes opérationnelles si le restaurant est suspendu/rejeté.
+const tenant = [authenticate, tenantContext, requireActiveRestaurant] as const;
 
 router.use('/stock', ...tenant, stockRoutes);
 router.use('/dishes', ...tenant, dishRoutes);

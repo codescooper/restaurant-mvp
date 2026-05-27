@@ -28,10 +28,15 @@ export default function SignupPage() {
     setError(''); setLoading(true);
     try {
       const res = await signupApi.signup({ email, password, displayName, restaurantName });
-      localStorage.setItem('accessToken', res.accessToken);
-      localStorage.setItem('refreshToken', res.refreshToken);
-      localStorage.setItem('activeRestaurantId', String(res.memberships[0].restaurantId));
-      window.location.href = '/dashboard';   // hard refresh -> AuthContext recharge tout
+      try {
+        localStorage.setItem('accessToken', res.accessToken);
+        localStorage.setItem('refreshToken', res.refreshToken);
+        localStorage.setItem('activeRestaurantId', String(res.memberships[0].restaurantId));
+        window.location.href = '/dashboard';   // hard refresh -> AuthContext recharge tout
+      } catch (storageErr) {
+        setError('Impossible de sauvegarder votre session (mode privé ?). Réessayez ou utilisez un autre navigateur.');
+        setLoading(false);
+      }
     } catch (err) {
       setError(getApiError(err, 'Inscription impossible'));
       setLoading(false);

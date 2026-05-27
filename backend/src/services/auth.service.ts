@@ -50,7 +50,8 @@ export async function switchRestaurant(userId: number, restaurantId: number) {
   if (!user || !user.isActive) throw new AppError(403, 'AUTH_004');
   const membership = await getActiveMembership(userId, restaurantId);
   if (!membership) throw new AppError(403, 'AUTH_005');
-  return buildAuthResponse(user, { restaurantId, role: membership.role as Role });
+  const memberships = await listActiveMembershipsForUser(userId);
+  return { ...buildAuthResponse(user, { restaurantId, role: membership.role as Role }), memberships };
 }
 
 export async function refresh(refreshToken: string) {

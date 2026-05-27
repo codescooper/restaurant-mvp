@@ -73,11 +73,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCurrentRole(post.role);
       localStorage.setItem('activeRestaurantId', String(post.restaurantId));
       // Synchronise currentRestaurant depuis /auth/me (round-trip supplémentaire acceptable).
+      // En cas d'erreur réseau, on ne touche pas currentRestaurant : le statut sera revérifié
+      // au prochain me() (restore de session au rechargement).
       try {
         const me = await authApi.me();
         setCurrentRestaurant(me.currentRestaurant ?? null);
-      } catch {
-        setCurrentRestaurant(null);
+      } catch (err) {
+        console.warn('me() failed après login, currentRestaurant non rafraîchi', err);
       }
       return { autoSelected: true, role: post.role };
     }
@@ -100,11 +102,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCurrentRole(role);
     localStorage.setItem('activeRestaurantId', String(restaurantId));
     // Synchronise currentRestaurant depuis /auth/me (round-trip supplémentaire acceptable).
+    // En cas d'erreur réseau, on ne touche pas currentRestaurant : le statut sera revérifié
+    // au prochain me() (restore de session au rechargement).
     try {
       const me = await authApi.me();
       setCurrentRestaurant(me.currentRestaurant ?? null);
-    } catch {
-      setCurrentRestaurant(null);
+    } catch (err) {
+      console.warn('me() failed après selectRestaurant, currentRestaurant non rafraîchi', err);
     }
     return role;
   };

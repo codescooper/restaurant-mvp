@@ -59,3 +59,22 @@ export function requireSuperAdmin(req: Request, res: Response, next: NextFunctio
   if (!req.user?.isSuperAdmin) return sendError(res, 403, 'AUTH_005');
   return next();
 }
+
+// Bloque les routes opérationnelles si le restaurant n'est pas actif.
+// - active       : passage libre.
+// - pending      : seul le propriétaire passe (mode préparation).
+// - suspended/rejected/autres : refus.
+export const requireActiveRestaurant = async (req: Request, res: Response, next: NextFunction) => {
+  if (!req.restaurantId) return sendError(res, 401, 'AUTH_003', 'Token sans contexte resto');
+  const restaurant = await basePrisma.restaurant.findUnique({
+    where: { id: req.restaurantId },
+    select: { status: true },
+  });
+  if (!restaurant) return sendError(res, 404, 'RESTAURANT_001', 'Restaurant introuvable');
+  // Active : passage libre.
+  if (restaurant.status === 'active') return next();
+  // Pending : seul le propriétaire passe (mode préparation).
+  if (restaurant.status === 'pending' && req.membership?.role === 'propriétaire') return next();
+  // Suspended/rejected/others : refus.
+  return sendError(res, 403, 'AUTH_008', 'Restaurant non actif');
+};

@@ -33,6 +33,24 @@ function SimpleMessage({ title, message }: { title: string; message: string }) {
   );
 }
 
+// Placeholder minimal pour les écrans de statut bloquant (M6 les remplacera par les vraies pages stylées).
+function Placeholder({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-black p-4">
+      <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-8 max-w-md text-center">
+        <h1 className="text-xl font-bold text-neutral-100 mb-2">{title}</h1>
+        <p className="text-neutral-400 text-sm mb-4">{subtitle}</p>
+        <button
+          onClick={() => { localStorage.clear(); window.location.href = '/'; }}
+          className="px-4 py-2 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 rounded-lg text-sm"
+        >
+          Se déconnecter
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
@@ -111,6 +129,12 @@ export default function App() {
                   path="/unauthorized"
                   element={<SimpleMessage title="Accès interdit" message="Vous n'avez pas les permissions pour cette page." />}
                 />
+
+                {/* Écrans de statut bloquant — placeholders M5, remplacés par StatusBlockedCard en M6 */}
+                <Route path="/suspended" element={<Placeholder title="Restaurant suspendu" subtitle="Contactez la plateforme." />} />
+                <Route path="/rejected" element={<Placeholder title="Inscription refusée" subtitle="Contactez la plateforme." />} />
+                <Route path="/pending-member" element={<Placeholder title="Restaurant en préparation" subtitle="Patientez ou contactez le propriétaire." />} />
+
                 <Route path="*" element={<SimpleMessage title="404" message="Page introuvable." />} />
               </Routes>
             </Suspense>
