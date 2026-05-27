@@ -39,7 +39,11 @@ export const ErrorCodes = {
   INV_005: 'Lien d\'invitation expiré ou non valide',
   INV_006: 'Restaurant non actif',
   INV_007: 'Lien déjà utilisé ou révoqué',
-  ADMIN_001: 'Action super-admin invalide',
+  ADMIN_001: 'Restaurant introuvable',
+  ADMIN_002: 'Statut non éligible à l\'activation',
+  ADMIN_003: 'Seul un restaurant actif peut être suspendu',
+  ADMIN_004: 'Statut non éligible à la réactivation',
+  ADMIN_005: 'Seul un restaurant en attente peut être refusé',
 } as const;
 
 export type ErrorCode = keyof typeof ErrorCodes;

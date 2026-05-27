@@ -1,9 +1,12 @@
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/response';
 import * as adminService from '../services/admin.service';
+import type { RestaurantStatus } from '../services/admin.service';
 
 export const listRestaurantsController = asyncHandler(async (req, res) => {
-  const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+  const status = typeof req.query.status === 'string'
+    ? (req.query.status as RestaurantStatus)
+    : undefined;
   sendSuccess(res, await adminService.listRestaurants({ status }));
 });
 
