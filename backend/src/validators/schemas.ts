@@ -426,6 +426,15 @@ export const acceptInvitationSchema = z.object({
   displayName: z.string().min(1).max(80).optional(),
 });
 
+// --- Super-admin ---
+export const adminReasonSchema = z.object({
+  reason: z.string().max(500).optional(),
+});
+
+export const adminListQuerySchema = z.object({
+  status: z.enum(['pending', 'active', 'suspended', 'rejected']).optional(),
+});
+
 // --- Sync (offline) ---
 export const syncSchema = z.object({
   orders: z.array(z.object({
