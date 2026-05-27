@@ -7,13 +7,14 @@ export interface MembershipView {
   role: string;
 }
 
-// TODO (P2a M5) : revisiter le filtre `restaurant.status === 'active'`. Un propriétaire d'un resto
-// pending/suspended/rejected doit toujours voir son resto pour être routé vers les écrans dédiés
-// (mode préparation, suspended, rejected). Décision à prendre quand on cablera AuthContext (M5).
-// Memberships actifs d'un utilisateur sur des restaurants actifs (pour le login/sélecteur).
+// Retourne tous les memberships actifs d'un utilisateur, QUEL QUE SOIT le statut du restaurant
+// (pending, active, suspended, rejected). Le filtre `restaurant.status === 'active'` a été retiré
+// volontairement : le routage par statut est désormais géré côté frontend (ProtectedRoute M5).
+// Un propriétaire d'un resto pending/suspended/rejected doit voir ses memberships pour être
+// redirigé vers les écrans dédiés plutôt que de tomber dans une boucle sélecteur vide.
 export async function listActiveMembershipsForUser(userId: number): Promise<MembershipView[]> {
   const rows = await basePrisma.membership.findMany({
-    where: { userId, isActive: true, restaurant: { status: 'active' } },
+    where: { userId, isActive: true },
     include: { restaurant: true },
     orderBy: { restaurant: { name: 'asc' } },
   });
@@ -26,8 +27,11 @@ export async function listActiveMembershipsForUser(userId: number): Promise<Memb
 }
 
 // Membership actif précis (pour switch / vérification d'accès). null si absent/inactif.
+// Le filtre `restaurant.status === 'active'` est retiré intentionnellement : un propriétaire
+// d'un resto pending doit pouvoir se positionner sur son resto pour atterrir sur l'écran
+// dédié (pending/Gestion). Le routage par statut est géré côté frontend (ProtectedRoute M5).
 export async function getActiveMembership(userId: number, restaurantId: number) {
   return basePrisma.membership.findFirst({
-    where: { userId, restaurantId, isActive: true, restaurant: { status: 'active' } },
+    where: { userId, restaurantId, isActive: true },
   });
 }
