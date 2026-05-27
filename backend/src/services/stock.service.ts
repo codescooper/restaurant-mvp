@@ -78,7 +78,13 @@ export async function deleteStock(id: number) {
   return { id };
 }
 
-// Reapprovisionnement : enregistre un mouvement "entree" (§9.5).
+/**
+ * Réapprovisionnement manuel d'un article de stock.
+ * Met aussi a jour `baselineQuantity` (cf. P2a mode preparation : toute edition
+ * manuelle redefini la baseline ; les decrements de commande NE touchent PAS le baseline).
+ * Appel reserve aux ajouts manuels — ne pas utiliser pour des restaurations
+ * automatiques (annulations de commande, etc.) qui doivent ecrire `quantity` directement.
+ */
 export async function addQuantity(id: number, quantity: number, userId?: number) {
   const item = await getStock(id);
   const newQuantity = roundQty(item.quantity + quantity);

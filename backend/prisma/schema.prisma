@@ -80,7 +80,7 @@ model Invitation {
   createdAt    DateTime  @default(now()) @map("created_at")
 
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
-  creator    User?      @relation("InvitationCreator", fields: [createdBy], references: [id])
+  creator    User?      @relation("InvitationCreator", fields: [createdBy], references: [id], onDelete: SetNull)
 
   @@index([restaurantId, status], map: "idx_invitations_restaurant_status")
   @@index([email, status], map: "idx_invitations_email_status")
