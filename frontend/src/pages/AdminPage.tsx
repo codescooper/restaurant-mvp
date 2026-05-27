@@ -25,9 +25,9 @@ import {
   Wallet,
   LayoutGrid,
 } from 'lucide-react';
-import { stockApi, dishApi, userApi, cashApi, auditApi, orderApi, MemberRow } from '../services/endpoints';
+import { stockApi, dishApi, userApi, cashApi, auditApi, orderApi, invitationApi, MemberRow } from '../services/endpoints';
 import { getApiError } from '../services/api';
-import { StockItem, Dish, Role, CashSessionSummary, AuditLogEntry } from '../types';
+import { StockItem, Dish, Role, CashSessionSummary, AuditLogEntry, Invitation } from '../types';
 import { formatFCFA, formatDateTime } from '../utils/format';
 import { compressImage } from '../utils/image';
 import SuppliersTab from './admin/SuppliersTab';
@@ -562,48 +562,51 @@ export default function AdminPage() {
 
       {/* USERS (membres) */}
       {tab === 'users' && (
-        <div className="bg-neutral-950 rounded-xl shadow overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-neutral-900 text-neutral-300">
-              <tr>
-                <th className="text-left p-3">Nom / Email</th>
-                <th className="text-left p-3">Email</th>
-                <th className="text-left p-3">Rôle</th>
-                <th className="text-left p-3">Statut</th>
-                <th className="text-left p-3">Dernière connexion</th>
-                <th className="text-right p-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUsers.map((u) => (
-                <tr key={u.membershipId} className="border-t hover:bg-neutral-900">
-                  <td className="p-3 font-medium">{u.displayName ?? u.email}</td>
-                  <td className="p-3 text-neutral-400">{u.email}</td>
-                  <td className="p-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs capitalize ${ROLE_BADGE[u.role] ?? 'bg-neutral-800'}`}>{u.role}</span>
-                  </td>
-                  <td className="p-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs ${u.isActive ? 'bg-emerald-500/15 text-emerald-300' : 'bg-neutral-800 text-neutral-300'}`}>
-                      {u.isActive ? 'Actif' : 'Inactif'}
-                    </span>
-                  </td>
-                  <td className="p-3 text-neutral-400">{u.lastLogin ? formatDateTime(u.lastLogin) : '—'}</td>
-                  <td className="p-3 text-right whitespace-nowrap">
-                    <button onClick={() => toggleUser(u.membershipId)} className="p-1.5 text-neutral-300 hover:bg-neutral-800 rounded">
-                      {u.isActive ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                    </button>
-                    <button onClick={() => openEdit('users', u)} className="p-1.5 text-gold-400 hover:bg-neutral-800 rounded">
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => remove('users', u.membershipId)} className="p-1.5 text-rose-400 hover:bg-rose-500/10 rounded">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
+        <>
+          <div className="bg-neutral-950 rounded-xl shadow overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-neutral-900 text-neutral-300">
+                <tr>
+                  <th className="text-left p-3">Nom / Email</th>
+                  <th className="text-left p-3">Email</th>
+                  <th className="text-left p-3">Rôle</th>
+                  <th className="text-left p-3">Statut</th>
+                  <th className="text-left p-3">Dernière connexion</th>
+                  <th className="text-right p-3">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {filteredUsers.map((u) => (
+                  <tr key={u.membershipId} className="border-t hover:bg-neutral-900">
+                    <td className="p-3 font-medium">{u.displayName ?? u.email}</td>
+                    <td className="p-3 text-neutral-400">{u.email}</td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded-full text-xs capitalize ${ROLE_BADGE[u.role] ?? 'bg-neutral-800'}`}>{u.role}</span>
+                    </td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded-full text-xs ${u.isActive ? 'bg-emerald-500/15 text-emerald-300' : 'bg-neutral-800 text-neutral-300'}`}>
+                        {u.isActive ? 'Actif' : 'Inactif'}
+                      </span>
+                    </td>
+                    <td className="p-3 text-neutral-400">{u.lastLogin ? formatDateTime(u.lastLogin) : '—'}</td>
+                    <td className="p-3 text-right whitespace-nowrap">
+                      <button onClick={() => toggleUser(u.membershipId)} className="p-1.5 text-neutral-300 hover:bg-neutral-800 rounded">
+                        {u.isActive ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                      </button>
+                      <button onClick={() => openEdit('users', u)} className="p-1.5 text-gold-400 hover:bg-neutral-800 rounded">
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => remove('users', u.membershipId)} className="p-1.5 text-rose-400 hover:bg-rose-500/10 rounded">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <PendingInvitations />
+        </>
       )}
 
       {/* CAISSE : historique des sessions + écarts */}
@@ -1180,6 +1183,109 @@ export default function AdminPage() {
                 Enregistrer
               </button>
             </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PendingInvitations() {
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [error, setError] = useState('');
+  const [modal, setModal] = useState(false);
+  const [form, setForm] = useState({ email: '', role: 'serveur' as Role });
+  const [busy, setBusy] = useState(false);
+  const [createdLink, setCreatedLink] = useState<{ url: string; email: string } | null>(null);
+
+  const load = () => invitationApi.list().then((all) => setInvitations(all.filter((i) => i.status === 'pending')))
+    .catch((e) => setError(getApiError(e)));
+  useEffect(() => { load(); }, []);
+
+  const submit = async () => {
+    if (!form.email.trim()) { setError('Email requis'); return; }
+    setBusy(true);
+    try {
+      const inv = await invitationApi.create(form.email.trim(), form.role);
+      setCreatedLink({ url: inv.url!, email: form.email });
+      setForm({ email: '', role: 'serveur' });
+      load();
+    } catch (e) { setError(getApiError(e)); } finally { setBusy(false); setModal(false); }
+  };
+
+  const revoke = async (id: number) => {
+    if (!window.confirm('Révoquer cette invitation ?')) return;
+    await invitationApi.revoke(id);
+    load();
+  };
+
+  const copy = async (url: string) => {
+    await navigator.clipboard.writeText(url);
+  };
+
+  const wa = (url: string) =>
+    `https://wa.me/?text=${encodeURIComponent(`Bonjour, je vous invite à rejoindre mon restaurant sur la plateforme : ${url}`)}`;
+
+  return (
+    <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-5 mt-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-bold text-neutral-100">Invitations en attente ({invitations.length})</h3>
+        <button onClick={() => setModal(true)} className="bg-gold-400 hover:bg-gold-300 text-black font-bold px-3 py-1.5 rounded-lg text-sm">
+          + Inviter un membre
+        </button>
+      </div>
+      {error && <div className="text-rose-400 text-sm mb-2">{error}</div>}
+      {invitations.length === 0 ? (
+        <p className="text-neutral-500 text-sm">Aucune invitation en attente.</p>
+      ) : (
+        <ul className="divide-y divide-neutral-800">
+          {invitations.map((inv) => (
+            <li key={inv.id} className="py-2 flex flex-wrap items-center gap-2 text-sm">
+              <span className="flex-1 min-w-0 truncate text-neutral-200">{inv.email}</span>
+              <span className="text-xs px-2 py-0.5 rounded bg-neutral-800 text-neutral-300">{inv.role}</span>
+              <span className="text-xs text-neutral-500">Expire le {new Date(inv.expiresAt).toLocaleDateString('fr-FR')}</span>
+              <button onClick={() => copy(`${window.location.origin}/invite/${inv.token}`)} className="text-xs px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-200">📋 Copier</button>
+              <a href={wa(`${window.location.origin}/invite/${inv.token}`)} target="_blank" rel="noreferrer" className="text-xs px-2 py-1 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">WhatsApp</a>
+              <button onClick={() => revoke(inv.id)} className="text-xs px-2 py-1 rounded bg-rose-500/15 text-rose-300 border border-rose-500/30">Révoquer</button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {modal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => !busy && setModal(false)}>
+          <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-neutral-100 mb-3">Inviter un membre</h3>
+            <label className="block text-sm text-neutral-300 mb-1">Email</label>
+            <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} type="email" placeholder="alice@exemple.com"
+              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-neutral-100 mb-3" />
+            <label className="block text-sm text-neutral-300 mb-1">Rôle</label>
+            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as Role })}
+              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-neutral-100 mb-4">
+              <option value="serveur">Serveur</option>
+              <option value="cuisinier">Cuisinier</option>
+              <option value="caissier">Caissier</option>
+              <option value="administrateur">Administrateur</option>
+            </select>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setModal(false)} disabled={busy} className="px-3 py-2 rounded-lg text-neutral-300">Annuler</button>
+              <button onClick={submit} disabled={busy} className="px-4 py-2 rounded-lg bg-gold-400 text-black font-bold">{busy ? '…' : 'Créer le lien'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {createdLink && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setCreatedLink(null)}>
+          <div className="bg-neutral-950 border border-emerald-500/30 rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-emerald-300 mb-2">Lien créé pour {createdLink.email}</h3>
+            <p className="text-neutral-400 text-sm mb-3">Partagez ce lien (valide 7 jours) :</p>
+            <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-2 text-xs text-neutral-200 break-all mb-3">{createdLink.url}</div>
+            <div className="flex gap-2">
+              <button onClick={() => copy(createdLink.url)} className="flex-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 px-3 py-2 rounded-lg text-sm">📋 Copier</button>
+              <a href={wa(createdLink.url)} target="_blank" rel="noreferrer" className="flex-1 text-center bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-3 py-2 rounded-lg text-sm">WhatsApp</a>
+            </div>
+            <button onClick={() => setCreatedLink(null)} className="w-full mt-3 px-3 py-2 rounded-lg text-neutral-400">Fermer</button>
           </div>
         </div>
       )}
