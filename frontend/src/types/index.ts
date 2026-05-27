@@ -1,5 +1,45 @@
 export type Role = 'propriétaire' | 'administrateur' | 'caissier' | 'cuisinier' | 'serveur';
 
+export type RestaurantStatus = 'pending' | 'active' | 'suspended' | 'rejected';
+
+export interface CurrentRestaurant {
+  id: number;
+  name: string;
+  slug: string;
+  status: RestaurantStatus;
+  rejectedReason?: string | null;
+  suspendedReason?: string | null;
+}
+
+export interface Invitation {
+  id: number;
+  restaurantId: number;
+  email: string;
+  role: Role;
+  token: string;
+  status: 'pending' | 'accepted' | 'revoked' | 'expired';
+  expiresAt: string;
+  acceptedAt?: string | null;
+  revokedAt?: string | null;
+  createdAt: string;
+  url?: string;          // present a la creation
+}
+
+export interface AdminRestaurantRow {
+  id: number;
+  name: string;
+  slug: string;
+  status: RestaurantStatus;
+  createdAt: string;
+  activatedAt?: string | null;
+  rejectedAt?: string | null;
+  rejectedReason?: string | null;
+  suspendedAt?: string | null;
+  suspendedReason?: string | null;
+  _count: { dishes: number; tables: number; memberships: number; invitations: number };
+  memberships: { user: { email: string; displayName: string | null } }[];
+}
+
 export interface User {
   id: number;
   email: string;
@@ -19,6 +59,7 @@ export interface AuthResponse {
   accessToken: string;
   refreshToken: string;
   memberships: MembershipView[];
+  currentRestaurant?: CurrentRestaurant | null;
 }
 
 export interface MenuVariant {
