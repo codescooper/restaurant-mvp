@@ -69,9 +69,21 @@ export async function refresh(refreshToken: string) {
   return { ...buildAuthResponse(user, selected), memberships };
 }
 
-export async function getMe(userId: number) {
+export async function getMe(userId: number, restaurantId?: number) {
   const user = await basePrisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new AppError(404, 'USER_001');
   const memberships = await listActiveMembershipsForUser(user.id);
-  return { user: publicUser(user), memberships };
+  let currentRestaurant = null;
+  if (restaurantId != null) {
+    const r = await basePrisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { id: true, name: true, slug: true, status: true, rejectedReason: true, suspendedReason: true },
+    });
+    if (r) currentRestaurant = r;
+  }
+  return {
+    user: publicUser(user),
+    memberships,
+    currentRestaurant,
+  };
 }

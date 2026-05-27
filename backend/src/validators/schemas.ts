@@ -24,6 +24,13 @@ export const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+export const signupSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6, 'Au moins 6 caractères'),
+  displayName: z.string().min(1).max(80),
+  restaurantName: z.string().min(1).max(120),
+});
+
 export const switchRestaurantSchema = z.object({
   restaurantId: z.number().int().positive(),
 });
