@@ -3,13 +3,12 @@ import bcrypt from 'bcrypt';
 import { basePrisma } from '../config/prisma';
 import { getTenantIdOrThrow } from '../config/tenant-context';
 import { AppError } from '../utils/errors';
-import { Role } from '../constants';
+import { Role, INVITABLE_ROLES } from '../constants';
 import { env } from '../config/env';
 import { signAccessToken, signRefreshToken } from '../utils/jwt';
 import { listActiveMembershipsForUser } from './membership.service';
 
 const INVITE_TTL_DAYS = 7;
-const INVITABLE_ROLES: Role[] = ['administrateur', 'caissier', 'cuisinier', 'serveur'];
 
 function generateToken(): string {
   return crypto.randomBytes(32).toString('hex');   // 64 hex chars
@@ -25,6 +24,13 @@ export async function listInvitations() {
 
 export async function createInvitation(input: { email: string; role: Role }, createdBy?: number) {
   const restaurantId = getTenantIdOrThrow();
+  const restaurant = await basePrisma.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { status: true },
+  });
+  if (!restaurant || restaurant.status !== 'active') {
+    throw new AppError(403, 'INV_006', 'Restaurant non actif — invitation impossible');
+  }
   if (!INVITABLE_ROLES.includes(input.role)) {
     throw new AppError(400, 'INV_001', 'Rôle non invitable');
   }
@@ -63,7 +69,7 @@ export async function peekInvitation(token: string) {
     include: { restaurant: { select: { name: true, status: true } } },
   });
   if (!inv) throw new AppError(404, 'INV_003', 'Invitation introuvable');
-  // Lazy expire
+  // Lazy expire : GET avec side-effect intentionnel (last-write-wins, idempotent sur status='expired').
   if (inv.status === 'pending' && inv.expiresAt < new Date()) {
     await basePrisma.invitation.update({ where: { id: inv.id }, data: { status: 'expired' } });
     inv.status = 'expired';
@@ -82,49 +88,56 @@ export async function peekInvitation(token: string) {
 export async function acceptInvitation(token: string, body: { password: string; displayName?: string }) {
   const inv = await basePrisma.invitation.findUnique({ where: { token } });
   if (!inv) throw new AppError(404, 'INV_003', 'Invitation introuvable');
-  if (inv.status !== 'pending') throw new AppError(410, 'INV_005', 'Lien non valide (expiré, révoqué ou déjà utilisé)');
+  // INV_007 : lien déjà utilisé ou révoqué (pas expiré).
+  if (inv.status !== 'pending') throw new AppError(410, 'INV_007', 'Lien non valide (expiré, révoqué ou déjà utilisé)');
   if (inv.expiresAt < new Date()) {
     await basePrisma.invitation.update({ where: { id: inv.id }, data: { status: 'expired' } });
     throw new AppError(410, 'INV_005', 'Lien expiré');
   }
-  // Vérif que le resto est active (sinon impossible d'inviter — defense-in-depth).
+  // Vérif que le resto est active (sinon impossible d'accepter — defense-in-depth).
   const resto = await basePrisma.restaurant.findUnique({ where: { id: inv.restaurantId }, select: { status: true } });
-  if (!resto || resto.status !== 'active') throw new AppError(403, 'INV_005', 'Restaurant non actif');
+  if (!resto || resto.status !== 'active') throw new AppError(403, 'INV_006', 'Restaurant non actif');
 
   const existing = await basePrisma.user.findUnique({ where: { email: inv.email } });
 
-  let userId: number;
+  // bcrypt CPU-bound : effectuer AVANT d'ouvrir la transaction pour ne pas tenir la connexion DB.
+  let passwordHash: string | undefined;
   if (existing) {
-    // Login-first : verifier le mot de passe de l'existant.
+    // Login-first : vérifier le mot de passe de l'existant.
     const ok = await bcrypt.compare(body.password, existing.passwordHash);
     if (!ok) throw new AppError(401, 'AUTH_001', 'Mot de passe incorrect');
     if (!existing.isActive) throw new AppError(403, 'AUTH_004');
-    userId = existing.id;
   } else {
-    // Nouveau compte.
-    if (body.password.length < 6) throw new AppError(400, 'VALIDATION_001', 'Mot de passe trop court');
-    const created = await basePrisma.user.create({
-      data: {
-        email: inv.email,
-        passwordHash: await bcrypt.hash(body.password, 10),
-        displayName: body.displayName?.trim() || null,
-        restaurantId: inv.restaurantId,
-      },
-    });
-    userId = created.id;
+    // Nouveau compte — hash calculé avant la transaction (CPU-bound).
+    passwordHash = await bcrypt.hash(body.password, 10);
   }
 
-  await basePrisma.$transaction([
-    basePrisma.membership.upsert({
-      where: { userId_restaurantId: { userId, restaurantId: inv.restaurantId } },
-      create: { userId, restaurantId: inv.restaurantId, role: inv.role, isActive: true },
+  const userId = await basePrisma.$transaction(async (tx) => {
+    let uid: number;
+    if (existing) {
+      uid = existing.id;
+    } else {
+      const created = await tx.user.create({
+        data: {
+          email: inv.email,
+          passwordHash: passwordHash!,
+          displayName: body.displayName?.trim() || null,
+          restaurantId: inv.restaurantId,
+        },
+      });
+      uid = created.id;
+    }
+    await tx.membership.upsert({
+      where: { userId_restaurantId: { userId: uid, restaurantId: inv.restaurantId } },
+      create: { userId: uid, restaurantId: inv.restaurantId, role: inv.role, isActive: true },
       update: { role: inv.role, isActive: true },
-    }),
-    basePrisma.invitation.update({
+    });
+    await tx.invitation.update({
       where: { id: inv.id },
       data: { status: 'accepted', acceptedAt: new Date() },
-    }),
-  ]);
+    });
+    return uid;
+  });
 
   const user = (await basePrisma.user.findUnique({ where: { id: userId } }))!;
   const memberships = await listActiveMembershipsForUser(userId);

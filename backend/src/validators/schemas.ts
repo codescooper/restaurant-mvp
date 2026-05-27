@@ -16,6 +16,8 @@ import {
   SALARY_PAYMENT_METHODS,
   EXPENSE_CATEGORIES,
   EXPENSE_PAYMENT_METHODS,
+  INVITABLE_ROLES,
+  Role,
 } from '../constants';
 
 // --- Auth ---
@@ -414,11 +416,9 @@ export const exportRangeSchema = z
 
 
 // --- Invitations ---
-const INVITABLE_ROLES = ['administrateur', 'caissier', 'cuisinier', 'serveur'] as const;
-
 export const createInvitationSchema = z.object({
   email: z.string().email(),
-  role: z.enum(INVITABLE_ROLES),
+  role: z.enum(INVITABLE_ROLES as unknown as [Role, ...Role[]]),
 });
 
 export const acceptInvitationSchema = z.object({

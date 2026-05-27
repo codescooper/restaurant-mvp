@@ -23,3 +23,11 @@ export const signupLimiter = rateLimit({
   legacyHeaders: false,
   handler: (_req, res) => sendError(res, 429, 'AUTH_007', 'Trop d\'inscriptions depuis cette adresse, réessayez plus tard'),
 });
+
+export const acceptInviteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => sendError(res, 429, 'AUTH_001', 'Trop de tentatives, réessayez dans 15 minutes'),
+});

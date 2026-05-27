@@ -3,6 +3,8 @@
 export const ROLES = ['propriétaire', 'administrateur', 'caissier', 'cuisinier', 'serveur'] as const;
 export type Role = (typeof ROLES)[number];
 
+export const INVITABLE_ROLES: ReadonlyArray<Role> = ['administrateur', 'caissier', 'cuisinier', 'serveur'];
+
 export const TABLE_STATUSES = ['libre', 'occupée', 'addition_demandée', 'réservée'] as const;
 export type TableStatus = (typeof TABLE_STATUSES)[number];
 

@@ -37,6 +37,8 @@ export const ErrorCodes = {
   INV_003: 'Invitation introuvable',
   INV_004: 'Invitation non en attente',
   INV_005: 'Lien d\'invitation expiré ou non valide',
+  INV_006: 'Restaurant non actif',
+  INV_007: 'Lien déjà utilisé ou révoqué',
 } as const;
 
 export type ErrorCode = keyof typeof ErrorCodes;
