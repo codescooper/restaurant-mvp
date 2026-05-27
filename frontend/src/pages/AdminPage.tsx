@@ -1215,8 +1215,12 @@ function PendingInvitations() {
 
   const revoke = async (id: number) => {
     if (!window.confirm('Révoquer cette invitation ?')) return;
-    await invitationApi.revoke(id);
-    load();
+    try {
+      await invitationApi.revoke(id);
+      load();
+    } catch (e) {
+      setError(getApiError(e));
+    }
   };
 
   const copy = async (url: string) => {
