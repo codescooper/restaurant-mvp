@@ -1,11 +1,12 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { WebSocketProvider } from './contexts/WebSocketContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Layout } from './components/Layout';
+import { useAuth } from './contexts/AuthContext';
 
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const SignupPage = lazy(() => import('./pages/SignupPage'));
@@ -20,6 +21,14 @@ const SuspendedPage = lazy(() => import('./pages/SuspendedPage'));
 const RejectedPage = lazy(() => import('./pages/RejectedPage'));
 const PendingMemberPage = lazy(() => import('./pages/PendingMemberPage'));
 const InviteAcceptPage = lazy(() => import('./pages/InviteAcceptPage'));
+const SuperAdminPage = lazy(() => import('./pages/SuperAdminPage'));
+
+function SuperAdminRoute({ children }: { children: React.ReactNode }) {
+  const { currentUser, loading } = useAuth();
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-neutral-400">Chargement...</div>;
+  if (!currentUser?.isSuperAdmin) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
 
 function Loading() {
   return <div className="min-h-screen flex items-center justify-center text-gray-500">Chargement...</div>;
@@ -124,6 +133,9 @@ export default function App() {
 
                 {/* Page d'acceptation invitation */}
                 <Route path="/invite/:token" element={<InviteAcceptPage />} />
+
+                {/* Console super-admin */}
+                <Route path="/super-admin" element={<SuperAdminRoute><SuperAdminPage /></SuperAdminRoute>} />
 
                 <Route path="*" element={<SimpleMessage title="404" message="Page introuvable." />} />
               </Routes>
