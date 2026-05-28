@@ -36,6 +36,17 @@ describe('decodeAccessToken', () => {
     const token = `x.${payload}.y`;
     expect(decodeAccessToken(token)).toMatchObject({ restaurantId: 7, role: 'serveur' });
   });
+  it('décode correctement un rôle non-ASCII (propriétaire avec é) — régression mojibake', () => {
+    // Un vrai JWT encode le payload en octets UTF-8 puis base64. Le « é » fait 2 octets.
+    // Sans décodage UTF-8, atob seul renverrait « propriÃ©taire » → /unauthorized au reload.
+    const json = JSON.stringify({ userId: 21, restaurantId: 11, role: 'propriétaire', isSuperAdmin: false });
+    const bytes = new TextEncoder().encode(json);
+    let bin = '';
+    bytes.forEach((b) => { bin += String.fromCharCode(b); });
+    const payload = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const token = `x.${payload}.y`;
+    expect(decodeAccessToken(token).role).toBe('propriétaire');
+  });
   it('token invalide → objet vide', () => {
     expect(decodeAccessToken('nimporte')).toEqual({});
   });
