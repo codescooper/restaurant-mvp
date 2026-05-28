@@ -25,6 +25,7 @@ import {
   Wallet,
   LayoutGrid,
   Palette,
+  Globe,
 } from 'lucide-react';
 import { stockApi, dishApi, userApi, cashApi, auditApi, orderApi, invitationApi, MemberRow } from '../services/endpoints';
 import { useAuth } from '../contexts/AuthContext';
@@ -39,8 +40,9 @@ import EmployeesTab from './admin/EmployeesTab';
 import ExpensesTab from './admin/ExpensesTab';
 import TablesTab from './admin/TablesTab';
 import BrandingTab from './admin/BrandingTab';
+import CatalogTab from './admin/CatalogTab';
 
-type Tab = 'stock' | 'menu' | 'users' | 'employes' | 'depenses' | 'caisse' | 'journal' | 'fournisseurs' | 'inventaire' | 'promotions' | 'tables' | 'personnalisation';
+type Tab = 'stock' | 'menu' | 'users' | 'employes' | 'depenses' | 'caisse' | 'journal' | 'fournisseurs' | 'inventaire' | 'promotions' | 'tables' | 'personnalisation' | 'referencement';
 type CrudTab = 'stock' | 'menu' | 'users';
 type UserEditing = MemberRow | null;
 
@@ -349,6 +351,7 @@ export default function AdminPage() {
     { id: 'caisse', label: 'Caisse', icon: Banknote },
     { id: 'journal', label: "Journal d'actions", icon: ClipboardList },
     { id: 'personnalisation', label: 'Personnalisation', icon: Palette, ownerOnly: true },
+    { id: 'referencement', label: 'Référencement', icon: Globe, ownerOnly: true },
   ];
 
   const TABS = ALL_TABS.filter((t) => !t.ownerOnly || isOwnerOrAdmin);
@@ -739,6 +742,9 @@ export default function AdminPage() {
 
       {/* PERSONNALISATION */}
       {tab === 'personnalisation' && <BrandingTab />}
+
+      {/* REFERENCEMENT */}
+      {tab === 'referencement' && <CatalogTab />}
 
       {/* MODAL PERTE */}
       {lossItem && (

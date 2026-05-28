@@ -28,6 +28,9 @@ import {
   ArticleType,
   ArticleListItem,
   Article,
+  CatalogRequest,
+  CatalogStatus,
+  AdminCatalogRequest,
 } from '../types';
 
 export interface VariantInput {
@@ -456,4 +459,33 @@ export const adminArticleApi = {
     api.post(`/admin/articles/${id}/status`, { status }).then((r) => r.data.data as Article),
   remove: (id: number) =>
     api.delete(`/admin/articles/${id}`).then((r) => r.data.data),
+};
+
+// ─── Catalog / Annuaire ───────────────────────────────────────────────────────
+
+export const CATALOG_PLATFORMS = [
+  'Yango Food',
+  'Glovo',
+  'Google Business Profile',
+  'Uber Eats',
+  'Jumia Food',
+  'Autre',
+];
+
+export const catalogApi = {
+  listMine: () =>
+    api.get('/catalog-requests').then((r) => r.data.data as CatalogRequest[]),
+  create: (platforms: string[], message?: string) =>
+    api.post('/catalog-requests', { platforms, message }).then((r) => r.data.data as CatalogRequest),
+};
+
+export const adminCatalogApi = {
+  list: (status?: CatalogStatus) =>
+    api
+      .get('/admin/catalog-requests', { params: status ? { status } : {} })
+      .then((r) => r.data.data as AdminCatalogRequest[]),
+  setStatus: (id: number, status: CatalogStatus, adminNote?: string) =>
+    api
+      .post(`/admin/catalog-requests/${id}/status`, { status, adminNote })
+      .then((r) => r.data.data as CatalogRequest),
 };

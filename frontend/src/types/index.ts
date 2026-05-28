@@ -467,6 +467,26 @@ export interface CashSessionSummary {
   closer?: { id: number; displayName: string | null } | null;
 }
 
+// ─── Catalog / Annuaire ───────────────────────────────────────────────────────
+export type CatalogStatus = 'pending' | 'in_progress' | 'done' | 'rejected';
+
+export interface CatalogRequest {
+  id: number;
+  restaurantId: number | null;
+  platforms: string[];
+  message: string | null;
+  status: CatalogStatus;
+  adminNote: string | null;
+  createdBy: number | null;
+  createdAt: string;
+  processedAt: string | null;
+}
+
+export interface AdminCatalogRequest extends CatalogRequest {
+  restaurant: { id: number; name: string; slug: string; status: string } | null;
+  creator: { displayName: string | null; email: string } | null;
+}
+
 export interface AuditLogEntry {
   id: number;
   userId: number | null;
