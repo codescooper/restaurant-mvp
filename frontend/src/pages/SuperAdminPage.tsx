@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Shield, CheckCircle2, Pause, Play, XCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Shield, CheckCircle2, Pause, Play, XCircle, AlertCircle, Loader2, BookOpen } from 'lucide-react';
 import { adminApi } from '../services/endpoints';
 import { AdminRestaurantRow, RestaurantStatus } from '../types';
 import { getApiError } from '../services/api';
+import ContentManager from './admin/ContentManager';
 
 const STATUS_LABEL: Record<RestaurantStatus, string> = {
   pending: 'En attente', active: 'Actif', suspended: 'Suspendu', rejected: 'Refusé',
@@ -12,7 +13,10 @@ const STATUS_BADGE: Record<RestaurantStatus, string> = {
   suspended: 'bg-rose-500/15 text-rose-300', rejected: 'bg-orange-500/15 text-orange-300',
 };
 
+type Tab = 'restaurants' | 'contenu';
+
 export default function SuperAdminPage() {
+  const [activeTab, setActiveTab] = useState<Tab>('restaurants');
   const [rows, setRows] = useState<AdminRestaurantRow[]>([]);
   const [filter, setFilter] = useState<RestaurantStatus | 'all'>('all');
   const [error, setError] = useState('');
@@ -43,13 +47,45 @@ export default function SuperAdminPage() {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-black text-neutral-200 max-w-7xl mx-auto p-4">
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-3 mb-5">
         <Shield className="w-8 h-8 text-gold-400" />
         <div>
           <h1 className="text-2xl font-bold text-neutral-100">Console super-admin</h1>
-          <p className="text-xs text-neutral-400">Restaurants de la plateforme</p>
+          <p className="text-xs text-neutral-400">Gestion globale de la plateforme</p>
         </div>
       </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 mb-6 bg-neutral-950 border border-neutral-800 rounded-xl p-1 w-fit">
+        <button
+          onClick={() => setActiveTab('restaurants')}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition ${
+            activeTab === 'restaurants'
+              ? 'bg-gold-400 text-black'
+              : 'text-neutral-400 hover:text-neutral-200'
+          }`}
+        >
+          <Shield className="w-4 h-4" />
+          Restaurants
+        </button>
+        <button
+          onClick={() => setActiveTab('contenu')}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition ${
+            activeTab === 'contenu'
+              ? 'bg-gold-400 text-black'
+              : 'text-neutral-400 hover:text-neutral-200'
+          }`}
+        >
+          <BookOpen className="w-4 h-4" />
+          Contenu
+        </button>
+      </div>
+
+      {/* Contenu tab */}
+      {activeTab === 'contenu' && <ContentManager />}
+
+      {/* Restaurants tab */}
+      {activeTab === 'restaurants' && (<>
 
       <div className="flex gap-2 mb-4 flex-wrap">
         {(['all','pending','active','suspended','rejected'] as const).map((s) => (
@@ -135,6 +171,7 @@ export default function SuperAdminPage() {
           </div>
         </div>
       )}
+      </>)}
     </div>
   );
 }

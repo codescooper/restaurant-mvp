@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import {
   ChefHat,
   Banknote,
@@ -15,8 +16,12 @@ import {
   Star,
   Clock,
   Smartphone,
+  BookOpen,
+  Calendar,
 } from 'lucide-react';
 import { AWEMA_CONTACT } from '../utils/contact';
+import { publicArticleApi } from '../services/endpoints';
+import { ArticleListItem } from '../types';
 
 /* ─── Helpers ─── */
 const UNSPLASH_BASE = 'https://images.unsplash.com/photo-';
@@ -55,6 +60,18 @@ function TopNav() {
 
           {/* Actions */}
           <div className="flex items-center gap-3">
+            <Link
+              to="/blog"
+              className="hidden md:inline-flex text-sm text-neutral-400 hover:text-neutral-100 transition px-3 py-2 rounded-lg hover:bg-neutral-900"
+            >
+              Blog
+            </Link>
+            <Link
+              to="/success-stories"
+              className="hidden md:inline-flex text-sm text-neutral-400 hover:text-neutral-100 transition px-3 py-2 rounded-lg hover:bg-neutral-900"
+            >
+              Témoignages
+            </Link>
             <Link
               to="/login"
               className="hidden sm:inline-flex text-sm font-medium text-neutral-300 hover:text-neutral-100 transition px-3 py-2 rounded-lg hover:bg-neutral-900"
@@ -508,6 +525,91 @@ function HowItWorks() {
   );
 }
 
+/* ─── Aperçu du journal ─── */
+function JournalPreview() {
+  const [articles, setArticles] = useState<ArticleListItem[]>([]);
+
+  useEffect(() => {
+    publicArticleApi
+      .list({ type: 'blog' })
+      .then((data) => setArticles(data.slice(0, 3)))
+      .catch(() => { /* silencieux si pas d'articles */ });
+  }, []);
+
+  if (articles.length === 0) return null;
+
+  return (
+    <section className="py-24 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
+          <div>
+            <div className="inline-flex items-center gap-2 bg-gold-400/10 border border-gold-400/25 text-gold-400 text-xs font-semibold px-3.5 py-1.5 rounded-full mb-4">
+              <BookOpen className="w-3.5 h-3.5" />
+              Journal
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-bold text-neutral-100">
+              Le Journal Restoflow
+            </h2>
+            <p className="text-neutral-400 mt-2">
+              Conseils, stratégies et inspirations pour les restaurateurs.
+            </p>
+          </div>
+          <Link
+            to="/blog"
+            className="inline-flex items-center gap-1.5 text-gold-400 hover:text-gold-300 font-semibold text-sm transition flex-shrink-0"
+          >
+            Voir tous les articles
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {articles.map((a) => (
+            <Link
+              key={a.id}
+              to={`/blog/${a.slug}`}
+              className="group flex flex-col bg-neutral-950 border border-neutral-800 rounded-2xl overflow-hidden hover:border-gold-400/30 transition-all duration-300 hover:-translate-y-0.5"
+            >
+              <div className="relative aspect-[16/9] bg-neutral-900 overflow-hidden flex-shrink-0">
+                {a.coverUrl ? (
+                  <img
+                    src={a.coverUrl}
+                    alt={a.title}
+                    loading="lazy"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-neutral-900 to-black">
+                    <BookOpen className="w-8 h-8 text-gold-400/20" />
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+              </div>
+              <div className="p-5 flex flex-col flex-1">
+                <h3 className="text-neutral-100 font-bold text-sm leading-snug mb-2 group-hover:text-gold-300 transition-colors line-clamp-2">
+                  {a.title}
+                </h3>
+                {a.excerpt && (
+                  <p className="text-neutral-500 text-xs leading-relaxed line-clamp-2 mb-3 flex-1">
+                    {a.excerpt}
+                  </p>
+                )}
+                <div className="flex items-center gap-1.5 text-xs text-neutral-600 mt-auto">
+                  <Calendar className="w-3 h-3" />
+                  {a.publishedAt
+                    ? new Date(a.publishedAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
+                    : ''}
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ─── CTA finale ─── */
 function CtaBanner() {
   return (
@@ -586,6 +688,8 @@ function Footer() {
               {[
                 { label: 'Créer un restaurant', to: '/signup' },
                 { label: 'Se connecter', to: '/login' },
+                { label: 'Blog', to: '/blog' },
+                { label: 'Success Stories', to: '/success-stories' },
               ].map(({ label, to }) => (
                 <li key={to}>
                   <Link to={to} className="text-sm text-neutral-400 hover:text-neutral-100 transition">
@@ -652,6 +756,7 @@ export default function LandingPage() {
         <Features />
         <Gallery />
         <HowItWorks />
+        <JournalPreview />
         <CtaBanner />
       </main>
       <Footer />
