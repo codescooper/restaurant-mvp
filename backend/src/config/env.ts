@@ -10,13 +10,16 @@ function required(key: string, fallback?: string): string {
   return value;
 }
 
+const isProd = (process.env.NODE_ENV ?? 'development') === 'production';
+
 export const env = {
   port: Number(process.env.PORT ?? 3000),
   nodeEnv: process.env.NODE_ENV ?? 'development',
-  isProd: (process.env.NODE_ENV ?? 'development') === 'production',
-  jwtSecret: required('JWT_SECRET', 'dev_jwt_secret'),
+  isProd,
+  // En prod, pas de fallback : l'app crashe au démarrage si le secret est absent (forge de tokens impossible).
+  jwtSecret: required('JWT_SECRET', isProd ? undefined : 'dev_jwt_secret'),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '24h',
-  jwtRefreshSecret: required('JWT_REFRESH_SECRET', 'dev_refresh_secret'),
+  jwtRefreshSecret: required('JWT_REFRESH_SECRET', isProd ? undefined : 'dev_refresh_secret'),
   jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
   corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:5173',
   // Bootstrap du super-admin plateforme (créé/mis à jour par le seed).
