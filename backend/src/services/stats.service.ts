@@ -173,23 +173,33 @@ export async function getDashboard(range: Range) {
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 5);
 
-  // Modes de paiement (uniquement les commandes payées).
-  const payAgg = new Map<string, { count: number; amount: number }>();
-  let paidCount = 0;
-  for (const o of orders) {
-    if (!o.paymentMethod) continue;
-    paidCount += 1;
-    const cur = payAgg.get(o.paymentMethod) ?? { count: 0, amount: 0 };
-    cur.count += 1;
-    cur.amount += o.finalTotal;
-    payAgg.set(o.paymentMethod, cur);
-  }
-  const paymentMethods = [...payAgg.entries()].map(([method, v]) => ({
-    method,
-    count: v.count,
-    amount: v.amount,
-    percentage: paidCount ? Math.round((v.count / paidCount) * 100) : 0,
-  }));
+  // Modes de paiement (ventilation réelle via OrderPayment — commandes payées, non remboursées, non annulées).
+  // Le where aligne exactement sur la sélection des commandes payées de la période : même filtre createdAt
+  // que le fetch principal, plus isPaid:true, isRefunded:false, status != 'annulée'.
+  // Le pourcentage est calculé sur le montant total encaissé (plus juste que le count quand un paiement
+  // mixte génère plusieurs lignes pour une seule commande — comparer des montants est la sémantique métier).
+  const payAggRaw = await prisma.orderPayment.groupBy({
+    by: ['method'],
+    _sum: { amount: true },
+    _count: { id: true },
+    where: {
+      order: {
+        ...NON_CANCELLED,
+        createdAt: { gte: start, lt: end },
+        isPaid: true,
+        isRefunded: false,
+      },
+    },
+  });
+  const totalPayAmount = payAggRaw.reduce((s, r) => s + (r._sum.amount ?? 0), 0);
+  const paymentMethods = payAggRaw
+    .map((r) => ({
+      method: r.method,
+      count: r._count.id,
+      amount: r._sum.amount ?? 0,
+      percentage: totalPayAmount ? Math.round(((r._sum.amount ?? 0) / totalPayAmount) * 100) : 0,
+    }))
+    .sort((a, b) => b.amount - a.amount);
 
   // Répartition des ventes par canal (sur place / emporter / livraison).
   const channelAgg = new Map<string, { count: number; amount: number }>();

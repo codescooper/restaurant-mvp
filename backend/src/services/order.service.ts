@@ -667,6 +667,12 @@ export async function refundOrder(id: number, reason: string, userId?: number, r
 
   const validatedByPin = await verifyManagerApproval(role, pin);
 
+  // Charger les lignes de paiement pour les inclure dans l'audit.
+  const payments = await prisma.orderPayment.findMany({
+    where: { orderId: id },
+    select: { method: true, amount: true },
+  });
+
   const updated = await prisma.order.update({
     where: { id },
     data: {
@@ -682,7 +688,14 @@ export async function refundOrder(id: number, reason: string, userId?: number, r
     action: 'remboursement',
     entityType: 'order',
     entityId: id,
-    details: { orderNumber: updated.orderNumber, amount: updated.finalTotal, method: updated.paymentMethod, reason, validatedByPin },
+    details: {
+      orderNumber: updated.orderNumber,
+      amount: updated.finalTotal,
+      method: updated.paymentMethod,
+      payments: payments.map((p) => ({ method: p.method, amount: p.amount })),
+      reason,
+      validatedByPin,
+    },
   });
   emitStatsUpdated({ orderNumber: updated.orderNumber, refunded: true });
   return updated;
