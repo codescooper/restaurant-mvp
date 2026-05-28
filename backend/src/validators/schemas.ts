@@ -476,8 +476,9 @@ export const createArticleSchema = z.object({
   excerpt: z.string().max(500).optional(),
   content: z.string().min(1),
   coverUrl: z.string().max(3_500_000).refine(
-    v => v === '' || /^data:image\//.test(v) || /^https?:\/\//.test(v),
-    'URL image invalide'
+    // data URL image (upload) OU URL https (ex. Unsplash). http:// refusé pour éviter le mixed-content.
+    v => v === '' || /^data:image\//.test(v) || /^https:\/\//.test(v),
+    'URL image invalide (data:image/ ou https://)'
   ).optional(),
   category: z.string().max(50).optional(),
   authorName: z.string().max(100).optional(),

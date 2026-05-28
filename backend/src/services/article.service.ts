@@ -39,6 +39,7 @@ export async function listPublic(filter: { type?: string; category?: string }) {
     },
     orderBy: { publishedAt: 'desc' },
     select: PUBLIC_LIST_SELECT,
+    take: 100, // garde-fou : éviter une liste non bornée si le catalogue grandit
   });
 }
 
