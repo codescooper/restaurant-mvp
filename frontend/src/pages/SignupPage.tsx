@@ -28,6 +28,11 @@ export default function SignupPage() {
     setError(''); setLoading(true);
     try {
       const res = await signupApi.signup({ email, password, displayName, restaurantName });
+      if (!res.memberships?.length) {
+        setError('Inscription incomplète, réessayez.');
+        setLoading(false);
+        return;
+      }
       try {
         localStorage.setItem('accessToken', res.accessToken);
         localStorage.setItem('refreshToken', res.refreshToken);
