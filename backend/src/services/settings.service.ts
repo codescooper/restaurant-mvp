@@ -7,10 +7,14 @@ import {
   SETTING_RESTAURANT_NAME,
   DEFAULT_RESTAURANT_NAME,
   SETTING_BRANDING_PRIMARY_COLOR,
+  SETTING_BRANDING_ACCENT_COLOR,
+  SETTING_BRANDING_BACKGROUND_COLOR,
   SETTING_BRANDING_LOGO,
   SETTING_BRANDING_COVER,
   SETTING_BRANDING_BACKGROUND,
   DEFAULT_PRIMARY_COLOR,
+  DEFAULT_ACCENT_COLOR,
+  DEFAULT_BACKGROUND_COLOR,
   Role,
 } from '../constants';
 import { getTenantIdOrThrow } from '../config/tenant-context';
@@ -71,20 +75,26 @@ export async function setManagerPin(pin: string): Promise<void> {
 
 export interface Branding {
   primaryColor: string;      // hex, défaut DEFAULT_PRIMARY_COLOR
+  accentColor: string;       // hex, défaut DEFAULT_ACCENT_COLOR
+  backgroundColor: string;   // hex, défaut DEFAULT_BACKGROUND_COLOR
   logoUrl: string | null;
   coverUrl: string | null;
   backgroundUrl: string | null;
 }
 
 export async function getBranding(): Promise<Branding> {
-  const [color, logo, cover, background] = await Promise.all([
+  const [color, accent, bgColor, logo, cover, background] = await Promise.all([
     getSetting(SETTING_BRANDING_PRIMARY_COLOR),
+    getSetting(SETTING_BRANDING_ACCENT_COLOR),
+    getSetting(SETTING_BRANDING_BACKGROUND_COLOR),
     getSetting(SETTING_BRANDING_LOGO),
     getSetting(SETTING_BRANDING_COVER),
     getSetting(SETTING_BRANDING_BACKGROUND),
   ]);
   return {
     primaryColor: color?.trim() || DEFAULT_PRIMARY_COLOR,
+    accentColor: accent?.trim() || DEFAULT_ACCENT_COLOR,
+    backgroundColor: bgColor?.trim() || DEFAULT_BACKGROUND_COLOR,
     logoUrl: logo || null,
     coverUrl: cover || null,
     backgroundUrl: background || null,
@@ -93,10 +103,21 @@ export async function getBranding(): Promise<Branding> {
 
 // Met à jour uniquement les champs fournis (partial). Une chaîne vide explicite EFFACE l'image.
 export async function setBranding(
-  data: Partial<{ primaryColor: string; logoUrl: string; coverUrl: string; backgroundUrl: string }>
+  data: Partial<{
+    primaryColor: string;
+    accentColor: string;
+    backgroundColor: string;
+    logoUrl: string;
+    coverUrl: string;
+    backgroundUrl: string;
+  }>
 ): Promise<Branding> {
   if (data.primaryColor !== undefined)
     await setSetting(SETTING_BRANDING_PRIMARY_COLOR, data.primaryColor.trim(), 'Couleur principale du restaurant');
+  if (data.accentColor !== undefined)
+    await setSetting(SETTING_BRANDING_ACCENT_COLOR, data.accentColor.trim(), "Couleur d'accent du restaurant");
+  if (data.backgroundColor !== undefined)
+    await setSetting(SETTING_BRANDING_BACKGROUND_COLOR, data.backgroundColor.trim(), 'Couleur de fond du restaurant');
   if (data.logoUrl !== undefined)
     await setSetting(SETTING_BRANDING_LOGO, data.logoUrl, 'Logo du restaurant (data URL)');
   if (data.coverUrl !== undefined)

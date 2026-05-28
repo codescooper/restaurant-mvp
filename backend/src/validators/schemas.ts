@@ -382,6 +382,8 @@ const imageDataUrl = z
 
 export const brandingSchema = z.object({
   primaryColor: z.string().regex(HEX_COLOR, 'Couleur hex invalide (#RRGGBB)').optional(),
+  accentColor: z.string().regex(HEX_COLOR, 'Couleur hex invalide (#RRGGBB)').optional(),
+  backgroundColor: z.string().regex(HEX_COLOR, 'Couleur hex invalide (#RRGGBB)').optional(),
   logoUrl: imageDataUrl,
   coverUrl: imageDataUrl,
   backgroundUrl: imageDataUrl,

@@ -2,6 +2,8 @@ export type Role = 'propriétaire' | 'administrateur' | 'caissier' | 'cuisinier'
 
 export interface Branding {
   primaryColor: string;
+  accentColor: string;
+  backgroundColor: string;
   logoUrl: string | null;
   coverUrl: string | null;
   backgroundUrl: string | null;

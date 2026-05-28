@@ -25,6 +25,8 @@ export const SETTING_RESTAURANT_NAME = 'restaurant_name';
 
 // Clés de réglages — branding (P2b).
 export const SETTING_BRANDING_PRIMARY_COLOR = 'branding_primary_color';
+export const SETTING_BRANDING_ACCENT_COLOR = 'branding_accent_color';
+export const SETTING_BRANDING_BACKGROUND_COLOR = 'branding_background_color';
 export const SETTING_BRANDING_LOGO = 'branding_logo';
 export const SETTING_BRANDING_COVER = 'branding_cover';
 export const SETTING_BRANDING_BACKGROUND = 'branding_background';
@@ -32,8 +34,10 @@ export const SETTING_BRANDING_BACKGROUND = 'branding_background';
 // Nom du restaurant par défaut (affiché en en-tête des rapports tant qu'aucun n'est configuré).
 export const DEFAULT_RESTAURANT_NAME = 'Mon Restaurant';
 
-// Couleur primaire par défaut (gold-400, accent par défaut de l'app).
+// Couleurs par défaut (gold-400 / gold-300 / noir).
 export const DEFAULT_PRIMARY_COLOR = '#D4AF37';
+export const DEFAULT_ACCENT_COLOR = '#E4C86A';      // gold-300 (accent secondaire par défaut)
+export const DEFAULT_BACKGROUND_COLOR = '#000000';  // noir (fond par défaut quand pas d'image)
 
 export const STOCK_UNITS = ['kg', 'litre', 'unité', 'gramme', 'ml'] as const;
 export type StockUnit = (typeof STOCK_UNITS)[number];
