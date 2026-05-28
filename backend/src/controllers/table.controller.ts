@@ -24,7 +24,8 @@ export const settleTableController = asyncHandler(async (req, res) => {
     req.body.paymentMethod,
     req.body.paymentDetails,
     req.user?.id,
-    { amount: req.body.tipAmount, method: req.body.tipMethod }
+    { amount: req.body.tipAmount, method: req.body.tipMethod },
+    req.body.payments
   );
   sendSuccess(res, result);
 });

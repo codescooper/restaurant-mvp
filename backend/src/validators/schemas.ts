@@ -220,6 +220,17 @@ export const updateUserSchema = z.object({
   displayName: z.string().min(1).max(80).optional(),
 });
 
+// --- Paiement mixte ---
+// Un split = un moyen + montant (jamais 'mixte' dans un split).
+const PAYMENT_SPLIT_METHODS = ['espèces', 'mobile_money', 'carte', 'virement', 'qr_code'] as const;
+export const paymentSplitSchema = z.object({
+  method: z.enum(PAYMENT_SPLIT_METHODS),
+  amount: z.number().int().positive(),
+  mobileMoneyProvider: z.enum(MOBILE_MONEY_PROVIDERS).optional(),
+  cashGiven: z.number().int().min(0).optional(),
+  changeReturned: z.number().int().min(0).optional(),
+});
+
 // --- Orders ---
 export const createOrderSchema = z
   .object({
@@ -248,6 +259,8 @@ export const createOrderSchema = z
         changeReturned: z.number().min(0).optional(),
       })
       .optional(),
+    // Paiement mixte : si présent, source de vérité (remplace paymentMethod/paymentDetails).
+    payments: z.array(paymentSplitSchema).min(1).max(5).optional(),
     tipAmount: z.number().int().min(0).optional(),
     tipMethod: z.enum(PAYMENT_METHODS).optional(),
     tableId: z.number().int().positive().optional(),
@@ -262,7 +275,7 @@ export const createOrderSchema = z
   });
 
 export const payOrderSchema = z.object({
-  paymentMethod: z.enum(PAYMENT_METHODS),
+  paymentMethod: z.enum(PAYMENT_METHODS).optional(),
   paymentDetails: z
     .object({
       mobileMoneyProvider: z.enum(MOBILE_MONEY_PROVIDERS).optional(),
@@ -270,6 +283,8 @@ export const payOrderSchema = z.object({
       changeReturned: z.number().min(0).optional(),
     })
     .optional(),
+  // Paiement mixte : si présent, source de vérité (remplace paymentMethod/paymentDetails).
+  payments: z.array(paymentSplitSchema).min(1).max(5).optional(),
   tipAmount: z.number().int().min(0).optional(),
   tipMethod: z.enum(PAYMENT_METHODS).optional(),
 });

@@ -21,7 +21,9 @@ import {
   SalesChannel,
   DeliveryPlatform,
   Role,
+  isCashPaymentMethod,
 } from '../constants';
+import { getTenantIdOrThrow } from '../config/tenant-context';
 
 type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
@@ -37,6 +39,98 @@ export interface OrderItemInput {
   notes?: string;
 }
 
+// --- Paiement mixte ---
+
+export interface PaymentSplit {
+  method: string;
+  amount: number;
+  mobileMoneyProvider?: string;
+  cashGiven?: number;
+  changeReturned?: number;
+}
+
+export interface ResolvedPayment {
+  splits: PaymentSplit[];
+  summaryMethod: string;          // 'mixte' si >1 split, sinon le moyen unique
+  cashGiven?: number;             // résumé : valeur de la ligne espèces (ou mono espèces)
+  changeReturned?: number;        // résumé : rendu de monnaie (ligne espèces)
+  mobileMoneyProvider?: string;   // résumé : provider de la 1re ligne mobile_money
+  hasCash: boolean;               // au moins une ligne espèces
+  hasPayment: boolean;            // false = commande différée sans paiement
+}
+
+/**
+ * Unifie les trois modes d'entrée (payments[], paymentMethod mono, ou aucun paiement)
+ * en une structure normalisée et valide les règles métier.
+ *
+ * `due` = montant exact à encaisser (déjà net de pourboire et d'acompte côté appelant).
+ */
+export function resolvePayments(
+  input: {
+    payments?: PaymentSplit[];
+    paymentMethod?: string;
+    paymentDetails?: { mobileMoneyProvider?: string; cashGiven?: number; changeReturned?: number };
+  },
+  due: number
+): ResolvedPayment {
+  // Cas 1 : aucun paiement fourni → commande différée.
+  if (!input.payments?.length && !input.paymentMethod) {
+    return { splits: [], summaryMethod: '', hasCash: false, hasPayment: false };
+  }
+
+  // Construction des splits.
+  let splits: PaymentSplit[];
+  if (input.payments?.length) {
+    splits = input.payments;
+  } else {
+    // Mono via paymentMethod legacy.
+    splits = [{
+      method: input.paymentMethod!,
+      amount: due,
+      mobileMoneyProvider: input.paymentDetails?.mobileMoneyProvider,
+      cashGiven: input.paymentDetails?.cashGiven,
+      changeReturned: input.paymentDetails?.changeReturned,
+    }];
+  }
+
+  // Validation : somme des splits = due.
+  const total = splits.reduce((s, sp) => s + sp.amount, 0);
+  if (total !== due) {
+    throw new AppError(400, 'VALIDATION_001', 'Le total des paiements doit égaler le montant dû');
+  }
+
+  // Validation par split.
+  for (const sp of splits) {
+    if (isCashPaymentMethod(sp.method)) {
+      const given = sp.cashGiven ?? sp.amount;
+      if (given < sp.amount) {
+        throw new AppError(400, 'VALIDATION_001', 'Montant remis insuffisant');
+      }
+    }
+    if (sp.method === 'mobile_money' && !sp.mobileMoneyProvider) {
+      throw new AppError(400, 'VALIDATION_001', 'Service mobile money requis');
+    }
+  }
+
+  const summaryMethod = splits.length > 1 ? 'mixte' : splits[0].method;
+  const hasCash = splits.some((s) => isCashPaymentMethod(s.method));
+
+  // Résumé espèces (ticket + compat Order.cashGiven / changeReturned).
+  const cashSplit = splits.find((s) => isCashPaymentMethod(s.method));
+  const cashGiven = cashSplit ? (cashSplit.cashGiven ?? cashSplit.amount) : undefined;
+  const changeReturned = cashSplit
+    ? (cashSplit.changeReturned ?? Math.max(0, (cashSplit.cashGiven ?? cashSplit.amount) - cashSplit.amount))
+    : undefined;
+
+  // Résumé mobile_money (1re ligne).
+  const mmSplit = splits.find((s) => s.method === 'mobile_money');
+  const mobileMoneyProvider = mmSplit?.mobileMoneyProvider;
+
+  return { splits, summaryMethod, cashGiven, changeReturned, mobileMoneyProvider, hasCash, hasPayment: true };
+}
+
+// --- Fin paiement mixte ---
+
 export interface CreateOrderInput {
   items: OrderItemInput[];
   couponCode?: string;
@@ -49,6 +143,8 @@ export interface CreateOrderInput {
     cashGiven?: number;
     changeReturned?: number;
   };
+  // Paiement mixte : si présent, source de vérité (remplace paymentMethod/paymentDetails).
+  payments?: PaymentSplit[];
   // Pourboire (hors total / hors CA / hors caisse) : enregistré seulement à l'encaissement.
   tipAmount?: number;
   tipMethod?: PaymentMethod;
@@ -231,13 +327,20 @@ export async function createOrder(input: CreateOrderInput, userId?: number, mark
   const finalTotal = computeFinalTotal(total, discountAmount, discountPercent);
 
   // Pourboire : uniquement si la commande est encaissée maintenant ; jamais ajouté au total.
-  const tipAmount = input.paymentMethod ? Math.max(0, Math.round(input.tipAmount ?? 0)) : 0;
-  const tipMethod = tipAmount > 0 ? input.tipMethod ?? input.paymentMethod ?? null : null;
+  const hasPaymentInput = !!(input.payments?.length || input.paymentMethod);
+  const tipAmount = hasPaymentInput ? Math.max(0, Math.round(input.tipAmount ?? 0)) : 0;
+  const tipMethod = tipAmount > 0 ? input.tipMethod ?? (input.paymentMethod as PaymentMethod | undefined) ?? null : null;
+
+  // Résoudre les splits de paiement. Le due pour createOrder = finalTotal (pas d'acompte ici).
+  const pay = resolvePayments(input, finalTotal);
 
   // Paiement immédiat en espèces : une caisse ouverte est requise ; on lie la session.
-  const cashSessionId = input.paymentMethod
-    ? await resolveCashSessionForPayment(userId, input.paymentMethod)
+  const cashSessionId = pay.hasPayment
+    ? (pay.hasCash ? await resolveCashSessionForPayment(userId, 'espèces') : null)
     : null;
+
+  // restaurantId du tenant courant (nécessaire pour les lignes OrderPayment dans la tx).
+  const restaurantId = pay.hasPayment ? getTenantIdOrThrow() : null;
 
   const order = await prisma.$transaction(async (tx) => {
     const orderNumber = await generateOrderNumber(tx);
@@ -248,11 +351,11 @@ export async function createOrder(input: CreateOrderInput, userId?: number, mark
         discountAmount,
         discountPercent,
         finalTotal,
-        paymentMethod: input.paymentMethod ?? null,
+        paymentMethod: pay.hasPayment ? pay.summaryMethod : null,
         paymentDetails: (input.paymentDetails as Prisma.InputJsonValue) ?? undefined,
-        mobileMoneyProvider: input.paymentDetails?.mobileMoneyProvider,
-        cashGiven: input.paymentDetails?.cashGiven,
-        changeReturned: input.paymentDetails?.changeReturned,
+        mobileMoneyProvider: pay.mobileMoneyProvider ?? null,
+        cashGiven: pay.cashGiven ?? null,
+        changeReturned: pay.changeReturned ?? null,
         channel: input.channel ?? 'sur_place',
         deliveryPlatform: input.channel === 'livraison' ? input.deliveryPlatform ?? null : null,
         customerName: input.customerName?.trim() || null,
@@ -261,8 +364,8 @@ export async function createOrder(input: CreateOrderInput, userId?: number, mark
         promoLabel: promoLabel ?? null,
         tipAmount,
         tipMethod,
-        isPaid: !!input.paymentMethod,
-        paidAt: input.paymentMethod ? new Date() : null,
+        isPaid: pay.hasPayment,
+        paidAt: pay.hasPayment ? new Date() : null,
         cashSessionId,
         status: 'commandée',
         tableId: input.tableId ?? null,
@@ -273,6 +376,21 @@ export async function createOrder(input: CreateOrderInput, userId?: number, mark
       },
       include: orderInclude,
     });
+
+    // Lignes OrderPayment (source de vérité des encaissements). Absentes si commande différée.
+    if (pay.hasPayment && pay.splits.length > 0 && restaurantId != null) {
+      await tx.orderPayment.createMany({
+        data: pay.splits.map((s) => ({
+          orderId: created.id,
+          method: s.method,
+          amount: s.amount,
+          mobileMoneyProvider: s.mobileMoneyProvider ?? null,
+          cashGiven: s.cashGiven ?? null,
+          changeReturned: s.changeReturned ?? null,
+          restaurantId,
+        })),
+      });
+    }
 
     // Comptabilise l'utilisation du coupon.
     if (couponToConsume) {
@@ -340,13 +458,13 @@ export async function createOrder(input: CreateOrderInput, userId?: number, mark
       details: { orderNumber: order.orderNumber, discountAmount, discountPercent, finalTotal },
     });
   }
-  if (input.paymentMethod) {
+  if (pay.hasPayment) {
     await logAudit({
       userId,
       action: 'paiement',
       entityType: 'order',
       entityId: order.id,
-      details: { orderNumber: order.orderNumber, amount: order.finalTotal, method: input.paymentMethod },
+      details: { orderNumber: order.orderNumber, amount: order.finalTotal, method: pay.summaryMethod },
     });
   }
 
@@ -462,52 +580,78 @@ export async function cancelOrder(id: number, reason: string, userId?: number, r
 // Règlement d'une commande différée (paiement à la caisse).
 export async function payOrder(
   id: number,
-  paymentMethod: PaymentMethod,
+  paymentMethod: PaymentMethod | undefined,
   paymentDetails?: { mobileMoneyProvider?: MobileMoneyProvider; cashGiven?: number; changeReturned?: number },
   userId?: number,
-  tip?: { amount?: number; method?: PaymentMethod }
+  tip?: { amount?: number; method?: PaymentMethod },
+  payments?: PaymentSplit[]
 ) {
   const order = await prisma.order.findUnique({ where: { id } });
   if (!order) throw new AppError(404, 'ORDER_001');
   if (order.status === 'annulée') throw new AppError(400, 'ORDER_002', 'Commande annulée');
   if (order.isPaid) throw new AppError(400, 'ORDER_002', 'Commande déjà payée');
 
-  // Pourboire (hors total) : le montant dû en espèces inclut le pourboire pour le rendu de monnaie.
+  // Pourboire (hors total) : hors splits, traité séparément.
   const tipAmount = Math.max(0, Math.round(tip?.amount ?? 0));
-  const tipMethod = tipAmount > 0 ? tip?.method ?? paymentMethod : null;
-  const due = order.finalTotal + tipAmount;
+  const tipMethod = tipAmount > 0 ? tip?.method ?? paymentMethod ?? null : null;
 
-  if (paymentMethod === 'espèces' && (paymentDetails?.cashGiven ?? 0) < due) {
-    throw new AppError(400, 'VALIDATION_001', 'Montant remis insuffisant');
+  // Les splits encaissent le finalTotal (hors pourboire) ; le pourboire est porté séparément sur l'Order.
+  const dueSplits = order.finalTotal;
+
+  const pay = resolvePayments({ payments, paymentMethod, paymentDetails }, dueSplits);
+  if (!pay.hasPayment) {
+    throw new AppError(400, 'VALIDATION_001', 'Moyen de paiement requis');
   }
-  if (paymentMethod === 'mobile_money' && !paymentDetails?.mobileMoneyProvider) {
-    throw new AppError(400, 'VALIDATION_001', 'Service mobile money requis');
-  }
+
   // Espèces : une caisse doit être ouverte ; on lie la commande à la session.
-  const cashSessionId = await resolveCashSessionForPayment(userId, paymentMethod);
-  const change = paymentMethod === 'espèces' ? Math.max(0, (paymentDetails?.cashGiven ?? 0) - due) : 0;
+  const cashSessionId = pay.hasCash
+    ? await resolveCashSessionForPayment(userId, 'espèces')
+    : null;
 
-  const updated = await prisma.order.update({
-    where: { id },
-    data: {
-      isPaid: true,
-      paidAt: new Date(),
-      paymentMethod,
-      cashSessionId,
-      tipAmount,
-      tipMethod,
-      mobileMoneyProvider: paymentMethod === 'mobile_money' ? paymentDetails?.mobileMoneyProvider : undefined,
-      cashGiven: paymentMethod === 'espèces' ? paymentDetails?.cashGiven : undefined,
-      changeReturned: paymentMethod === 'espèces' ? change : undefined,
-    },
-    include: orderInclude,
+  // restaurantId pour les lignes OrderPayment dans la transaction.
+  const restaurantId = getTenantIdOrThrow();
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const o = await tx.order.update({
+      where: { id },
+      data: {
+        isPaid: true,
+        paidAt: new Date(),
+        paymentMethod: pay.summaryMethod,
+        cashSessionId,
+        tipAmount,
+        tipMethod,
+        mobileMoneyProvider: pay.mobileMoneyProvider ?? null,
+        cashGiven: pay.cashGiven ?? null,
+        changeReturned: pay.changeReturned ?? null,
+      },
+      include: orderInclude,
+    });
+
+    // Lignes OrderPayment.
+    if (pay.splits.length > 0) {
+      await tx.orderPayment.createMany({
+        data: pay.splits.map((s) => ({
+          orderId: id,
+          method: s.method,
+          amount: s.amount,
+          mobileMoneyProvider: s.mobileMoneyProvider ?? null,
+          cashGiven: s.cashGiven ?? null,
+          changeReturned: s.changeReturned ?? null,
+          restaurantId,
+        })),
+      });
+    }
+
+    return o;
   });
+
   await logAudit({
     userId,
     action: 'paiement',
     entityType: 'order',
     entityId: id,
-    details: { orderNumber: updated.orderNumber, amount: updated.finalTotal, method: paymentMethod },
+    details: { orderNumber: updated.orderNumber, amount: updated.finalTotal, method: pay.summaryMethod },
   });
   emitStatsUpdated({ orderNumber: updated.orderNumber, paid: true });
   return updated;

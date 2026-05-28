@@ -12,7 +12,8 @@ import {
   isCashPaymentMethod,
 } from '../constants';
 import { resolveCashSessionForPayment, getOpenSession } from './cash.service';
-import { createOrder } from './order.service';
+import { createOrder, resolvePayments, PaymentSplit } from './order.service';
+import { getTenantIdOrThrow } from '../config/tenant-context';
 import { logAudit } from './audit.service';
 import { emitStatsUpdated, emitToRole, emitToRestaurant } from '../websocket';
 
@@ -167,10 +168,11 @@ export async function deleteTable(id: number) {
 // Règlement de l'addition : paie toutes les commandes non payées (et non annulées) de la table.
 export async function settleTable(
   id: number,
-  paymentMethod: PaymentMethod,
+  paymentMethod: PaymentMethod | undefined,
   paymentDetails: PaymentDetails | undefined,
   userId?: number,
-  tip?: { amount?: number; method?: PaymentMethod }
+  tip?: { amount?: number; method?: PaymentMethod },
+  payments?: PaymentSplit[]
 ) {
   const table = await prisma.table.findUnique({ where: { id } });
   if (!table) throw new AppError(404, 'VALIDATION_001', 'Table introuvable');
@@ -189,21 +191,28 @@ export async function settleTable(
   });
   const depositApplied = depositRes ? Math.min(depositRes.depositAmount, total) : 0;
 
-  // Pourboire (hors total) attribué au serveur de la table ; le dû espèces l'inclut.
+  // Pourboire (hors total) attribué au serveur de la table.
   const tipAmount = Math.max(0, Math.round(tip?.amount ?? 0));
-  const tipMethod = tipAmount > 0 ? tip?.method ?? paymentMethod : null;
-  // Dû = total − acompte déjà versé + pourboire.
-  const due = total - depositApplied + tipAmount;
-  if (paymentMethod === 'espèces') {
-    const cash = paymentDetails?.cashGiven ?? 0;
-    if (cash < due) throw new AppError(400, 'VALIDATION_001', 'Montant remis insuffisant');
+  const tipMethod = tipAmount > 0 ? tip?.method ?? paymentMethod ?? null : null;
+
+  // Les splits encaissent le montant net (hors pourboire). Pourboire traité séparément sur la commande.
+  const dueSplits = total - depositApplied;
+
+  const pay = resolvePayments({ payments, paymentMethod, paymentDetails }, dueSplits);
+  if (!pay.hasPayment) {
+    throw new AppError(400, 'VALIDATION_001', 'Moyen de paiement requis');
   }
-  if (paymentMethod === 'mobile_money' && !paymentDetails?.mobileMoneyProvider) {
-    throw new AppError(400, 'VALIDATION_001', 'Service mobile money requis');
-  }
+
   // Espèces : une caisse doit être ouverte ; on lie les commandes réglées à la session.
-  const cashSessionId = await resolveCashSessionForPayment(userId, paymentMethod);
-  const change = paymentMethod === 'espèces' ? Math.max(0, (paymentDetails?.cashGiven ?? 0) - due) : 0;
+  const cashSessionId = pay.hasCash
+    ? await resolveCashSessionForPayment(userId, 'espèces')
+    : null;
+
+  // restaurantId pour les lignes OrderPayment (isolation tenant dans la tx).
+  const restaurantId = getTenantIdOrThrow();
+
+  // due total pour réponse finale (inclut pourboire).
+  const due = dueSplits + tipAmount;
 
   await prisma.$transaction(async (tx) => {
     for (const [idx, o] of unpaid.entries()) {
@@ -212,18 +221,34 @@ export async function settleTable(
         data: {
           isPaid: true,
           paidAt: new Date(),
-          paymentMethod,
+          paymentMethod: pay.summaryMethod,
           cashSessionId,
-          mobileMoneyProvider: paymentMethod === 'mobile_money' ? paymentDetails?.mobileMoneyProvider : undefined,
+          mobileMoneyProvider: pay.mobileMoneyProvider ?? null,
           // Le détail espèces (remis/monnaie), le pourboire et l'acompte déduit sont portés par la 1re commande du lot.
-          cashGiven: paymentMethod === 'espèces' && idx === 0 ? paymentDetails?.cashGiven : undefined,
-          changeReturned: paymentMethod === 'espèces' && idx === 0 ? change : undefined,
+          cashGiven: idx === 0 ? (pay.cashGiven ?? null) : undefined,
+          changeReturned: idx === 0 ? (pay.changeReturned ?? null) : undefined,
           tipAmount: idx === 0 ? tipAmount : undefined,
           tipMethod: idx === 0 ? tipMethod : undefined,
           depositApplied: idx === 0 ? depositApplied : undefined,
         },
       });
     }
+
+    // Lignes OrderPayment sur la commande porteuse (idx 0), cohérent avec cashGiven/tip.
+    if (pay.splits.length > 0 && unpaid.length > 0) {
+      await tx.orderPayment.createMany({
+        data: pay.splits.map((s) => ({
+          orderId: unpaid[0].id,
+          method: s.method,
+          amount: s.amount,
+          mobileMoneyProvider: s.mobileMoneyProvider ?? null,
+          cashGiven: s.cashGiven ?? null,
+          changeReturned: s.changeReturned ?? null,
+          restaurantId,
+        })),
+      });
+    }
+
     // L'acompte est consommé : on clôt la réservation (honorée) pour ne pas le déduire deux fois.
     if (depositRes) {
       await tx.reservation.update({ where: { id: depositRes.id }, data: { depositConsumed: true, status: 'honorée' } });
@@ -233,16 +258,17 @@ export async function settleTable(
   // L'addition est réglée : on retombe la demande d'addition.
   if (table.billRequested) await prisma.table.update({ where: { id }, data: { billRequested: false } });
 
+  const change = pay.changeReturned ?? 0;
   await logAudit({
     userId,
     action: 'paiement',
     entityType: 'table',
     entityId: id,
-    details: { tableName: table.name, amount: total, deposit: depositApplied, tip: tipAmount, method: paymentMethod, orderCount: unpaid.length },
+    details: { tableName: table.name, amount: total, deposit: depositApplied, tip: tipAmount, method: pay.summaryMethod, orderCount: unpaid.length },
   });
   emitStatsUpdated({ settledTable: table.name, total });
   emitToRole('caissier', 'table_settled', { tableId: id, tableName: table.name, total });
-  return { tableId: id, paidCount: unpaid.length, total, depositApplied, due, tip: tipAmount, change, paymentMethod };
+  return { tableId: id, paidCount: unpaid.length, total, depositApplied, due, tip: tipAmount, change, paymentMethod: pay.summaryMethod };
 }
 
 // Le serveur signale (ou annule) une demande d'addition ; la caisse est notifiée en temps réel.

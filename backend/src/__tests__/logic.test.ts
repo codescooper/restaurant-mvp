@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeFinalTotal, formatOrderNumber, resolveLibrePrice } from '../services/order.service';
+import { computeFinalTotal, formatOrderNumber, resolveLibrePrice, resolvePayments } from '../services/order.service';
 import { roundQty } from '../services/stock.service';
 import { computeDiscrepancy } from '../services/cash.service';
 import { evaluateManagerApproval } from '../services/settings.service';
@@ -221,5 +221,75 @@ describe('dashboardRangeSchema', () => {
   it('refuse un format de date invalide', () => {
     const res = dashboardRangeSchema.safeParse({ from: '01/05/2026', to: '07/05/2026' });
     expect(res.success).toBe(false);
+  });
+});
+
+describe('resolvePayments', () => {
+  it('commande différée (aucun paiement) : hasPayment = false, pas de splits', () => {
+    const r = resolvePayments({}, 5000);
+    expect(r.hasPayment).toBe(false);
+    expect(r.splits).toHaveLength(0);
+  });
+
+  it('mono espèces : 1 split, summaryMethod = espèces, hasCash = true', () => {
+    const r = resolvePayments({ paymentMethod: 'espèces', paymentDetails: { cashGiven: 6000 } }, 5000);
+    expect(r.hasPayment).toBe(true);
+    expect(r.splits).toHaveLength(1);
+    expect(r.summaryMethod).toBe('espèces');
+    expect(r.hasCash).toBe(true);
+    expect(r.cashGiven).toBe(6000);
+    expect(r.changeReturned).toBe(1000);
+  });
+
+  it('mono mobile_money : hasCash = false, mobileMoneyProvider transmis', () => {
+    const r = resolvePayments({
+      paymentMethod: 'mobile_money',
+      paymentDetails: { mobileMoneyProvider: 'orange_money' },
+    }, 3000);
+    expect(r.hasCash).toBe(false);
+    expect(r.mobileMoneyProvider).toBe('orange_money');
+    expect(r.summaryMethod).toBe('mobile_money');
+  });
+
+  it('mixte 2 splits : summaryMethod = mixte', () => {
+    const r = resolvePayments({
+      payments: [
+        { method: 'espèces', amount: 3000, cashGiven: 5000 },
+        { method: 'mobile_money', amount: 2000, mobileMoneyProvider: 'wave' },
+      ],
+    }, 5000);
+    expect(r.summaryMethod).toBe('mixte');
+    expect(r.splits).toHaveLength(2);
+    expect(r.hasCash).toBe(true);
+    expect(r.cashGiven).toBe(5000);
+    expect(r.changeReturned).toBe(2000); // 5000 remis - 3000 dû espèces
+    expect(r.mobileMoneyProvider).toBe('wave');
+  });
+
+  it('erreur si somme splits !== due', () => {
+    expect(() => resolvePayments({
+      payments: [
+        { method: 'espèces', amount: 2000 },
+        { method: 'carte', amount: 2000 },
+      ],
+    }, 5000)).toThrowError(/total des paiements/);
+  });
+
+  it('erreur si cashGiven < amount du split espèces', () => {
+    expect(() => resolvePayments({
+      payments: [{ method: 'espèces', amount: 5000, cashGiven: 4000 }],
+    }, 5000)).toThrowError(/Montant remis/);
+  });
+
+  it('erreur si mobile_money sans mobileMoneyProvider', () => {
+    expect(() => resolvePayments({
+      payments: [{ method: 'mobile_money', amount: 5000 }],
+    }, 5000)).toThrowError(/mobile money/);
+  });
+
+  it('cashGiven absent sur split espèces : déduit de amount (rendu = 0)', () => {
+    const r = resolvePayments({ payments: [{ method: 'espèces', amount: 5000 }] }, 5000);
+    expect(r.cashGiven).toBe(5000);
+    expect(r.changeReturned).toBe(0);
   });
 });
