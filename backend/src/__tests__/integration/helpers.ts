@@ -9,6 +9,7 @@ export async function resetAndSeedTwoRestaurants(): Promise<{ A: SeededRestauran
     basePrisma.notificationRead.deleteMany(),
     basePrisma.notification.deleteMany(),
     basePrisma.stockMovement.deleteMany(),
+    basePrisma.orderPayment.deleteMany(),
     basePrisma.orderItem.deleteMany(),
     basePrisma.order.deleteMany(),
     basePrisma.dishIngredient.deleteMany(),

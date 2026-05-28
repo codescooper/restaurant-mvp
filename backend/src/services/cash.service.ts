@@ -150,7 +150,7 @@ export async function cashTipsForSession(sessionId: number): Promise<number> {
 // On groupe sur OrderPayment plutôt que sur Order.paymentMethod :
 //   – Pour le mixte, chaque split est compté dans sa propre méthode (espèces/carte/mobile_money).
 //   – Pour le mono, le résultat est identique à l'ancien groupBy sur Order (1 split = 1 ligne).
-async function salesByMethod(sessionId: number) {
+export async function salesByMethod(sessionId: number) {
   const grouped = await prisma.orderPayment.groupBy({
     by: ['method'],
     _sum: { amount: true },
