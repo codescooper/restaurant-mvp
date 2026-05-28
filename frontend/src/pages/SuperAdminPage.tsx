@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Shield, CheckCircle2, Pause, Play, XCircle, AlertCircle, Loader2, BookOpen } from 'lucide-react';
-import { adminApi } from '../services/endpoints';
+import { Shield, CheckCircle2, Pause, Play, XCircle, AlertCircle, Loader2, BookOpen, Globe } from 'lucide-react';
+import { adminApi, adminCatalogApi } from '../services/endpoints';
 import { AdminRestaurantRow, RestaurantStatus } from '../types';
 import { getApiError } from '../services/api';
 import ContentManager from './admin/ContentManager';
+import AdminCatalogRequests from './admin/AdminCatalogRequests';
 
 const STATUS_LABEL: Record<RestaurantStatus, string> = {
   pending: 'En attente', active: 'Actif', suspended: 'Suspendu', rejected: 'Refusé',
@@ -13,7 +14,7 @@ const STATUS_BADGE: Record<RestaurantStatus, string> = {
   suspended: 'bg-rose-500/15 text-rose-300', rejected: 'bg-orange-500/15 text-orange-300',
 };
 
-type Tab = 'restaurants' | 'contenu';
+type Tab = 'restaurants' | 'contenu' | 'annuaire';
 
 export default function SuperAdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>('restaurants');
@@ -22,10 +23,18 @@ export default function SuperAdminPage() {
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState<number | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ id: number; type: 'activate' | 'suspend' | 'reactivate' | 'reject'; restoName: string; counts?: AdminRestaurantRow['_count']; reason?: string } | null>(null);
+  const [catalogPendingCount, setCatalogPendingCount] = useState(0);
 
   const load = () => adminApi.listRestaurants(filter === 'all' ? undefined : filter)
     .then(setRows).catch((e) => setError(getApiError(e)));
   useEffect(() => { load(); }, [filter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load pending catalog requests count for the badge
+  useEffect(() => {
+    adminCatalogApi.list('pending')
+      .then((data) => setCatalogPendingCount(data.length))
+      .catch(() => { /* silent */ });
+  }, []);
 
   const runAction = async () => {
     if (!confirmAction) return;
@@ -79,10 +88,29 @@ export default function SuperAdminPage() {
           <BookOpen className="w-4 h-4" />
           Contenu
         </button>
+        <button
+          onClick={() => setActiveTab('annuaire')}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition ${
+            activeTab === 'annuaire'
+              ? 'bg-gold-400 text-black'
+              : 'text-neutral-400 hover:text-neutral-200'
+          }`}
+        >
+          <Globe className="w-4 h-4" />
+          Demandes annuaire
+          {catalogPendingCount > 0 && (
+            <span className="ml-1 inline-flex items-center justify-center w-5 h-5 text-xs font-bold bg-amber-500 text-black rounded-full">
+              {catalogPendingCount}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Contenu tab */}
       {activeTab === 'contenu' && <ContentManager />}
+
+      {/* Annuaire tab */}
+      {activeTab === 'annuaire' && <AdminCatalogRequests />}
 
       {/* Restaurants tab */}
       {activeTab === 'restaurants' && (<>
