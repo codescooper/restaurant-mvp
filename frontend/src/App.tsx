@@ -23,6 +23,7 @@ const RejectedPage = lazy(() => import('./pages/RejectedPage'));
 const PendingMemberPage = lazy(() => import('./pages/PendingMemberPage'));
 const InviteAcceptPage = lazy(() => import('./pages/InviteAcceptPage'));
 const SuperAdminPage = lazy(() => import('./pages/SuperAdminPage'));
+const PublicRestaurantPage = lazy(() => import('./pages/PublicRestaurantPage'));
 
 function SuperAdminRoute({ children }: { children: React.ReactNode }) {
   const { currentUser, loading } = useAuth();
@@ -135,6 +136,9 @@ export default function App() {
 
                 {/* Page d'acceptation invitation */}
                 <Route path="/invite/:token" element={<InviteAcceptPage />} />
+
+                {/* Page publique restaurant (P2c) — sans auth, sans Layout */}
+                <Route path="/r/:slug" element={<PublicRestaurantPage />} />
 
                 {/* Console super-admin */}
                 <Route path="/super-admin" element={<SuperAdminRoute><SuperAdminPage /></SuperAdminRoute>} />

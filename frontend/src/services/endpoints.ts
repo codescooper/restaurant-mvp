@@ -365,6 +365,41 @@ export const brandingApi = {
   update: (data: Partial<Branding>) => api.put('/settings/branding', data).then((r) => r.data.data as Branding),
 };
 
+// ─── API publique restaurant (page /r/:slug, sans auth) ───────────────────────
+
+export interface PublicDish {
+  id: number;
+  name: string;
+  description: string | null;
+  price: number;
+  priceType: 'fixe' | 'libre';
+  priceMin: number | null;
+  priceMax: number | null;
+  imageUrl: string | null;
+  category: string;
+  available: boolean;
+}
+
+export interface PublicRestaurant {
+  name: string;
+  slug: string;
+  branding: {
+    primaryColor: string;
+    accentColor: string;
+    backgroundColor: string;
+    logoUrl: string | null;
+    coverUrl: string | null;
+    backgroundUrl: string | null;
+    whatsapp: string | null;
+  };
+  menu: { category: string; items: PublicDish[] }[];
+}
+
+export const publicRestaurantApi = {
+  get: (slug: string) =>
+    api.get(`/public/restaurants/${slug}`).then((r) => r.data.data as PublicRestaurant),
+};
+
 export const settingsApi = {
   getMaxDiscount: () => api.get('/settings/max-discount').then((r) => r.data.data.maxDiscountPercent as number),
   setMaxDiscount: (maxDiscountPercent: number) =>
