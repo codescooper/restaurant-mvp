@@ -187,6 +187,7 @@ interface LocalBranding {
   logoUrl: string | null;
   coverUrl: string | null;
   backgroundUrl: string | null;
+  whatsapp: string;
 }
 
 export default function BrandingTab() {
@@ -198,6 +199,7 @@ export default function BrandingTab() {
     logoUrl:     null,
     coverUrl:    null,
     backgroundUrl: null,
+    whatsapp: '',
   });
 
   // Champs texte hex indépendants (pour saisie partielle sans casser le picker)
@@ -224,6 +226,7 @@ export default function BrandingTab() {
           logoUrl:      b.logoUrl,
           coverUrl:     b.coverUrl,
           backgroundUrl: b.backgroundUrl,
+          whatsapp: b.whatsapp ?? '',
         });
         setHexPrimary(primary);
         setHexAccent(accent);
@@ -267,6 +270,7 @@ export default function BrandingTab() {
         logoUrl:      local.logoUrl     ?? '',
         coverUrl:     local.coverUrl    ?? '',
         backgroundUrl: local.backgroundUrl ?? '',
+        whatsapp: local.whatsapp,
       });
       await refreshBranding();
       setSaved(true);
@@ -367,6 +371,28 @@ export default function BrandingTab() {
             quality={0.6}
             aspectHint="paysage, 1600px max"
           />
+        </div>
+      </div>
+
+      {/* WhatsApp */}
+      <div className={PANEL}>
+        <h3 className="font-semibold text-neutral-100 mb-2">Contact commandes</h3>
+        <p className="text-sm text-neutral-400 mb-4">
+          Numéro WhatsApp affiché sur votre page publique pour que les clients passent commande.
+        </p>
+        <div>
+          <label className="block text-sm font-medium text-neutral-200 mb-1">
+            Numéro WhatsApp (commandes clients)
+          </label>
+          <input
+            type="text"
+            value={local.whatsapp}
+            onChange={(e) => setLocal((l) => ({ ...l, whatsapp: e.target.value }))}
+            placeholder="+225 07 07 14 59 59"
+            maxLength={30}
+            className={`${INPUT_CLASS} max-w-xs`}
+          />
+          <p className="text-xs text-neutral-500 mt-1">Laissez vide pour ne pas afficher de bouton WhatsApp.</p>
         </div>
       </div>
 

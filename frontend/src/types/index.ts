@@ -7,6 +7,7 @@ export interface Branding {
   logoUrl: string | null;
   coverUrl: string | null;
   backgroundUrl: string | null;
+  whatsapp: string | null;
 }
 
 export type RestaurantStatus = 'pending' | 'active' | 'suspended' | 'rejected';

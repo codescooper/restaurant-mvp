@@ -30,6 +30,7 @@ export const SETTING_BRANDING_BACKGROUND_COLOR = 'branding_background_color';
 export const SETTING_BRANDING_LOGO = 'branding_logo';
 export const SETTING_BRANDING_COVER = 'branding_cover';
 export const SETTING_BRANDING_BACKGROUND = 'branding_background';
+export const SETTING_BRANDING_WHATSAPP = 'branding_whatsapp';
 
 // Nom du restaurant par défaut (affiché en en-tête des rapports tant qu'aucun n'est configuré).
 export const DEFAULT_RESTAURANT_NAME = 'Mon Restaurant';

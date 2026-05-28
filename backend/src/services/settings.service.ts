@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import { prisma } from '../config/prisma';
+import { prisma, basePrisma } from '../config/prisma';
 import { AppError } from '../utils/errors';
 import {
   SETTING_MAX_DISCOUNT,
@@ -12,6 +12,7 @@ import {
   SETTING_BRANDING_LOGO,
   SETTING_BRANDING_COVER,
   SETTING_BRANDING_BACKGROUND,
+  SETTING_BRANDING_WHATSAPP,
   DEFAULT_PRIMARY_COLOR,
   DEFAULT_ACCENT_COLOR,
   DEFAULT_BACKGROUND_COLOR,
@@ -80,16 +81,18 @@ export interface Branding {
   logoUrl: string | null;
   coverUrl: string | null;
   backgroundUrl: string | null;
+  whatsapp: string | null;   // numéro WhatsApp commandes clients (P2c)
 }
 
 export async function getBranding(): Promise<Branding> {
-  const [color, accent, bgColor, logo, cover, background] = await Promise.all([
+  const [color, accent, bgColor, logo, cover, background, whatsapp] = await Promise.all([
     getSetting(SETTING_BRANDING_PRIMARY_COLOR),
     getSetting(SETTING_BRANDING_ACCENT_COLOR),
     getSetting(SETTING_BRANDING_BACKGROUND_COLOR),
     getSetting(SETTING_BRANDING_LOGO),
     getSetting(SETTING_BRANDING_COVER),
     getSetting(SETTING_BRANDING_BACKGROUND),
+    getSetting(SETTING_BRANDING_WHATSAPP),
   ]);
   return {
     primaryColor: color?.trim() || DEFAULT_PRIMARY_COLOR,
@@ -98,6 +101,7 @@ export async function getBranding(): Promise<Branding> {
     logoUrl: logo || null,
     coverUrl: cover || null,
     backgroundUrl: background || null,
+    whatsapp: whatsapp || null,
   };
 }
 
@@ -110,6 +114,7 @@ export async function setBranding(
     logoUrl: string;
     coverUrl: string;
     backgroundUrl: string;
+    whatsapp: string;
   }>
 ): Promise<Branding> {
   if (data.primaryColor !== undefined)
@@ -124,7 +129,29 @@ export async function setBranding(
     await setSetting(SETTING_BRANDING_COVER, data.coverUrl, 'Image de couverture (data URL)');
   if (data.backgroundUrl !== undefined)
     await setSetting(SETTING_BRANDING_BACKGROUND, data.backgroundUrl, "Fond de l'espace de travail (data URL)");
+  if (data.whatsapp !== undefined)
+    await setSetting(SETTING_BRANDING_WHATSAPP, data.whatsapp.trim(), 'Numéro WhatsApp commandes clients (P2c)');
   return getBranding();
+}
+
+// Variante PUBLIQUE : lit le branding d'un resto donné via basePrisma (hors tenant context).
+export async function getBrandingFor(restaurantId: number): Promise<Branding> {
+  const rows = await basePrisma.appSetting.findMany({
+    where: { restaurantId, settingKey: { in: [
+      SETTING_BRANDING_PRIMARY_COLOR, SETTING_BRANDING_ACCENT_COLOR, SETTING_BRANDING_BACKGROUND_COLOR,
+      SETTING_BRANDING_LOGO, SETTING_BRANDING_COVER, SETTING_BRANDING_BACKGROUND, SETTING_BRANDING_WHATSAPP,
+    ] } },
+  });
+  const get = (k: string) => rows.find((r) => r.settingKey === k)?.settingValue ?? null;
+  return {
+    primaryColor: get(SETTING_BRANDING_PRIMARY_COLOR)?.trim() || DEFAULT_PRIMARY_COLOR,
+    accentColor: get(SETTING_BRANDING_ACCENT_COLOR)?.trim() || DEFAULT_ACCENT_COLOR,
+    backgroundColor: get(SETTING_BRANDING_BACKGROUND_COLOR)?.trim() || DEFAULT_BACKGROUND_COLOR,
+    logoUrl: get(SETTING_BRANDING_LOGO) || null,
+    coverUrl: get(SETTING_BRANDING_COVER) || null,
+    backgroundUrl: get(SETTING_BRANDING_BACKGROUND) || null,
+    whatsapp: get(SETTING_BRANDING_WHATSAPP) || null,
+  };
 }
 
 // Décision pure (testable sans DB) de l'autorisation manager pour une action sensible.

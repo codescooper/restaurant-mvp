@@ -46,6 +46,8 @@ export const ErrorCodes = {
   ADMIN_005: 'Seul un restaurant en attente peut être refusé',
   AUTH_008: 'Restaurant non actif',
   RESTAURANT_001: 'Restaurant introuvable',
+  PUBLIC_001: 'Restaurant introuvable ou indisponible',
+  PUBLIC_002: 'Trop de requêtes, réessayez dans un instant',
 } as const;
 
 export type ErrorCode = keyof typeof ErrorCodes;

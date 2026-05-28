@@ -31,3 +31,11 @@ export const acceptInviteLimiter = rateLimit({
   legacyHeaders: false,
   handler: (_req, res) => sendError(res, 429, 'AUTH_001', 'Trop de tentatives, réessayez dans 15 minutes'),
 });
+
+export const publicReadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => sendError(res, 429, 'PUBLIC_002', 'Trop de requêtes, réessayez dans un instant'),
+});

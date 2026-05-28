@@ -387,6 +387,7 @@ export const brandingSchema = z.object({
   logoUrl: imageDataUrl,
   coverUrl: imageDataUrl,
   backgroundUrl: imageDataUrl,
+  whatsapp: z.string().max(30).optional(),
 });
 
 export const updateStatusSchema = z.object({
