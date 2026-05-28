@@ -5,7 +5,7 @@ import { getTenantIdOrThrow, isUnscoped } from './tenant-context';
 export const TENANT_MODELS = new Set<string>([
   'Dish', 'StockItem', 'Order', 'Table', 'CashSession', 'Reservation',
   'Promotion', 'Expense', 'Employee', 'Supplier', 'Purchase', 'Inventory',
-  'Notification', 'AuditLog', 'AppSetting', 'StockMovement',
+  'Notification', 'AuditLog', 'AppSetting', 'StockMovement', 'CatalogRequest',
 ]);
 
 // Opérations de lecture/agrégation qui acceptent un `where` : on y injecte restaurantId.
