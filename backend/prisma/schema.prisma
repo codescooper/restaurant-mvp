@@ -117,6 +117,7 @@ model User {
   employee           Employee?
   expenses           Expense[]
   invitationsCreated Invitation[]       @relation("InvitationCreator")
+  articlesCreated    Article[]          @relation("ArticleCreator")
 
   @@map("users")
 }
@@ -687,4 +688,30 @@ model InventoryLine {
 
   @@unique([inventoryId, stockItemId])
   @@map("inventory_lines")
+}
+
+// Article de blog ou success story — contenu plateforme, non scopé par tenant.
+// Géré par le super-admin, lu publiquement.
+model Article {
+  id          Int       @id @default(autoincrement())
+  type        String    @default("blog") @db.VarChar(20)   // 'blog' | 'success_story'
+  title       String    @db.VarChar(200)
+  slug        String    @unique @db.VarChar(220)
+  excerpt     String?   @db.Text
+  content     String    @db.Text                            // markdown
+  coverUrl    String?   @map("cover_url") @db.Text          // data URL OU URL https externe
+  category    String?   @db.VarChar(50)                     // pour blog : gestion/marketing/strategie/cuisine-africaine...
+  authorName  String?   @map("author_name") @db.VarChar(100)
+  featuredName String?  @map("featured_name") @db.VarChar(120) // success story : nom du resto/personne
+  status      String    @default("draft") @db.VarChar(20)   // 'draft' | 'published'
+  publishedAt DateTime? @map("published_at")
+  createdBy   Int?      @map("created_by")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  creator User? @relation("ArticleCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([type, status], map: "idx_articles_type_status")
+  @@index([slug], map: "idx_articles_slug")
+  @@map("articles")
 }
