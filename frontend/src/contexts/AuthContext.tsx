@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, MembershipView, Role, CurrentRestaurant } from '../types';
-import { authApi } from '../services/endpoints';
+import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
+import { User, MembershipView, Role, CurrentRestaurant, Branding } from '../types';
+import { authApi, brandingApi } from '../services/endpoints';
 import { decodeAccessToken, resolvePostLogin } from '../services/auth-helpers';
 
 interface AuthContextType {
@@ -15,6 +15,8 @@ interface AuthContextType {
   logout: () => void;
   isAuthenticated: boolean;
   hasActiveRestaurant: boolean;
+  branding: Branding | null;
+  refreshBranding: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -31,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentRole, setCurrentRole] = useState<Role | null>(null);
   const [currentRestaurant, setCurrentRestaurant] = useState<CurrentRestaurant | null>(null);
   const [loading, setLoading] = useState(true);
+  const [branding, setBranding] = useState<Branding | null>(null);
 
   // Restauration de session au montage.
   useEffect(() => {
@@ -50,6 +53,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setActiveRestaurantId(claims.restaurantId);
           setCurrentRole((claims.role as Role) ?? ms.find((m) => m.restaurantId === claims.restaurantId)?.role ?? null);
           localStorage.setItem('activeRestaurantId', String(claims.restaurantId));
+          // Charger le branding maintenant qu'on est authentifié avec un restaurant actif.
+          brandingApi.get().then(setBranding).catch(() => { /* silencieux */ });
         } else {
           localStorage.removeItem('activeRestaurantId');
         }
@@ -81,6 +86,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         console.warn('me() failed après login, currentRestaurant non rafraîchi', err);
       }
+      // Charger le branding maintenant qu'on est authentifié avec un restaurant actif.
+      brandingApi.get().then(setBranding).catch(() => { /* silencieux */ });
       return { autoSelected: true, role: post.role };
     }
     setActiveRestaurantId(null);
@@ -110,8 +117,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.warn('me() failed après selectRestaurant, currentRestaurant non rafraîchi', err);
     }
+    // Charger le branding du nouveau restaurant sélectionné.
+    brandingApi.get().then(setBranding).catch(() => { /* silencieux */ });
     return role;
   };
+
+  const refreshBranding = useCallback(async () => {
+    try {
+      const b = await brandingApi.get();
+      setBranding(b);
+    } catch (err) {
+      console.warn('refreshBranding: impossible de charger le branding', err);
+    }
+  }, []);
 
   const logout = () => {
     localStorage.removeItem('accessToken');
@@ -122,6 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setActiveRestaurantId(null);
     setCurrentRole(null);
     setCurrentRestaurant(null);
+    setBranding(null);
   };
 
   return (
@@ -138,6 +157,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         isAuthenticated: !!currentUser,
         hasActiveRestaurant: activeRestaurantId != null,
+        branding,
+        refreshBranding,
       }}
     >
       {children}

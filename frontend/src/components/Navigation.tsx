@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useWebSocket } from '../contexts/WebSocketContext';
+import { useMemo } from 'react';
 
 interface RouteDef {
   path: string;
@@ -24,9 +25,11 @@ interface RouteDef {
 }
 
 export function Navigation() {
-  const { currentUser, currentRole, memberships, activeRestaurantId, selectRestaurant, logout } = useAuth();
+  const { currentUser, currentRole, memberships, activeRestaurantId, selectRestaurant, logout, branding, currentRestaurant } = useAuth();
   const { connected } = useWebSocket();
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+
+  const brandColor = useMemo(() => branding?.primaryColor || '#D4AF37', [branding?.primaryColor]);
 
   if (!currentUser || !currentRole) return null;
 
@@ -60,7 +63,7 @@ export function Navigation() {
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition ${
-      isActive ? 'bg-gold-400 text-black' : 'text-neutral-300 hover:bg-neutral-900'
+      isActive ? 'text-black' : 'text-neutral-300 hover:bg-neutral-900'
     }`;
 
   return (
@@ -68,10 +71,19 @@ export function Navigation() {
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           <Link to="/" className="flex items-center gap-3">
-            <ChefHat className="w-8 h-8 text-gold-400" />
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden"
+              style={{ borderColor: brandColor, borderWidth: 2, borderStyle: 'solid' }}
+            >
+              {branding?.logoUrl ? (
+                <img src={branding.logoUrl} alt="Logo" className="w-9 h-9 rounded-lg object-cover" />
+              ) : (
+                <ChefHat className="w-6 h-6" style={{ color: brandColor }} />
+              )}
+            </div>
             <div>
               <h1 className="font-bold text-neutral-100 leading-tight">
-                {activeMembership?.restaurantName ?? 'Restaurant'}
+                {currentRestaurant?.name ?? activeMembership?.restaurantName ?? 'Restoflow'}
               </h1>
               <p className="text-xs text-neutral-400 capitalize">{currentRole}</p>
             </div>
@@ -79,13 +91,22 @@ export function Navigation() {
 
           <div className="hidden md:flex items-center gap-2">
             {routes.map((route) => (
-              <NavLink key={route.path} to={route.path} className={linkClass}>
+              <NavLink
+                key={route.path}
+                to={route.path}
+                className={linkClass}
+                style={({ isActive }) => isActive ? { backgroundColor: brandColor } : undefined}
+              >
                 <route.icon className="w-5 h-5" />
                 {route.label}
               </NavLink>
             ))}
             {currentUser?.isSuperAdmin && (
-              <NavLink to="/super-admin" className={linkClass}>
+              <NavLink
+                to="/super-admin"
+                className={linkClass}
+                style={({ isActive }) => isActive ? { backgroundColor: brandColor } : undefined}
+              >
                 <Shield className="w-5 h-5" /> Super-admin
               </NavLink>
             )}
@@ -136,13 +157,19 @@ export function Navigation() {
                 to={route.path}
                 onClick={() => setShowMobileMenu(false)}
                 className={linkClass}
+                style={({ isActive }) => isActive ? { backgroundColor: brandColor } : undefined}
               >
                 <route.icon className="w-5 h-5" />
                 {route.label}
               </NavLink>
             ))}
             {currentUser?.isSuperAdmin && (
-              <NavLink to="/super-admin" onClick={() => setShowMobileMenu(false)} className={linkClass}>
+              <NavLink
+                to="/super-admin"
+                onClick={() => setShowMobileMenu(false)}
+                className={linkClass}
+                style={({ isActive }) => isActive ? { backgroundColor: brandColor } : undefined}
+              >
                 <Shield className="w-5 h-5" /> Super-admin
               </NavLink>
             )}

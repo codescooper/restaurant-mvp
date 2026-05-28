@@ -24,6 +24,7 @@ import {
   Invitation,
   AdminRestaurantRow,
   RestaurantStatus,
+  Branding,
 } from '../types';
 
 export interface VariantInput {
@@ -357,6 +358,11 @@ export const promotionApi = {
     api.get(`/promotions/coupon/${encodeURIComponent(code)}`).then(
       (r) => r.data.data as { id: number; name: string; discountType: 'percent' | 'amount'; discountValue: number }
     ),
+};
+
+export const brandingApi = {
+  get: () => api.get('/settings/branding').then((r) => r.data.data as Branding),
+  update: (data: Partial<Branding>) => api.put('/settings/branding', data).then((r) => r.data.data as Branding),
 };
 
 export const settingsApi = {

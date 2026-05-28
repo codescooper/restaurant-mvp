@@ -1,5 +1,12 @@
 export type Role = 'propriétaire' | 'administrateur' | 'caissier' | 'cuisinier' | 'serveur';
 
+export interface Branding {
+  primaryColor: string;
+  logoUrl: string | null;
+  coverUrl: string | null;
+  backgroundUrl: string | null;
+}
+
 export type RestaurantStatus = 'pending' | 'active' | 'suspended' | 'rejected';
 
 export interface CurrentRestaurant {
