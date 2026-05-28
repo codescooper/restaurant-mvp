@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import {
   ChefHat,
   ShoppingCart,
@@ -28,6 +28,7 @@ interface RouteDef {
 export function Navigation() {
   const { currentUser, currentRole, memberships, activeRestaurantId, selectRestaurant, logout, branding, currentRestaurant } = useAuth();
   const { connected } = useWebSocket();
+  const navigate = useNavigate();
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   const brandColor = useMemo(() => branding?.primaryColor || '#D4AF37', [branding?.primaryColor]);
@@ -122,7 +123,12 @@ export function Navigation() {
             {memberships.length > 1 && (
               <select
                 value={activeRestaurantId ?? ''}
-                onChange={(e) => { selectRestaurant(Number(e.target.value)).catch(console.error); }}
+                onChange={(e) => {
+                  const id = Number(e.target.value);
+                  selectRestaurant(id)
+                    .then((role) => navigate(homeForRole(role)))
+                    .catch(console.error);
+                }}
                 className="ml-2 bg-neutral-900 border border-neutral-800 text-neutral-200 text-sm rounded-lg px-2 py-1.5"
                 title="Changer de restaurant"
               >
@@ -177,7 +183,12 @@ export function Navigation() {
             {memberships.length > 1 && (
               <select
                 value={activeRestaurantId ?? ''}
-                onChange={(e) => { selectRestaurant(Number(e.target.value)).catch(console.error); setShowMobileMenu(false); }}
+                onChange={(e) => {
+                  const id = Number(e.target.value);
+                  selectRestaurant(id)
+                    .then((role) => { navigate(homeForRole(role)); setShowMobileMenu(false); })
+                    .catch(console.error);
+                }}
                 className="w-full bg-neutral-900 border border-neutral-800 text-neutral-200 text-sm rounded-lg px-3 py-2"
                 title="Changer de restaurant"
               >
