@@ -467,6 +467,35 @@ export const adminListQuerySchema = z.object({
   status: z.enum(['pending', 'active', 'suspended', 'rejected']).optional(),
 });
 
+// --- Articles (blog & success stories) ---
+const ARTICLE_TYPES = ['blog', 'success_story'] as const;
+
+export const createArticleSchema = z.object({
+  type: z.enum(ARTICLE_TYPES).default('blog'),
+  title: z.string().min(1).max(200),
+  excerpt: z.string().max(500).optional(),
+  content: z.string().min(1),
+  coverUrl: z.string().max(3_500_000).refine(
+    v => v === '' || /^data:image\//.test(v) || /^https?:\/\//.test(v),
+    'URL image invalide'
+  ).optional(),
+  category: z.string().max(50).optional(),
+  authorName: z.string().max(100).optional(),
+  featuredName: z.string().max(120).optional(),
+  status: z.enum(['draft', 'published']).optional(),
+});
+
+export const updateArticleSchema = createArticleSchema.partial();
+
+export const articleStatusSchema = z.object({
+  status: z.enum(['draft', 'published']),
+});
+
+export const publicArticleQuerySchema = z.object({
+  type: z.enum(ARTICLE_TYPES).optional(),
+  category: z.string().max(50).optional(),
+});
+
 // --- Sync (offline) ---
 export const syncSchema = z.object({
   orders: z.array(z.object({

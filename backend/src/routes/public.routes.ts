@@ -1,12 +1,16 @@
 import { Router } from 'express';
 import { validate } from '../middlewares/validate';
-import { acceptInvitationSchema } from '../validators/schemas';
+import { acceptInvitationSchema, publicArticleQuerySchema } from '../validators/schemas';
 import {
   peekInvitationController,
   acceptInvitationController,
 } from '../controllers/invitation.controller';
 import { acceptInviteLimiter, publicReadLimiter } from '../middlewares/rateLimit';
 import { getPublicRestaurantController } from '../controllers/public-restaurant.controller';
+import {
+  listPublicController,
+  getPublicBySlugController,
+} from '../controllers/article.controller';
 
 const router = Router();
 
@@ -16,5 +20,9 @@ router.post('/invitations/:token/accept', acceptInviteLimiter, validate(acceptIn
 
 // Page publique restaurant (P2c) — menu + branding, réservé aux restos actifs.
 router.get('/restaurants/:slug', publicReadLimiter, getPublicRestaurantController);
+
+// Blog & success stories — contenu plateforme public.
+router.get('/articles', publicReadLimiter, validate(publicArticleQuerySchema, 'query'), listPublicController);
+router.get('/articles/:slug', publicReadLimiter, getPublicBySlugController);
 
 export default router;
