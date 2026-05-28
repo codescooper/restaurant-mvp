@@ -366,6 +366,17 @@ export const setManagerPinSchema = z.object({
   pin: z.string().max(20),
 });
 
+// --- Branding (P2b) ---
+const HEX_COLOR = /^#([0-9a-fA-F]{6})$/;
+const MAX_IMAGE_LEN = 3_500_000; // ~2.6 Mo de binaire en base64 ; garde-fou anti-payload
+
+export const brandingSchema = z.object({
+  primaryColor: z.string().regex(HEX_COLOR, 'Couleur hex invalide (#RRGGBB)').optional(),
+  logoUrl: z.string().max(MAX_IMAGE_LEN).optional(),       // data URL ou '' pour effacer
+  coverUrl: z.string().max(MAX_IMAGE_LEN).optional(),
+  backgroundUrl: z.string().max(MAX_IMAGE_LEN).optional(),
+});
+
 export const updateStatusSchema = z.object({
   status: z.enum(['en_cours', 'prête', 'servie']),
 });

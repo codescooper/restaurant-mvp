@@ -6,6 +6,11 @@ import {
   SETTING_MANAGER_PIN,
   SETTING_RESTAURANT_NAME,
   DEFAULT_RESTAURANT_NAME,
+  SETTING_BRANDING_PRIMARY_COLOR,
+  SETTING_BRANDING_LOGO,
+  SETTING_BRANDING_COVER,
+  SETTING_BRANDING_BACKGROUND,
+  DEFAULT_PRIMARY_COLOR,
   Role,
 } from '../constants';
 import { getTenantIdOrThrow } from '../config/tenant-context';
@@ -60,6 +65,45 @@ export async function setManagerPin(pin: string): Promise<void> {
   const trimmed = pin.trim();
   const value = trimmed ? bcrypt.hashSync(trimmed, 10) : '';
   await setSetting(SETTING_MANAGER_PIN, value, 'Code manager haché (annulation / remboursement)');
+}
+
+// --- Branding (P2b) ---
+
+export interface Branding {
+  primaryColor: string;      // hex, défaut DEFAULT_PRIMARY_COLOR
+  logoUrl: string | null;
+  coverUrl: string | null;
+  backgroundUrl: string | null;
+}
+
+export async function getBranding(): Promise<Branding> {
+  const [color, logo, cover, background] = await Promise.all([
+    getSetting(SETTING_BRANDING_PRIMARY_COLOR),
+    getSetting(SETTING_BRANDING_LOGO),
+    getSetting(SETTING_BRANDING_COVER),
+    getSetting(SETTING_BRANDING_BACKGROUND),
+  ]);
+  return {
+    primaryColor: color?.trim() || DEFAULT_PRIMARY_COLOR,
+    logoUrl: logo || null,
+    coverUrl: cover || null,
+    backgroundUrl: background || null,
+  };
+}
+
+// Met à jour uniquement les champs fournis (partial). Une chaîne vide explicite EFFACE l'image.
+export async function setBranding(
+  data: Partial<{ primaryColor: string; logoUrl: string; coverUrl: string; backgroundUrl: string }>
+): Promise<Branding> {
+  if (data.primaryColor !== undefined)
+    await setSetting(SETTING_BRANDING_PRIMARY_COLOR, data.primaryColor.trim(), 'Couleur principale du restaurant');
+  if (data.logoUrl !== undefined)
+    await setSetting(SETTING_BRANDING_LOGO, data.logoUrl, 'Logo du restaurant (data URL)');
+  if (data.coverUrl !== undefined)
+    await setSetting(SETTING_BRANDING_COVER, data.coverUrl, 'Image de couverture (data URL)');
+  if (data.backgroundUrl !== undefined)
+    await setSetting(SETTING_BRANDING_BACKGROUND, data.backgroundUrl, "Fond de l'espace de travail (data URL)");
+  return getBranding();
 }
 
 // Décision pure (testable sans DB) de l'autorisation manager pour une action sensible.

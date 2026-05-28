@@ -23,8 +23,17 @@ export const SETTING_MAX_DISCOUNT = 'max_discount_percent';
 export const SETTING_MANAGER_PIN = 'manager_pin';
 export const SETTING_RESTAURANT_NAME = 'restaurant_name';
 
+// Clés de réglages — branding (P2b).
+export const SETTING_BRANDING_PRIMARY_COLOR = 'branding_primary_color';
+export const SETTING_BRANDING_LOGO = 'branding_logo';
+export const SETTING_BRANDING_COVER = 'branding_cover';
+export const SETTING_BRANDING_BACKGROUND = 'branding_background';
+
 // Nom du restaurant par défaut (affiché en en-tête des rapports tant qu'aucun n'est configuré).
 export const DEFAULT_RESTAURANT_NAME = 'Mon Restaurant';
+
+// Couleur primaire par défaut (gold-400, accent par défaut de l'app).
+export const DEFAULT_PRIMARY_COLOR = '#D4AF37';
 
 export const STOCK_UNITS = ['kg', 'litre', 'unité', 'gramme', 'ml'] as const;
 export type StockUnit = (typeof STOCK_UNITS)[number];

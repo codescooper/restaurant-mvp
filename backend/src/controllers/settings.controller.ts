@@ -30,3 +30,12 @@ export const setManagerPinController = asyncHandler(async (req, res) => {
   await settings.setManagerPin(String(req.body.pin ?? ''));
   sendSuccess(res, { configured: await settings.isManagerPinSet() });
 });
+
+// --- Branding (P2b) ---
+export const getBrandingController = asyncHandler(async (_req, res) => {
+  sendSuccess(res, await settings.getBranding());
+});
+
+export const setBrandingController = asyncHandler(async (req, res) => {
+  sendSuccess(res, await settings.setBranding(req.body));
+});
