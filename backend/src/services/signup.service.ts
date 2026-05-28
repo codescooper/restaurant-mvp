@@ -1,4 +1,5 @@
 import bcrypt from 'bcrypt';
+import { Prisma } from '@prisma/client';
 import { basePrisma } from '../config/prisma';
 import { AppError } from '../utils/errors';
 import { signAccessToken, signRefreshToken } from '../utils/jwt';
@@ -30,23 +31,42 @@ export async function signup(input: SignupInput) {
   const existing = await basePrisma.user.findUnique({ where: { email } });
   if (existing) throw new AppError(409, 'USER_005');
 
-  const slug = await findFreeSlug(slugify(restaurantName));
-
-  const { user, restaurant } = await basePrisma.$transaction(async (tx) => {
-    const restaurant = await tx.restaurant.create({
-      data: { name: restaurantName, slug, status: 'pending' },
-    });
-    const user = await tx.user.create({
-      data: {
-        email,
-        passwordHash: await bcrypt.hash(input.password, 10),
-        displayName: input.displayName.trim() || null,
-        restaurantId: restaurant.id,
-        memberships: { create: { restaurantId: restaurant.id, role: 'propriétaire' } },
-      },
-    });
-    return { user, restaurant };
-  });
+  const baseSlug = slugify(restaurantName);
+  // Retry sur collision concurrente de slug (race entre findFreeSlug et INSERT) — max 3 tentatives.
+  let user!: Awaited<ReturnType<typeof basePrisma.user.create>>;
+  let restaurant!: Awaited<ReturnType<typeof basePrisma.restaurant.create>>;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const slug = attempt === 0
+      ? await findFreeSlug(baseSlug)
+      : `${baseSlug}-${Math.random().toString(36).slice(2, 7)}`;
+    try {
+      ({ user, restaurant } = await basePrisma.$transaction(async (tx) => {
+        const resto = await tx.restaurant.create({
+          data: { name: restaurantName, slug, status: 'pending' },
+        });
+        const usr = await tx.user.create({
+          data: {
+            email,
+            passwordHash: await bcrypt.hash(input.password, 10),
+            displayName: input.displayName.trim() || null,
+            restaurantId: resto.id,
+            memberships: { create: { restaurantId: resto.id, role: 'propriétaire' } },
+          },
+        });
+        return { user: usr, restaurant: resto };
+      }));
+      break; // succès
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002' &&
+        attempt < 2
+      ) {
+        continue; // collision slug : réessayer avec un nouveau suffixe
+      }
+      throw err;
+    }
+  }
 
   // Construit inline : listActiveMembershipsForUser filtre restaurant.status === 'active',
   // or le resto vient d'être créé avec status 'pending' — il serait introuvable.

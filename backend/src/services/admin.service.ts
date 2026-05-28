@@ -25,6 +25,13 @@ export async function activateRestaurant(id: number) {
     throw new AppError(400, 'ADMIN_002', "Seul un restaurant en attente peut être activé");
   }
   const counts = await basePrisma.$transaction(async (tx) => {
+    // Guard atomique : re-vérifie le statut à l'intérieur de la transaction pour éviter
+    // la double-activation concurrente (deux requêtes simultanées passeraient toutes deux
+    // le guard externe mais l'une doit échouer proprement plutôt que de re-supprimer + réécrire).
+    const fresh = await tx.restaurant.findUnique({ where: { id } });
+    if (!fresh || fresh.status !== 'pending') {
+      throw new AppError(409, 'ADMIN_002', 'Restaurant déjà traité');
+    }
     const counts = {
       orders: await tx.order.count({ where: { restaurantId: id } }),
       stockMovements: await tx.stockMovement.count({ where: { restaurantId: id } }),

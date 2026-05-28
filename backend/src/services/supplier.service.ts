@@ -88,9 +88,11 @@ export async function createPurchase(input: PurchaseInput, userId?: number) {
         createdBy: userId,
       },
     });
+    // P2a mode préparation : un achat fournisseur redéfinit aussi la baseline
+    // (cohérent avec addQuantity) pour qu'il ne soit pas effacé lors de l'activation.
     await tx.stockItem.update({
       where: { id: input.stockItemId },
-      data: { quantity: newQuantity, lastUpdated: new Date() },
+      data: { quantity: newQuantity, baselineQuantity: newQuantity, lastUpdated: new Date() },
     });
     await tx.stockMovement.create({
       data: {
