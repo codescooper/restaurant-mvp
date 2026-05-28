@@ -27,11 +27,12 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useClock } from '../hooks/useClock';
 import { useOfflineSync } from '../hooks/useOfflineSync';
-import { dishApi, orderApi, cashApi, promotionApi, settingsApi, CreateOrderPayload } from '../services/endpoints';
+import { dishApi, orderApi, cashApi, promotionApi, settingsApi, CreateOrderPayload, SplitPaymentLine } from '../services/endpoints';
 import { cacheMenu, getCachedMenu, queueOrder } from '../services/offline';
 import { getApiError } from '../services/api';
 import { CartItem, MenuDish, MenuVariant, CashSessionSummary, Order } from '../types';
 import { formatFCFA, formatDateTime } from '../utils/format';
+import PaymentSplit, { PaymentLine } from '../components/PaymentSplit';
 
 const CATEGORIES = ['Tout', 'Entrée', 'Plat', 'Accompagnement', 'Fast-food', 'Dessert', 'Boisson'];
 const EMOJI: Record<string, string> = {
@@ -44,7 +45,7 @@ const EMOJI: Record<string, string> = {
 };
 
 type DiscountType = 'none' | 'amount' | 'percent';
-type PaymentMethod = '' | 'espèces' | 'mobile_money' | 'carte' | 'virement' | 'qr_code';
+type PaymentMethod = '' | 'espèces' | 'mobile_money' | 'carte' | 'virement' | 'qr_code' | 'mixte';
 type Provider = '' | 'orange_money' | 'wave' | 'mtn';
 type Channel = 'sur_place' | 'emporter' | 'livraison';
 type DeliveryPlatform = '' | 'glovo' | 'yango' | 'uber_eats' | 'autre';
@@ -55,6 +56,7 @@ const PAYMENT_LABELS: Record<string, string> = {
   carte: 'Carte',
   virement: 'Virement',
   qr_code: 'QR Code',
+  mixte: 'Mixte',
 };
 const CHANNEL_LABELS: Record<Channel, string> = {
   sur_place: 'Sur place',
@@ -86,6 +88,7 @@ interface Receipt {
   channelLabel?: string;
   customerName?: string;
   discountLabel?: string;
+  paymentLines?: { label: string; amount: number }[];
 }
 
 // Classes réutilisables du thème noir & or (prototype Caisse).
@@ -132,6 +135,7 @@ export default function CaissePage() {
   const [provider, setProvider] = useState<Provider>('');
   const [cashGiven, setCashGiven] = useState('');
   const [tip, setTip] = useState('');
+  const [mixteState, setMixteState] = useState<{ payments: PaymentLine[]; valid: boolean }>({ payments: [], valid: false });
   const [channel, setChannel] = useState<Channel>('sur_place');
   const [deliveryPlatform, setDeliveryPlatform] = useState<DeliveryPlatform>('');
   const [customerName, setCustomerName] = useState('');
@@ -161,6 +165,16 @@ export default function CaissePage() {
   const [actionPin, setActionPin] = useState('');
   const [actionError, setActionError] = useState('');
   const [actionBusy, setActionBusy] = useState(false);
+
+  // Règlement différé : payer une commande « À régler » depuis le panneau commandes.
+  const [payOrder, setPayOrder] = useState<Order | null>(null);
+  const [payOrderMethod, setPayOrderMethod] = useState<PaymentMethod>('');
+  const [payOrderProvider, setPayOrderProvider] = useState<Provider>('');
+  const [payOrderCashGiven, setPayOrderCashGiven] = useState('');
+  const [payOrderTip, setPayOrderTip] = useState('');
+  const [payOrderMixteState, setPayOrderMixteState] = useState<{ payments: PaymentLine[]; valid: boolean }>({ payments: [], valid: false });
+  const [payOrderBusy, setPayOrderBusy] = useState(false);
+  const [payOrderError, setPayOrderError] = useState('');
 
   // Le PIN n'est exigé que pour le caissier (l'admin/propriétaire est le manager) et seulement s'il est configuré.
   const pinRequired = currentRole === 'caissier' && pinConfigured;
@@ -218,6 +232,68 @@ export default function CaissePage() {
   const loadSession = () => {
     if (!canManageCash) return;
     cashApi.current().then(setSession).catch(() => setSession(null));
+  };
+
+  // Règlement différé.
+  const payOrderTipNum = Math.max(0, Number(payOrderTip) || 0);
+  const payOrderChange = (Number(payOrderCashGiven) || 0) - (payOrder?.finalTotal ?? 0) - payOrderTipNum;
+
+  const canConfirmPayOrder =
+    payOrderMethod === 'mixte'
+      ? payOrderMixteState.valid
+      : !!payOrderMethod &&
+        (payOrderMethod !== 'espèces' || payOrderChange >= 0) &&
+        (payOrderMethod !== 'mobile_money' || !!payOrderProvider);
+
+  const openPayOrder = (order: Order) => {
+    setPayOrder(order);
+    setPayOrderMethod('');
+    setPayOrderProvider('');
+    setPayOrderCashGiven('');
+    setPayOrderTip('');
+    setPayOrderMixteState({ payments: [], valid: false });
+    setPayOrderError('');
+  };
+
+  const submitPayOrder = async () => {
+    if (!payOrder || !canConfirmPayOrder) return;
+    setPayOrderBusy(true);
+    setPayOrderError('');
+    try {
+      if (payOrderMethod === 'mixte') {
+        await orderApi.pay(
+          payOrder.id,
+          'espèces', // paymentMethod placeholder ; backend remplace par 'mixte' quand payments[]
+          undefined,
+          payOrderTipNum > 0 ? { tipAmount: payOrderTipNum, tipMethod: 'espèces' } : undefined,
+          payOrderMixteState.payments.map((p) => ({
+            method: p.method,
+            amount: p.amount,
+            mobileMoneyProvider: p.mobileMoneyProvider,
+            cashGiven: p.cashGiven,
+            changeReturned: p.changeReturned,
+          } as SplitPaymentLine))
+        );
+      } else {
+        await orderApi.pay(
+          payOrder.id,
+          payOrderMethod || 'espèces',
+          {
+            mobileMoneyProvider: payOrderMethod === 'mobile_money' ? payOrderProvider || undefined : undefined,
+            cashGiven: payOrderMethod === 'espèces' ? Number(payOrderCashGiven) || 0 : undefined,
+            changeReturned: payOrderMethod === 'espèces' ? Math.max(0, payOrderChange) : undefined,
+          },
+          payOrderTipNum > 0 ? { tipAmount: payOrderTipNum, tipMethod: payOrderMethod || 'espèces' } : undefined
+        );
+      }
+      setPayOrder(null);
+      loadOrders();
+      if (canManageCash) loadSession();
+    } catch (e) {
+      setPayOrderError(getApiError(e));
+    } finally {
+      setPayOrderBusy(false);
+    }
   };
 
   useEffect(() => {
@@ -451,15 +527,26 @@ export default function CaissePage() {
       customerPhone: customerPhone.trim() || undefined,
     };
     if (payNow) {
-      payload.paymentMethod = paymentMethod || 'espèces';
-      payload.paymentDetails = {
-        mobileMoneyProvider: paymentMethod === 'mobile_money' ? provider || undefined : undefined,
-        cashGiven: paymentMethod === 'espèces' ? Number(cashGiven) || 0 : undefined,
-        changeReturned: paymentMethod === 'espèces' ? Math.max(0, change) : undefined,
-      };
+      if (paymentMethod === 'mixte') {
+        // Mode paiement mixte : on envoie le tableau payments, le backend déduit paymentMethod='mixte'.
+        payload.payments = mixteState.payments.map((p) => ({
+          method: p.method,
+          amount: p.amount,
+          mobileMoneyProvider: p.mobileMoneyProvider,
+          cashGiven: p.cashGiven,
+          changeReturned: p.changeReturned,
+        } as SplitPaymentLine));
+      } else {
+        payload.paymentMethod = paymentMethod || 'espèces';
+        payload.paymentDetails = {
+          mobileMoneyProvider: paymentMethod === 'mobile_money' ? provider || undefined : undefined,
+          cashGiven: paymentMethod === 'espèces' ? Number(cashGiven) || 0 : undefined,
+          changeReturned: paymentMethod === 'espèces' ? Math.max(0, change) : undefined,
+        };
+      }
       if (tipNum > 0) {
         payload.tipAmount = tipNum;
-        payload.tipMethod = paymentMethod || 'espèces';
+        payload.tipMethod = paymentMethod === 'mixte' ? 'espèces' : paymentMethod || 'espèces';
       }
     }
     return payload;
@@ -467,15 +554,18 @@ export default function CaissePage() {
 
   const canConfirm = !payNow
     ? true
-    : !!paymentMethod &&
-      (paymentMethod !== 'espèces' || change >= 0) &&
-      (paymentMethod !== 'mobile_money' || !!provider);
+    : paymentMethod === 'mixte'
+      ? mixteState.valid
+      : !!paymentMethod &&
+        (paymentMethod !== 'espèces' || change >= 0) &&
+        (paymentMethod !== 'mobile_money' || !!provider);
 
   const confirmPayment = async () => {
     if (!canConfirm) return;
     setError('');
     setSubmitting(true);
     const payload = buildPayload();
+    const isMixte = payNow && paymentMethod === 'mixte';
     const snapshot: Omit<Receipt, 'orderNumber' | 'offline'> = {
       time: new Date().toISOString(),
       items: [...cart],
@@ -493,14 +583,31 @@ export default function CaissePage() {
       customerName: customerName.trim() || undefined,
       paymentLabel: !payNow
         ? 'À régler à la caisse'
-        : `${PAYMENT_LABELS[paymentMethod || 'espèces'] ?? paymentMethod}${paymentMethod === 'mobile_money' && provider ? ` (${provider})` : ''}`,
+        : isMixte
+          ? 'Mixte'
+          : `${PAYMENT_LABELS[paymentMethod || 'espèces'] ?? paymentMethod}${paymentMethod === 'mobile_money' && provider ? ` (${provider})` : ''}`,
       cashGiven: payNow && paymentMethod === 'espèces' ? Number(cashGiven) || 0 : undefined,
       change: payNow && paymentMethod === 'espèces' ? Math.max(0, change) : undefined,
+      paymentLines: isMixte
+        ? mixteState.payments.map((p) => ({
+            label: `${PAYMENT_LABELS[p.method] ?? p.method}${p.method === 'mobile_money' && p.mobileMoneyProvider ? ` (${p.mobileMoneyProvider})` : ''}`,
+            amount: p.amount,
+          }))
+        : undefined,
     };
     try {
       if (online) {
         const res = await orderApi.create(payload);
-        setReceipt({ ...snapshot, orderNumber: res.orderNumber, offline: false });
+        // Si le backend renvoie payments[], utiliser ces lignes pour le ticket.
+        const resPayments = (res as Order).payments;
+        const resolvedPaymentLines: { label: string; amount: number }[] | undefined =
+          resPayments && resPayments.length > 1
+            ? resPayments.map((p) => ({
+                label: `${PAYMENT_LABELS[p.method] ?? p.method}${p.method === 'mobile_money' && p.mobileMoneyProvider ? ` (${p.mobileMoneyProvider})` : ''}`,
+                amount: p.amount,
+              }))
+            : snapshot.paymentLines;
+        setReceipt({ ...snapshot, orderNumber: res.orderNumber, offline: false, paymentLines: resolvedPaymentLines });
         if (payNow) loadSession(); // rafraîchit le total théorique en caisse
       } else {
         await queueOrder(payload);
@@ -588,10 +695,24 @@ export default function CaissePage() {
               </div>
             </div>
             <div className="border-t pt-2 text-gray-600">
-              <div className="flex justify-between">
-                <span>Paiement</span>
-                <span className="capitalize">{receipt.paymentLabel}</span>
-              </div>
+              {receipt.paymentLines && receipt.paymentLines.length > 1 ? (
+                <>
+                  <div className="flex justify-between font-medium mb-0.5">
+                    <span>Paiement mixte</span>
+                  </div>
+                  {receipt.paymentLines.map((pl, i) => (
+                    <div key={i} className="flex justify-between pl-2 text-sm">
+                      <span className="capitalize">{pl.label}</span>
+                      <span>{formatFCFA(pl.amount)}</span>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <div className="flex justify-between">
+                  <span>Paiement</span>
+                  <span className="capitalize">{receipt.paymentLabel}</span>
+                </div>
+              )}
               {receipt.tip ? (
                 <>
                   <div className="flex justify-between">
@@ -1067,7 +1188,7 @@ export default function CaissePage() {
               ) : (
                 <>
                   <div className="grid grid-cols-3 gap-2 mb-4">
-                    {(['espèces', 'mobile_money', 'carte', 'virement', 'qr_code'] as PaymentMethod[]).map((m) => (
+                    {(['espèces', 'mobile_money', 'carte', 'virement', 'qr_code', 'mixte'] as PaymentMethod[]).map((m) => (
                       <button
                         key={m}
                         onClick={() => setPaymentMethod(m)}
@@ -1095,53 +1216,61 @@ export default function CaissePage() {
                     )}
                   </div>
 
-                  {paymentMethod === 'espèces' && (
+                  {paymentMethod === 'mixte' ? (
                     <div className="mb-4">
-                      <label className="block text-sm text-neutral-400 mb-1">Montant remis</label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={cashGiven}
-                        onChange={(e) => setCashGiven(e.target.value)}
-                        className={INPUT}
-                        placeholder="0"
-                      />
-                      {cashGiven !== '' &&
-                        (change >= 0 ? (
-                          <p className="text-emerald-400 text-sm mt-1">Monnaie : {formatFCFA(change)}</p>
-                        ) : (
-                          <p className="text-rose-400 text-sm mt-1">Montant insuffisant</p>
-                        ))}
+                      <PaymentSplit due={finalTotal} onChange={setMixteState} />
                     </div>
-                  )}
+                  ) : (
+                    <>
+                      {paymentMethod === 'espèces' && (
+                        <div className="mb-4">
+                          <label className="block text-sm text-neutral-400 mb-1">Montant remis</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={cashGiven}
+                            onChange={(e) => setCashGiven(e.target.value)}
+                            className={INPUT}
+                            placeholder="0"
+                          />
+                          {cashGiven !== '' &&
+                            (change >= 0 ? (
+                              <p className="text-emerald-400 text-sm mt-1">Monnaie : {formatFCFA(change)}</p>
+                            ) : (
+                              <p className="text-rose-400 text-sm mt-1">Montant insuffisant</p>
+                            ))}
+                        </div>
+                      )}
 
-                  {paymentMethod === 'mobile_money' && (
-                    <div className="grid grid-cols-3 gap-2 mb-4">
-                      <button
-                        onClick={() => setProvider('orange_money')}
-                        className={`py-2 rounded-lg text-xs font-medium border-2 transition ${
-                          provider === 'orange_money' ? 'border-orange-500 bg-orange-500/10 text-orange-300' : 'border-neutral-700 text-neutral-400 hover:border-neutral-600'
-                        }`}
-                      >
-                        Orange Money
-                      </button>
-                      <button
-                        onClick={() => setProvider('wave')}
-                        className={`py-2 rounded-lg text-xs font-medium border-2 transition ${
-                          provider === 'wave' ? 'border-sky-500 bg-sky-500/10 text-sky-300' : 'border-neutral-700 text-neutral-400 hover:border-neutral-600'
-                        }`}
-                      >
-                        Wave
-                      </button>
-                      <button
-                        onClick={() => setProvider('mtn')}
-                        className={`py-2 rounded-lg text-xs font-medium border-2 transition ${
-                          provider === 'mtn' ? 'border-yellow-500 bg-yellow-500/10 text-yellow-300' : 'border-neutral-700 text-neutral-400 hover:border-neutral-600'
-                        }`}
-                      >
-                        MTN
-                      </button>
-                    </div>
+                      {paymentMethod === 'mobile_money' && (
+                        <div className="grid grid-cols-3 gap-2 mb-4">
+                          <button
+                            onClick={() => setProvider('orange_money')}
+                            className={`py-2 rounded-lg text-xs font-medium border-2 transition ${
+                              provider === 'orange_money' ? 'border-orange-500 bg-orange-500/10 text-orange-300' : 'border-neutral-700 text-neutral-400 hover:border-neutral-600'
+                            }`}
+                          >
+                            Orange Money
+                          </button>
+                          <button
+                            onClick={() => setProvider('wave')}
+                            className={`py-2 rounded-lg text-xs font-medium border-2 transition ${
+                              provider === 'wave' ? 'border-sky-500 bg-sky-500/10 text-sky-300' : 'border-neutral-700 text-neutral-400 hover:border-neutral-600'
+                            }`}
+                          >
+                            Wave
+                          </button>
+                          <button
+                            onClick={() => setProvider('mtn')}
+                            className={`py-2 rounded-lg text-xs font-medium border-2 transition ${
+                              provider === 'mtn' ? 'border-yellow-500 bg-yellow-500/10 text-yellow-300' : 'border-neutral-700 text-neutral-400 hover:border-neutral-600'
+                            }`}
+                          >
+                            MTN
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
               )}
@@ -1384,6 +1513,7 @@ export default function CaissePage() {
                 {orders.map((o) => {
                   const canCancel = o.status !== 'servie' && o.status !== 'annulée';
                   const canRefund = o.isPaid && !o.isRefunded;
+                  const canPay = !o.isPaid && o.status !== 'annulée' && canManageCash;
                   return (
                     <div key={o.id} className="bg-neutral-900 border border-neutral-800 rounded-lg p-3">
                       <div className="flex justify-between items-center mb-1">
@@ -1405,6 +1535,14 @@ export default function CaissePage() {
                       <div className="flex justify-between items-center mt-2">
                         <span className="font-semibold text-sm text-gold-400">{formatFCFA(o.finalTotal)}</span>
                         <div className="flex gap-2">
+                          {canPay && (
+                            <button
+                              onClick={() => openPayOrder(o)}
+                              className="flex items-center gap-1 text-xs bg-gold-400/10 hover:bg-gold-400/20 text-gold-300 border border-gold-400/30 px-2.5 py-1 rounded-lg transition"
+                            >
+                              <Banknote className="w-3.5 h-3.5" /> Régler
+                            </button>
+                          )}
                           {canCancel && (
                             <button
                               onClick={() => startAction(o, 'cancel')}
@@ -1482,6 +1620,121 @@ export default function CaissePage() {
                 }`}
               >
                 {actionBusy ? 'Traitement…' : actionType === 'cancel' ? "Confirmer l'annulation" : 'Confirmer le remboursement'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Modale de règlement différé */}
+        {payOrder && (
+          <div className={OVERLAY}>
+            <div className={`${MODAL} max-w-sm p-6 max-h-[90vh] overflow-y-auto`}>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold flex items-center gap-2 text-neutral-100">
+                  <Banknote className="w-5 h-5 text-gold-400" /> Régler la commande
+                </h3>
+                <button onClick={() => setPayOrder(null)} className="text-neutral-500 hover:text-neutral-300">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <p className="text-sm text-neutral-400 mb-4">
+                {payOrder.orderNumber} · <span className="text-gold-400 font-semibold">{formatFCFA(payOrder.finalTotal)}</span>
+              </p>
+              {payOrderError && <div className="text-rose-400 text-sm mb-3">{payOrderError}</div>}
+
+              {/* Moyen de paiement */}
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                {(['espèces', 'mobile_money', 'carte', 'virement', 'qr_code', 'mixte'] as PaymentMethod[]).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setPayOrderMethod(m)}
+                    className={`py-2 rounded-lg text-xs font-medium border-2 transition ${
+                      payOrderMethod === m ? 'border-gold-400 bg-gold-400/10 text-gold-300' : 'border-neutral-700 text-neutral-400 hover:border-neutral-600'
+                    }`}
+                  >
+                    {PAYMENT_LABELS[m]}
+                  </button>
+                ))}
+              </div>
+
+              {/* Pourboire */}
+              <div className="mb-3">
+                <label className="block text-sm text-neutral-400 mb-1">Pourboire (optionnel)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={payOrderTip}
+                  onChange={(e) => setPayOrderTip(e.target.value)}
+                  className={INPUT}
+                  placeholder="0"
+                />
+                {payOrderTipNum > 0 && (
+                  <p className="text-emerald-400 text-xs mt-1">Total encaissé : {formatFCFA(payOrder.finalTotal + payOrderTipNum)}</p>
+                )}
+              </div>
+
+              {payOrderMethod === 'mixte' ? (
+                <div className="mb-3">
+                  <PaymentSplit due={payOrder.finalTotal} onChange={setPayOrderMixteState} />
+                </div>
+              ) : (
+                <>
+                  {payOrderMethod === 'espèces' && (
+                    <div className="mb-3">
+                      <label className="block text-sm text-neutral-400 mb-1">Montant remis</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={payOrderCashGiven}
+                        onChange={(e) => setPayOrderCashGiven(e.target.value)}
+                        className={INPUT}
+                        placeholder="0"
+                      />
+                      {payOrderCashGiven !== '' &&
+                        (payOrderChange >= 0 ? (
+                          <p className="text-emerald-400 text-sm mt-1">Monnaie : {formatFCFA(payOrderChange)}</p>
+                        ) : (
+                          <p className="text-rose-400 text-sm mt-1">Montant insuffisant</p>
+                        ))}
+                    </div>
+                  )}
+                  {payOrderMethod === 'mobile_money' && (
+                    <div className="grid grid-cols-3 gap-2 mb-3">
+                      <button
+                        onClick={() => setPayOrderProvider('orange_money')}
+                        className={`py-2 rounded-lg text-xs font-medium border-2 transition ${
+                          payOrderProvider === 'orange_money' ? 'border-orange-500 bg-orange-500/10 text-orange-300' : 'border-neutral-700 text-neutral-400 hover:border-neutral-600'
+                        }`}
+                      >
+                        Orange Money
+                      </button>
+                      <button
+                        onClick={() => setPayOrderProvider('wave')}
+                        className={`py-2 rounded-lg text-xs font-medium border-2 transition ${
+                          payOrderProvider === 'wave' ? 'border-sky-500 bg-sky-500/10 text-sky-300' : 'border-neutral-700 text-neutral-400 hover:border-neutral-600'
+                        }`}
+                      >
+                        Wave
+                      </button>
+                      <button
+                        onClick={() => setPayOrderProvider('mtn')}
+                        className={`py-2 rounded-lg text-xs font-medium border-2 transition ${
+                          payOrderProvider === 'mtn' ? 'border-yellow-500 bg-yellow-500/10 text-yellow-300' : 'border-neutral-700 text-neutral-400 hover:border-neutral-600'
+                        }`}
+                      >
+                        MTN
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <button
+                onClick={submitPayOrder}
+                disabled={!canConfirmPayOrder || payOrderBusy}
+                className={`w-full py-2.5 rounded-xl ${BTN_GOLD}`}
+              >
+                {payOrderBusy ? 'Règlement…' : 'Valider le règlement'}
               </button>
             </div>
           </div>

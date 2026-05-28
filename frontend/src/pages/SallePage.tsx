@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { LayoutGrid, Users, X, CreditCard, CheckCircle, Plus, Minus, Bell, Merge, CalendarDays, Clock, Printer, Pencil, Trash2, Wallet, Utensils } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useWebSocket } from '../contexts/WebSocketContext';
-import { tableApi, orderApi, dishApi, ReservationPayload } from '../services/endpoints';
+import { tableApi, orderApi, dishApi, ReservationPayload, SplitPaymentLine } from '../services/endpoints';
 import { getApiError } from '../services/api';
 import { RestaurantTable, Reservation, MenuDish } from '../types';
 import { formatFCFA, formatDateTime, formatTime } from '../utils/format';
+import PaymentSplit, { PaymentLine } from '../components/PaymentSplit';
 
-type PaymentMethod = '' | 'espèces' | 'mobile_money' | 'carte' | 'virement' | 'qr_code';
+type PaymentMethod = '' | 'espèces' | 'mobile_money' | 'carte' | 'virement' | 'qr_code' | 'mixte';
 type Provider = '' | 'orange_money' | 'wave' | 'mtn';
 
 // Marges après la fin du repas avant que la table soit de nouveau libre (miroir de constants.ts backend).
@@ -38,6 +39,7 @@ const SETTLE_LABELS: Record<string, string> = {
   carte: 'Carte',
   virement: 'Virement',
   qr_code: 'QR Code',
+  mixte: 'Mixte',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -110,6 +112,7 @@ export default function SallePage() {
   const [provider, setProvider] = useState<Provider>('');
   const [cashGiven, setCashGiven] = useState('');
   const [tip, setTip] = useState('');
+  const [mixteState, setMixteState] = useState<{ payments: PaymentLine[]; valid: boolean }>({ payments: [], valid: false });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   // Reçu imprimable après encaissement d'une table : indique le serveur assigné (handoff caisse → serveur).
@@ -124,6 +127,7 @@ export default function SallePage() {
     paymentMethod: string;
     cashGiven?: number;
     time: string;
+    paymentLines?: { label: string; amount: number }[];
   } | null>(null);
 
   const [reservations, setReservations] = useState<Reservation[]>([]);
@@ -189,6 +193,7 @@ export default function SallePage() {
     setProvider('');
     setCashGiven('');
     setTip('');
+    setMixteState({ payments: [], valid: false });
     setResOpen(false);
     setEditingResId(null);
     setMergeMode(false);
@@ -403,10 +408,15 @@ export default function SallePage() {
     }
   };
 
+  // due hors pourboire = ce que PaymentSplit doit couvrir.
+  const dueHorsPourboire = total - resDeposit;
+
   const canConfirmSettle =
-    !!paymentMethod &&
-    (paymentMethod !== 'espèces' || change >= 0) &&
-    (paymentMethod !== 'mobile_money' || !!provider);
+    paymentMethod === 'mixte'
+      ? mixteState.valid
+      : !!paymentMethod &&
+        (paymentMethod !== 'espèces' || change >= 0) &&
+        (paymentMethod !== 'mobile_money' || !!provider);
 
   const confirmSettle = async () => {
     if (!selected || !canConfirmSettle) return;
@@ -417,15 +427,28 @@ export default function SallePage() {
     const sName = selected.server?.displayName ?? undefined;
     const given = paymentMethod === 'espèces' ? Number(cashGiven) || 0 : undefined;
     try {
+      const splitPayments: SplitPaymentLine[] | undefined =
+        paymentMethod === 'mixte'
+          ? mixteState.payments.map((p) => ({
+              method: p.method,
+              amount: p.amount,
+              mobileMoneyProvider: p.mobileMoneyProvider,
+              cashGiven: p.cashGiven,
+              changeReturned: p.changeReturned,
+            } as SplitPaymentLine))
+          : undefined;
       const res = await tableApi.settle(
         selected.id,
-        paymentMethod || 'espèces',
-        {
-          mobileMoneyProvider: paymentMethod === 'mobile_money' ? provider || undefined : undefined,
-          cashGiven: paymentMethod === 'espèces' ? Number(cashGiven) || 0 : undefined,
-          changeReturned: paymentMethod === 'espèces' ? Math.max(0, change) : undefined,
-        },
-        tipNum > 0 ? { tipAmount: tipNum, tipMethod: paymentMethod || 'espèces' } : undefined
+        paymentMethod === 'mixte' ? 'espèces' : paymentMethod || 'espèces', // backend remplace par 'mixte' si payments présent
+        paymentMethod === 'mixte'
+          ? undefined
+          : {
+              mobileMoneyProvider: paymentMethod === 'mobile_money' ? provider || undefined : undefined,
+              cashGiven: paymentMethod === 'espèces' ? Number(cashGiven) || 0 : undefined,
+              changeReturned: paymentMethod === 'espèces' ? Math.max(0, change) : undefined,
+            },
+        tipNum > 0 ? { tipAmount: tipNum, tipMethod: paymentMethod === 'mixte' ? 'espèces' : paymentMethod || 'espèces' } : undefined,
+        splitPayments
       );
       setSettleReceipt({
         tableName: tName,
@@ -438,6 +461,13 @@ export default function SallePage() {
         paymentMethod: res.paymentMethod,
         cashGiven: given,
         time: new Date().toISOString(),
+        paymentLines:
+          paymentMethod === 'mixte'
+            ? mixteState.payments.map((p) => ({
+                label: `${SETTLE_LABELS[p.method] ?? p.method}${p.method === 'mobile_money' && p.mobileMoneyProvider ? ` (${p.mobileMoneyProvider})` : ''}`,
+                amount: p.amount,
+              }))
+            : undefined,
       });
       closePanel();
       load();
@@ -927,7 +957,7 @@ export default function SallePage() {
                   )}
                 </div>
                 <div className="grid grid-cols-3 gap-2 mb-3">
-                  {(['espèces', 'mobile_money', 'carte', 'virement', 'qr_code'] as PaymentMethod[]).map((m) => (
+                  {(['espèces', 'mobile_money', 'carte', 'virement', 'qr_code', 'mixte'] as PaymentMethod[]).map((m) => (
                     <button
                       key={m}
                       onClick={() => setPaymentMethod(m)}
@@ -951,51 +981,59 @@ export default function SallePage() {
                   />
                   {tipNum > 0 && <p className="text-emerald-400 text-xs mt-1">Total encaissé : {formatFCFA(due)}</p>}
                 </div>
-                {paymentMethod === 'espèces' && (
+                {paymentMethod === 'mixte' ? (
                   <div className="mb-3">
-                    <input
-                      type="number"
-                      min="0"
-                      value={cashGiven}
-                      onChange={(e) => setCashGiven(e.target.value)}
-                      placeholder="Montant remis"
-                      className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-neutral-100 placeholder-neutral-500 outline-none focus:ring-2 focus:ring-gold-400/60 focus:border-gold-400"
-                    />
-                    {cashGiven !== '' &&
-                      (change >= 0 ? (
-                        <p className="text-emerald-400 text-sm mt-1">Monnaie : {formatFCFA(change)}</p>
-                      ) : (
-                        <p className="text-rose-400 text-sm mt-1">Montant insuffisant</p>
-                      ))}
+                    <PaymentSplit due={dueHorsPourboire} onChange={setMixteState} />
                   </div>
-                )}
-                {paymentMethod === 'mobile_money' && (
-                  <div className="grid grid-cols-3 gap-2 mb-3">
-                    <button
-                      onClick={() => setProvider('orange_money')}
-                      className={`py-2 rounded-lg text-xs font-medium border-2 transition ${
-                        provider === 'orange_money' ? 'border-orange-500 bg-orange-500/10 text-orange-300' : 'border-neutral-700 text-neutral-400 hover:border-neutral-600'
-                      }`}
-                    >
-                      Orange Money
-                    </button>
-                    <button
-                      onClick={() => setProvider('wave')}
-                      className={`py-2 rounded-lg text-xs font-medium border-2 transition ${
-                        provider === 'wave' ? 'border-sky-500 bg-sky-500/10 text-sky-300' : 'border-neutral-700 text-neutral-400 hover:border-neutral-600'
-                      }`}
-                    >
-                      Wave
-                    </button>
-                    <button
-                      onClick={() => setProvider('mtn')}
-                      className={`py-2 rounded-lg text-xs font-medium border-2 transition ${
-                        provider === 'mtn' ? 'border-yellow-500 bg-yellow-500/10 text-yellow-300' : 'border-neutral-700 text-neutral-400 hover:border-neutral-600'
-                      }`}
-                    >
-                      MTN
-                    </button>
-                  </div>
+                ) : (
+                  <>
+                    {paymentMethod === 'espèces' && (
+                      <div className="mb-3">
+                        <input
+                          type="number"
+                          min="0"
+                          value={cashGiven}
+                          onChange={(e) => setCashGiven(e.target.value)}
+                          placeholder="Montant remis"
+                          className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-neutral-100 placeholder-neutral-500 outline-none focus:ring-2 focus:ring-gold-400/60 focus:border-gold-400"
+                        />
+                        {cashGiven !== '' &&
+                          (change >= 0 ? (
+                            <p className="text-emerald-400 text-sm mt-1">Monnaie : {formatFCFA(change)}</p>
+                          ) : (
+                            <p className="text-rose-400 text-sm mt-1">Montant insuffisant</p>
+                          ))}
+                      </div>
+                    )}
+                    {paymentMethod === 'mobile_money' && (
+                      <div className="grid grid-cols-3 gap-2 mb-3">
+                        <button
+                          onClick={() => setProvider('orange_money')}
+                          className={`py-2 rounded-lg text-xs font-medium border-2 transition ${
+                            provider === 'orange_money' ? 'border-orange-500 bg-orange-500/10 text-orange-300' : 'border-neutral-700 text-neutral-400 hover:border-neutral-600'
+                          }`}
+                        >
+                          Orange Money
+                        </button>
+                        <button
+                          onClick={() => setProvider('wave')}
+                          className={`py-2 rounded-lg text-xs font-medium border-2 transition ${
+                            provider === 'wave' ? 'border-sky-500 bg-sky-500/10 text-sky-300' : 'border-neutral-700 text-neutral-400 hover:border-neutral-600'
+                          }`}
+                        >
+                          Wave
+                        </button>
+                        <button
+                          onClick={() => setProvider('mtn')}
+                          className={`py-2 rounded-lg text-xs font-medium border-2 transition ${
+                            provider === 'mtn' ? 'border-yellow-500 bg-yellow-500/10 text-yellow-300' : 'border-neutral-700 text-neutral-400 hover:border-neutral-600'
+                          }`}
+                        >
+                          MTN
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
                 <button
                   onClick={confirmSettle}
@@ -1047,10 +1085,24 @@ export default function SallePage() {
                 )}
               </div>
               <div className="pt-2 text-gray-600">
-                <div className="flex justify-between">
-                  <span>Paiement</span>
-                  <span>{SETTLE_LABELS[settleReceipt.paymentMethod] ?? settleReceipt.paymentMethod}</span>
-                </div>
+                {settleReceipt.paymentLines && settleReceipt.paymentLines.length > 1 ? (
+                  <>
+                    <div className="flex justify-between font-medium mb-0.5">
+                      <span>Paiement mixte</span>
+                    </div>
+                    {settleReceipt.paymentLines.map((pl, i) => (
+                      <div key={i} className="flex justify-between pl-2 text-sm">
+                        <span className="capitalize">{pl.label}</span>
+                        <span>{formatFCFA(pl.amount)}</span>
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <div className="flex justify-between">
+                    <span>Paiement</span>
+                    <span>{SETTLE_LABELS[settleReceipt.paymentMethod] ?? settleReceipt.paymentMethod}</span>
+                  </div>
+                )}
                 {settleReceipt.tip > 0 && (
                   <div className="flex justify-between">
                     <span>Pourboire</span>
