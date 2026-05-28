@@ -387,7 +387,7 @@ export const brandingSchema = z.object({
   logoUrl: imageDataUrl,
   coverUrl: imageDataUrl,
   backgroundUrl: imageDataUrl,
-  whatsapp: z.string().max(30).optional(),
+  whatsapp: z.string().max(30).regex(/^[\d\s+().-]*$/, 'Numéro invalide (chiffres, espaces, + - ( ) uniquement)').optional(),
 });
 
 export const updateStatusSchema = z.object({
