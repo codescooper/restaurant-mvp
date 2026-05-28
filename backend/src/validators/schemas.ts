@@ -450,6 +450,14 @@ export const acceptInvitationSchema = z.object({
   displayName: z.string().min(1).max(80).optional(),
 });
 
+// --- Journal d'audit ---
+export const auditQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+  userId: z.coerce.number().int().optional(),
+  action: z.string().max(50).optional(),
+  entityType: z.string().max(50).optional(),
+});
+
 // --- Super-admin ---
 export const adminReasonSchema = z.object({
   reason: z.string().max(500).optional(),

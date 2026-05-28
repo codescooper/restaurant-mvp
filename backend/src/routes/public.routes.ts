@@ -11,7 +11,7 @@ import { getPublicRestaurantController } from '../controllers/public-restaurant.
 const router = Router();
 
 // Pas d'auth, pas de tenant context — ces routes sont accessibles à tout le monde.
-router.get('/invitations/:token', peekInvitationController);
+router.get('/invitations/:token', publicReadLimiter, peekInvitationController);
 router.post('/invitations/:token/accept', acceptInviteLimiter, validate(acceptInvitationSchema), acceptInvitationController);
 
 // Page publique restaurant (P2c) — menu + branding, réservé aux restos actifs.

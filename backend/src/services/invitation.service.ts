@@ -76,6 +76,7 @@ export async function peekInvitation(token: string) {
   }
   const emailExists = !!(await basePrisma.user.findUnique({ where: { email: inv.email }, select: { id: true } }));
   return {
+    restaurantId: inv.restaurantId,
     restaurantName: inv.restaurant.name,
     role: inv.role,
     email: inv.email,
