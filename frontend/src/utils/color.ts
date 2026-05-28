@@ -4,11 +4,17 @@
  * compatibles avec la syntaxe `rgb(var(--gold-xxx) / alpha)` de Tailwind.
  */
 
+const HEX_RE = /^#([0-9a-fA-F]{6})$/;
+/** Canaux fallback (gold #D4AF37 = 212 175 55) utilisés si l'entrée est invalide. */
+const FALLBACK_CHANNELS = '212 175 55';
+
 /**
  * Convertit un hex #RRGGBB en canaux RGB séparés par des espaces.
  * Exemple : "#D4AF37" → "212 175 55"
+ * Retourne le fallback gold si l'entrée est invalide.
  */
 export function hexToRgbChannels(hex: string): string {
+  if (!HEX_RE.test(hex)) return FALLBACK_CHANNELS;
   const h = hex.replace('#', '');
   const r = parseInt(h.slice(0, 2), 16);
   const g = parseInt(h.slice(2, 4), 16);
@@ -21,8 +27,10 @@ export function hexToRgbChannels(hex: string): string {
  * factor > 0 → plus clair (ex : +0.18 = +18 % vers blanc).
  * factor < 0 → plus sombre (ex : -0.12 = -12 % vers noir).
  * Renvoie une chaîne "R G B" (canaux pour variable CSS, pas un hex).
+ * Retourne le fallback gold si l'entrée est invalide.
  */
 export function shade(hex: string, factor: number): string {
+  if (!HEX_RE.test(hex)) return FALLBACK_CHANNELS;
   const h = hex.replace('#', '');
   const adj = (c: number): number => {
     const v = factor >= 0 ? c + (255 - c) * factor : c * (1 + factor);

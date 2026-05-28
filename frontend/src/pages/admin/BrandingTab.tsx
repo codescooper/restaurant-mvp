@@ -191,7 +191,7 @@ interface LocalBranding {
 }
 
 export default function BrandingTab() {
-  const { branding: ctxBranding, refreshBranding } = useAuth();
+  const { refreshBranding, currentRestaurant } = useAuth();
   const [local, setLocal] = useState<LocalBranding>({
     primaryColor:    DEFAULT_PRIMARY,
     accentColor:     DEFAULT_ACCENT,
@@ -207,15 +207,18 @@ export default function BrandingTab() {
   const [hexAccent,     setHexAccent]     = useState(DEFAULT_ACCENT);
   const [hexBackground, setHexBackground] = useState(DEFAULT_BACKGROUND);
 
+  const [loading, setLoading] = useState(true);
   const [busy,  setBusy]  = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
-  // Initialiser depuis le contexte ou fetch direct
+  // Toujours charger via l'API (source de vérité) pour éviter d'écraser avec des défauts
+  // si ctxBranding est encore null au montage.
   useEffect(() => {
     const init = async () => {
+      setLoading(true);
       try {
-        const b: Branding = ctxBranding ?? (await brandingApi.get());
+        const b: Branding = await brandingApi.get();
         const primary    = b.primaryColor    || DEFAULT_PRIMARY;
         const accent     = b.accentColor     || DEFAULT_ACCENT;
         const bgColor    = b.backgroundColor || DEFAULT_BACKGROUND;
@@ -233,10 +236,11 @@ export default function BrandingTab() {
         setHexBackground(bgColor);
       } catch (e) {
         setError(getApiError(e));
+      } finally {
+        setLoading(false);
       }
     };
     init();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // --- Helpers pour chaque champ couleur ---
@@ -281,6 +285,14 @@ export default function BrandingTab() {
       setBusy(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20 text-neutral-400 text-sm">
+        Chargement…
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -420,7 +432,7 @@ export default function BrandingTab() {
               )}
             </div>
             <div>
-              <p className="text-sm font-bold text-neutral-100 leading-tight">Mon Restaurant</p>
+              <p className="text-sm font-bold text-neutral-100 leading-tight">{currentRestaurant?.name ?? 'Mon Restaurant'}</p>
               <p className="text-xs text-neutral-400">propriétaire</p>
             </div>
             <div className="flex items-center gap-2 ml-auto">
