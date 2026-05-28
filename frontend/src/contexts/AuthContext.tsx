@@ -10,7 +10,7 @@ interface AuthContextType {
   currentRole: Role | null;
   currentRestaurant: CurrentRestaurant | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<{ autoSelected: boolean; role: Role | null }>;
+  login: (email: string, password: string) => Promise<{ autoSelected: boolean; role: Role | null; isSuperAdmin: boolean }>;
   selectRestaurant: (restaurantId: number) => Promise<Role>;
   logout: () => void;
   isAuthenticated: boolean;
@@ -88,13 +88,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       // Charger le branding maintenant qu'on est authentifié avec un restaurant actif.
       brandingApi.get().then(setBranding).catch(() => { /* silencieux */ });
-      return { autoSelected: true, role: post.role };
+      return { autoSelected: true, role: post.role, isSuperAdmin: !!res.user.isSuperAdmin };
     }
     setActiveRestaurantId(null);
     setCurrentRole(null);
     setCurrentRestaurant(null);
     localStorage.removeItem('activeRestaurantId');
-    return { autoSelected: false, role: null };
+    return { autoSelected: false, role: null, isSuperAdmin: !!res.user.isSuperAdmin };
   };
 
   const selectRestaurant = async (restaurantId: number) => {

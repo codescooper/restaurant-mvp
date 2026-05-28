@@ -6,14 +6,17 @@ import { homeForRole } from '../services/auth-helpers';
 import { getApiError } from '../services/api';
 
 export default function SelectRestaurantPage() {
-  const { isAuthenticated, memberships, selectRestaurant, logout, loading } = useAuth();
+  const { isAuthenticated, memberships, selectRestaurant, logout, loading, currentUser } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!loading && !isAuthenticated) navigate('/login', { replace: true });
-  }, [loading, isAuthenticated, navigate]);
+    if (loading) return;
+    if (!isAuthenticated) { navigate('/login', { replace: true }); return; }
+    // Un super-admin n'a pas de restaurant : l'envoyer vers sa console au lieu du cul-de-sac.
+    if (currentUser?.isSuperAdmin && memberships.length === 0) navigate('/super-admin', { replace: true });
+  }, [loading, isAuthenticated, currentUser, memberships.length, navigate]);
 
   const choose = async (restaurantId: number) => {
     setError('');

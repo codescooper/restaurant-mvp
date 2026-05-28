@@ -13,7 +13,7 @@ const DEMO_ACCOUNTS = [
 ];
 
 export default function LoginPage() {
-  const { login, isAuthenticated, hasActiveRestaurant, currentRole } = useAuth();
+  const { login, isAuthenticated, hasActiveRestaurant, currentRole, currentUser } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -26,12 +26,14 @@ export default function LoginPage() {
     emailRef.current?.focus();
   }, []);
 
-  // Déjà authentifié avec un restaurant actif → aller à la page du rôle.
+  // Déjà authentifié → aller à la page du rôle, ou à la console pour un super-admin sans resto.
   useEffect(() => {
     if (isAuthenticated && hasActiveRestaurant && currentRole) {
       navigate(homeForRole(currentRole), { replace: true });
+    } else if (isAuthenticated && currentUser?.isSuperAdmin && !hasActiveRestaurant) {
+      navigate('/super-admin', { replace: true });
     }
-  }, [isAuthenticated, hasActiveRestaurant, currentRole, navigate]);
+  }, [isAuthenticated, hasActiveRestaurant, currentRole, currentUser, navigate]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -42,8 +44,10 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      const { autoSelected, role } = await login(email, password);
-      navigate(autoSelected && role ? homeForRole(role) : '/select-restaurant', { replace: true });
+      const { autoSelected, role, isSuperAdmin } = await login(email, password);
+      if (autoSelected && role) navigate(homeForRole(role), { replace: true });
+      else if (isSuperAdmin) navigate('/super-admin', { replace: true });
+      else navigate('/select-restaurant', { replace: true });
     } catch (err) {
       setError(getApiError(err, 'Email ou mot de passe incorrect'));
     } finally {
