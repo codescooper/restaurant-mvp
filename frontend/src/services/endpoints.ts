@@ -61,6 +61,14 @@ export interface PaymentInput {
   changeReturned?: number;
 }
 
+export interface SplitPaymentLine {
+  method: string;
+  amount: number;
+  mobileMoneyProvider?: string;
+  cashGiven?: number;
+  changeReturned?: number;
+}
+
 export interface CreateOrderPayload {
   items: { dishId: number; variantId?: number; customPrice?: number; offered?: boolean; quantity: number; notes?: string }[];
   couponCode?: string;
@@ -68,6 +76,7 @@ export interface CreateOrderPayload {
   discountPercent: number;
   paymentMethod?: string; // absent = commande différée (réglée à la caisse)
   paymentDetails?: PaymentInput;
+  payments?: SplitPaymentLine[];
   tipAmount?: number;
   tipMethod?: string;
   tableId?: number;
@@ -195,8 +204,8 @@ export const orderApi = {
     api.patch(`/orders/${id}/status`, { status }).then((r) => r.data.data.order as Order),
   cancel: (id: number, reason: string, pin?: string) =>
     api.post(`/orders/${id}/cancel`, { reason, pin }).then((r) => r.data.data as Order),
-  pay: (id: number, paymentMethod: string, paymentDetails?: PaymentInput, tip?: { tipAmount?: number; tipMethod?: string }) =>
-    api.post(`/orders/${id}/pay`, { paymentMethod, paymentDetails, ...tip }).then((r) => r.data.data as Order),
+  pay: (id: number, paymentMethod: string, paymentDetails?: PaymentInput, tip?: { tipAmount?: number; tipMethod?: string }, payments?: SplitPaymentLine[]) =>
+    api.post(`/orders/${id}/pay`, { paymentMethod, paymentDetails, payments, ...tip }).then((r) => r.data.data as Order),
   refund: (id: number, reason: string, pin?: string) =>
     api.post(`/orders/${id}/refund`, { reason, pin }).then((r) => r.data.data as Order),
 };
@@ -206,9 +215,9 @@ export const tableApi = {
   create: (data: { name: string; capacity?: number }) => api.post('/tables', data).then((r) => r.data.data),
   update: (id: number, data: { name?: string; capacity?: number }) => api.put(`/tables/${id}`, data).then((r) => r.data.data),
   remove: (id: number) => api.delete(`/tables/${id}`).then((r) => r.data.data),
-  settle: (id: number, paymentMethod: string, paymentDetails?: PaymentInput, tip?: { tipAmount?: number; tipMethod?: string }) =>
+  settle: (id: number, paymentMethod: string, paymentDetails?: PaymentInput, tip?: { tipAmount?: number; tipMethod?: string }, payments?: SplitPaymentLine[]) =>
     api
-      .post(`/tables/${id}/settle`, { paymentMethod, paymentDetails, ...tip })
+      .post(`/tables/${id}/settle`, { paymentMethod, paymentDetails, payments, ...tip })
       .then(
         (r) =>
           r.data.data as {

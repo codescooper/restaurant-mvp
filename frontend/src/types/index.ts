@@ -205,6 +205,14 @@ export interface OrderLineItem {
 
 export type OrderStatus = 'commandée' | 'en_cours' | 'prête' | 'servie' | 'annulée';
 
+export interface OrderPaymentLine {
+  method: string;
+  amount: number;
+  mobileMoneyProvider?: string | null;
+  cashGiven?: number | null;
+  changeReturned?: number | null;
+}
+
 export interface Order {
   id: number;
   orderNumber: string;
@@ -236,6 +244,7 @@ export interface Order {
   readyAt?: string | null;
   servedAt?: string | null;
   items: OrderLineItem[];
+  payments?: OrderPaymentLine[];
 }
 
 export interface TableOrderSummary {
