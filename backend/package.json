@@ -13,6 +13,7 @@
     "prisma:studio": "prisma studio",
     "seed": "tsx prisma/seed.ts",
     "create-superadmin": "tsx prisma/create-superadmin.ts",
+    "create-demo-restaurant": "tsx prisma/create-demo-restaurant.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "dotenv -e .env.test -- vitest run --config vitest.integration.config.ts",
