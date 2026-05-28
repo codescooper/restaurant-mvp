@@ -24,8 +24,10 @@ import {
   Briefcase,
   Wallet,
   LayoutGrid,
+  Palette,
 } from 'lucide-react';
 import { stockApi, dishApi, userApi, cashApi, auditApi, orderApi, invitationApi, MemberRow } from '../services/endpoints';
+import { useAuth } from '../contexts/AuthContext';
 import { getApiError } from '../services/api';
 import { StockItem, Dish, Role, CashSessionSummary, AuditLogEntry, Invitation } from '../types';
 import { formatFCFA, formatDateTime } from '../utils/format';
@@ -36,8 +38,9 @@ import PromotionsTab from './admin/PromotionsTab';
 import EmployeesTab from './admin/EmployeesTab';
 import ExpensesTab from './admin/ExpensesTab';
 import TablesTab from './admin/TablesTab';
+import BrandingTab from './admin/BrandingTab';
 
-type Tab = 'stock' | 'menu' | 'users' | 'employes' | 'depenses' | 'caisse' | 'journal' | 'fournisseurs' | 'inventaire' | 'promotions' | 'tables';
+type Tab = 'stock' | 'menu' | 'users' | 'employes' | 'depenses' | 'caisse' | 'journal' | 'fournisseurs' | 'inventaire' | 'promotions' | 'tables' | 'personnalisation';
 type CrudTab = 'stock' | 'menu' | 'users';
 type UserEditing = MemberRow | null;
 
@@ -94,6 +97,7 @@ interface Ingredient { stockItemId: number; quantityNeeded: number }
 interface VariantForm { name: string; price: number | null; ingredients: Ingredient[] }
 
 export default function AdminPage() {
+  const { currentRole } = useAuth();
   const [tab, setTab] = useState<Tab>('stock');
   const [search, setSearch] = useState('');
   const [stock, setStock] = useState<StockItem[]>([]);
@@ -330,7 +334,9 @@ export default function AdminPage() {
     [users, s]
   );
 
-  const TABS: { id: Tab; label: string; icon: typeof Package }[] = [
+  const isOwnerOrAdmin = currentRole === 'propriétaire' || currentRole === 'administrateur';
+
+  const ALL_TABS: { id: Tab; label: string; icon: typeof Package; ownerOnly?: boolean }[] = [
     { id: 'stock', label: 'Stock', icon: Package },
     { id: 'menu', label: 'Menu', icon: UtensilsCrossed },
     { id: 'users', label: 'Utilisateurs', icon: Users },
@@ -342,7 +348,10 @@ export default function AdminPage() {
     { id: 'tables', label: 'Tables', icon: LayoutGrid },
     { id: 'caisse', label: 'Caisse', icon: Banknote },
     { id: 'journal', label: "Journal d'actions", icon: ClipboardList },
+    { id: 'personnalisation', label: 'Personnalisation', icon: Palette, ownerOnly: true },
   ];
+
+  const TABS = ALL_TABS.filter((t) => !t.ownerOnly || isOwnerOrAdmin);
 
   const isCrudTab = tab === 'stock' || tab === 'menu' || tab === 'users';
 
@@ -727,6 +736,9 @@ export default function AdminPage() {
 
       {/* TABLES */}
       {tab === 'tables' && <TablesTab />}
+
+      {/* PERSONNALISATION */}
+      {tab === 'personnalisation' && <BrandingTab />}
 
       {/* MODAL PERTE */}
       {lossItem && (
