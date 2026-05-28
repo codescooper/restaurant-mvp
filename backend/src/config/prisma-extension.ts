@@ -6,6 +6,7 @@ export const TENANT_MODELS = new Set<string>([
   'Dish', 'StockItem', 'Order', 'Table', 'CashSession', 'Reservation',
   'Promotion', 'Expense', 'Employee', 'Supplier', 'Purchase', 'Inventory',
   'Notification', 'AuditLog', 'AppSetting', 'StockMovement', 'CatalogRequest',
+  'OrderPayment',
 ]);
 
 // Opérations de lecture/agrégation qui acceptent un `where` : on y injecte restaurantId.

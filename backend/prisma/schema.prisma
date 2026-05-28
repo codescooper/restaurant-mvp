@@ -46,6 +46,7 @@ model Restaurant {
   stockMovements   StockMovement[]
   invitations      Invitation[]
   catalogRequests  CatalogRequest[]
+  orderPayments    OrderPayment[]
 
   @@map("restaurants")
 }
@@ -342,6 +343,7 @@ model Order {
   items          OrderItem[]
   stockMovements StockMovement[]
   notifications  Notification[]
+  payments       OrderPayment[]
   restaurant     Restaurant?     @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
 
   @@unique([restaurantId, orderNumber])
@@ -737,4 +739,23 @@ model CatalogRequest {
   @@index([restaurantId, status], map: "idx_catalog_requests_restaurant_status")
   @@index([status], map: "idx_catalog_requests_status")
   @@map("catalog_requests")
+}
+
+model OrderPayment {
+  id                  Int      @id @default(autoincrement())
+  orderId             Int      @map("order_id")
+  method              String   @db.VarChar(20)
+  amount              Int
+  mobileMoneyProvider String?  @map("mobile_money_provider") @db.VarChar(20)
+  cashGiven           Int?     @map("cash_given")
+  changeReturned      Int?     @map("change_returned")
+  restaurantId        Int?     @map("restaurant_id")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  order      Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
+
+  @@index([orderId], map: "idx_order_payments_order")
+  @@index([restaurantId, method], map: "idx_order_payments_restaurant_method")
+  @@map("order_payments")
 }
