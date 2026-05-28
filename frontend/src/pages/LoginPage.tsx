@@ -64,8 +64,8 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gold-400/10 ring-1 ring-gold-400/25 rounded-full mb-4">
             <ChefHat className="w-9 h-9 text-gold-400" />
           </div>
-          <h1 className="text-2xl font-bold text-neutral-100">Restaurant Pilote</h1>
-          <p className="text-neutral-400">Connexion à l'application</p>
+          <h1 className="text-2xl font-bold text-neutral-100">Restoflow</h1>
+          <p className="text-neutral-400">Connexion à votre espace</p>
         </div>
 
         {error && (

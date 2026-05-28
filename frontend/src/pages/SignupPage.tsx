@@ -51,7 +51,7 @@ export default function SignupPage() {
             <ChefHat className="w-9 h-9 text-gold-400" />
           </div>
           <h1 className="text-2xl font-bold text-neutral-100">Créer un restaurant</h1>
-          <p className="text-neutral-400 text-sm">Bienvenue sur la plateforme AwemA Restaurants</p>
+          <p className="text-neutral-400 text-sm">Bienvenue sur Restoflow</p>
         </div>
 
         {error && (
