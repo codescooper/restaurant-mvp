@@ -59,22 +59,28 @@ export async function reservationDepositsForSession(sessionId: number): Promise<
   return agg._sum.depositAmount ?? 0;
 }
 
-// Total théorique en caisse = fond + ventes espèces encaissées (net des acomptes déjà versés)
-// + acomptes réservation espèces de la session. On soustrait depositApplied pour ne pas compter
-// deux fois l'acompte (déjà encaissé à la réservation, puis déduit du règlement).
+// Total théorique en caisse = fond + ventes espèces encaissées + acomptes réservation espèces.
+// On agrège sur OrderPayment (méthode='espèces') plutôt que sur Order.paymentMethod :
+//   – Pour les paiements mixtes, seule la part espèces doit entrer dans la caisse.
+//   – OrderPayment.amount est déjà net d'acompte (les splits somment à finalTotal − depositApplied).
+//     Donc Σ(OrderPayment.amount pour espèces) ≡ ancien Σ(finalTotal − depositApplied) sur mono-espèces,
+//     et est CORRECT pour le mixte (seule la part espèces compte). On ne soustrait plus depositApplied.
 export async function computeExpectedCash(session: { id: number; openingFloat: number }): Promise<number> {
-  const agg = await prisma.order.aggregate({
-    _sum: { finalTotal: true, depositApplied: true },
+  const agg = await prisma.orderPayment.aggregate({
+    _sum: { amount: true },
     where: {
-      cashSessionId: session.id,
-      paymentMethod: 'espèces',
-      isPaid: true,
-      isRefunded: false,
-      status: { not: 'annulée' },
+      method: 'espèces',
+      order: {
+        cashSessionId: session.id,
+        isPaid: true,
+        isRefunded: false,
+        status: { not: 'annulée' },
+      },
     },
   });
+  const cashSales = agg._sum.amount ?? 0;
   const deposits = await reservationDepositsForSession(session.id);
-  return session.openingFloat + (agg._sum.finalTotal ?? 0) - (agg._sum.depositApplied ?? 0) + deposits;
+  return session.openingFloat + cashSales + deposits;
 }
 
 export async function closeSession(
@@ -140,18 +146,23 @@ export async function cashTipsForSession(sessionId: number): Promise<number> {
   return agg._sum.tipAmount ?? 0;
 }
 
-// Répartition des ventes payées de la session par moyen de paiement.
+// Répartition des ventes payées de la session par moyen de paiement réel.
+// On groupe sur OrderPayment plutôt que sur Order.paymentMethod :
+//   – Pour le mixte, chaque split est compté dans sa propre méthode (espèces/carte/mobile_money).
+//   – Pour le mono, le résultat est identique à l'ancien groupBy sur Order (1 split = 1 ligne).
 async function salesByMethod(sessionId: number) {
-  const grouped = await prisma.order.groupBy({
-    by: ['paymentMethod'],
-    _sum: { finalTotal: true },
+  const grouped = await prisma.orderPayment.groupBy({
+    by: ['method'],
+    _sum: { amount: true },
     _count: true,
-    where: { cashSessionId: sessionId, isPaid: true, isRefunded: false, status: { not: 'annulée' } },
+    where: {
+      order: { cashSessionId: sessionId, isPaid: true, isRefunded: false, status: { not: 'annulée' } },
+    },
   });
   return grouped.map((g) => ({
-    method: g.paymentMethod ?? 'inconnu',
+    method: g.method,
     count: g._count,
-    amount: g._sum.finalTotal ?? 0,
+    amount: g._sum.amount ?? 0,
   }));
 }
 
