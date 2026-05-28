@@ -7,7 +7,7 @@ export function ProtectedRoute({ children, allowedRoles }: { children: ReactNode
   const { isAuthenticated, hasActiveRestaurant, currentRole, currentRestaurant, loading } = useAuth();
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-500">Chargement...</div>;
-  if (!isAuthenticated) return <Navigate to="/" replace />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (!hasActiveRestaurant || !currentRole) return <Navigate to="/select-restaurant" replace />;
 
   // Aiguillage par statut du restaurant courant.

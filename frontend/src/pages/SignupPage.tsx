@@ -17,7 +17,7 @@ export default function SignupPage() {
   const emailRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { emailRef.current?.focus(); }, []);
-  useEffect(() => { if (isAuthenticated) navigate('/', { replace: true }); }, [isAuthenticated, navigate]);
+  useEffect(() => { if (isAuthenticated) navigate('/dashboard', { replace: true }); }, [isAuthenticated, navigate]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -84,7 +84,7 @@ export default function SignupPage() {
         </p>
 
         <div className="mt-4 text-center text-sm">
-          <Link to="/" className="text-neutral-400 hover:text-neutral-200">← Retour à la connexion</Link>
+          <Link to="/login" className="text-neutral-400 hover:text-neutral-200">← Retour à la connexion</Link>
         </div>
       </div>
     </div>

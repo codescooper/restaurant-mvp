@@ -12,7 +12,7 @@ export default function SelectRestaurantPage() {
   const [busy, setBusy] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!loading && !isAuthenticated) navigate('/', { replace: true });
+    if (!loading && !isAuthenticated) navigate('/login', { replace: true });
   }, [loading, isAuthenticated, navigate]);
 
   const choose = async (restaurantId: number) => {

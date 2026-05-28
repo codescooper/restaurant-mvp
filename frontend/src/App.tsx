@@ -8,6 +8,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { Layout } from './components/Layout';
 import { useAuth } from './contexts/AuthContext';
 
+const LandingPage = lazy(() => import('./pages/LandingPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const SignupPage = lazy(() => import('./pages/SignupPage'));
 const SelectRestaurantPage = lazy(() => import('./pages/SelectRestaurantPage'));
@@ -56,7 +57,8 @@ export default function App() {
             <BrowserRouter>
             <Suspense fallback={<Loading />}>
               <Routes>
-                <Route path="/" element={<LoginPage />} />
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/login" element={<LoginPage />} />
                 <Route path="/signup" element={<SignupPage />} />
                 <Route path="/select-restaurant" element={<SelectRestaurantPage />} />
 
