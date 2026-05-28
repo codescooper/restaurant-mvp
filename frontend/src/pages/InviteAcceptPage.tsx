@@ -34,7 +34,7 @@ export default function InviteAcceptPage() {
       const res = await publicInviteApi.accept(token, { password, displayName: displayName.trim() || undefined });
       localStorage.setItem('accessToken', res.accessToken);
       localStorage.setItem('refreshToken', res.refreshToken);
-      localStorage.setItem('activeRestaurantId', String(res.memberships.find((m) => m.role === peek.role)?.restaurantId ?? res.memberships[0].restaurantId));
+      localStorage.setItem('activeRestaurantId', String(res.memberships.find((m) => m.restaurantId === peek.restaurantId)?.restaurantId ?? peek.restaurantId));
       window.location.href = homeForRole(peek.role);
     } catch (err) {
       setError(getApiError(err, 'Impossible d\'accepter cette invitation'));

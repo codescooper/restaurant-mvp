@@ -27,15 +27,23 @@ function cleanWhatsappDigits(raw: string): string {
   return raw.replace(/\D/g, '');
 }
 
+/** Retourne le prix à utiliser pour l'estimation du total (prix libre → priceMin si dispo). */
+function effectivePrice(dish: PublicDish): number {
+  if (dish.priceType === 'libre') return dish.priceMin ?? dish.price;
+  return dish.price;
+}
+
 function buildWhatsappUrl(whatsapp: string, restaurantName: string, items: CartItem[]): string {
   const digits = cleanWhatsappDigits(whatsapp);
   const lines = items
     .map((ci) => {
-      const total = ci.dish.price * ci.quantity;
-      return `- ${ci.quantity}x ${ci.dish.name} (${formatFCFA(total)})`;
+      const unitPrice = effectivePrice(ci.dish);
+      const total = unitPrice * ci.quantity;
+      const libreNote = ci.dish.priceType === 'libre' ? ' (prix indicatif)' : '';
+      return `- ${ci.quantity}x ${ci.dish.name} (${formatFCFA(total)}${libreNote})`;
     })
     .join('\n');
-  const grandTotal = items.reduce((acc, ci) => acc + ci.dish.price * ci.quantity, 0);
+  const grandTotal = items.reduce((acc, ci) => acc + effectivePrice(ci.dish) * ci.quantity, 0);
   const hasLibre = items.some((ci) => ci.dish.priceType === 'libre');
   const totalLabel = hasLibre ? `Total estimé : ${formatFCFA(grandTotal)}` : `Total : ${formatFCFA(grandTotal)}`;
   const message = `Bonjour ${restaurantName}, je souhaite commander :\n${lines}\n${totalLabel}`;
@@ -176,7 +184,7 @@ function CartPanel({
   onDec: (id: number) => void;
   onRemove: (id: number) => void;
 }) {
-  const total = items.reduce((acc, ci) => acc + ci.dish.price * ci.quantity, 0);
+  const total = items.reduce((acc, ci) => acc + effectivePrice(ci.dish) * ci.quantity, 0);
   const hasLibre = items.some((ci) => ci.dish.priceType === 'libre');
   const hasWhatsapp = !!whatsapp && cleanWhatsappDigits(whatsapp).length > 0;
 

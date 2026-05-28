@@ -100,6 +100,7 @@ export const publicInviteApi = {
   peek: (token: string) =>
     api.get(`/public/invitations/${token}`).then((r) => r.data.data as {
       restaurantName: string;
+      restaurantId: number;
       role: Role;
       email: string;
       status: 'pending' | 'accepted' | 'revoked' | 'expired';
