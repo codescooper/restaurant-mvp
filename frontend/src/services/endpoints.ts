@@ -25,6 +25,9 @@ import {
   AdminRestaurantRow,
   RestaurantStatus,
   Branding,
+  ArticleType,
+  ArticleListItem,
+  Article,
 } from '../types';
 
 export interface VariantInput {
@@ -431,4 +434,26 @@ export interface SyncResult {
 export const syncApi = {
   push: (orders: CreateOrderPayload[]) =>
     api.post('/sync', { orders }).then((r) => r.data.data as { results: SyncResult[] }),
+};
+
+// ─── API publique articles (Blog & Success Stories) ───────────────────────────
+
+export const publicArticleApi = {
+  list: (params?: { type?: ArticleType; category?: string }) =>
+    api.get('/public/articles', { params }).then((r) => r.data.data as ArticleListItem[]),
+  getBySlug: (slug: string) =>
+    api.get(`/public/articles/${slug}`).then((r) => r.data.data as Article),
+};
+
+export const adminArticleApi = {
+  list: () =>
+    api.get('/admin/articles').then((r) => r.data.data as Article[]),
+  create: (data: Partial<Article>) =>
+    api.post('/admin/articles', data).then((r) => r.data.data as Article),
+  update: (id: number, data: Partial<Article>) =>
+    api.put(`/admin/articles/${id}`, data).then((r) => r.data.data as Article),
+  setStatus: (id: number, status: 'draft' | 'published') =>
+    api.post(`/admin/articles/${id}/status`, { status }).then((r) => r.data.data as Article),
+  remove: (id: number) =>
+    api.delete(`/admin/articles/${id}`).then((r) => r.data.data),
 };

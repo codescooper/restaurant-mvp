@@ -1,5 +1,28 @@
 export type Role = 'propriétaire' | 'administrateur' | 'caissier' | 'cuisinier' | 'serveur';
 
+// ─── Blog & Success Stories ───────────────────────────────────────────────────
+export type ArticleType = 'blog' | 'success_story';
+
+export interface ArticleListItem {
+  id: number;
+  type: ArticleType;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  coverUrl: string | null;
+  category: string | null;
+  authorName: string | null;
+  featuredName: string | null;
+  publishedAt: string | null;
+}
+
+export interface Article extends ArticleListItem {
+  content: string;
+  status: 'draft' | 'published';
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Branding {
   primaryColor: string;
   accentColor: string;

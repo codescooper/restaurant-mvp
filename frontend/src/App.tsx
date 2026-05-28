@@ -9,6 +9,9 @@ import { Layout } from './components/Layout';
 import { useAuth } from './contexts/AuthContext';
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
+const BlogListPage = lazy(() => import('./pages/BlogListPage'));
+const SuccessStoriesPage = lazy(() => import('./pages/SuccessStoriesPage'));
+const ArticlePage = lazy(() => import('./pages/ArticlePage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const SignupPage = lazy(() => import('./pages/SignupPage'));
 const SelectRestaurantPage = lazy(() => import('./pages/SelectRestaurantPage'));
@@ -59,6 +62,10 @@ export default function App() {
             <Suspense fallback={<Loading />}>
               <Routes>
                 <Route path="/" element={<LandingPage />} />
+                <Route path="/blog" element={<BlogListPage />} />
+                <Route path="/blog/:slug" element={<ArticlePage />} />
+                <Route path="/success-stories" element={<SuccessStoriesPage />} />
+                <Route path="/success-stories/:slug" element={<ArticlePage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/signup" element={<SignupPage />} />
                 <Route path="/select-restaurant" element={<SelectRestaurantPage />} />
