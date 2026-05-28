@@ -173,3 +173,10 @@ export const NOTIFICATION_TYPES = [
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
 export const CURRENCY = 'FCFA';
+
+// Annuaire — demandes de référencement sur plateformes externes.
+export const CATALOG_PLATFORMS = ['Yango Food', 'Glovo', 'Google Business Profile', 'Uber Eats', 'Jumia Food', 'Autre'] as const;
+export type CatalogPlatform = (typeof CATALOG_PLATFORMS)[number];
+
+export const CATALOG_REQUEST_STATUSES = ['pending', 'in_progress', 'done', 'rejected'] as const;
+export type CatalogRequestStatus = (typeof CATALOG_REQUEST_STATUSES)[number];

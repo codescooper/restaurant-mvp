@@ -18,6 +18,7 @@ import {
   EXPENSE_PAYMENT_METHODS,
   INVITABLE_ROLES,
   Role,
+  CATALOG_REQUEST_STATUSES,
 } from '../constants';
 
 // --- Auth ---
@@ -495,6 +496,21 @@ export const articleStatusSchema = z.object({
 export const publicArticleQuerySchema = z.object({
   type: z.enum(ARTICLE_TYPES).optional(),
   category: z.string().max(50).optional(),
+});
+
+// --- Annuaire — demandes de référencement ---
+export const createCatalogRequestSchema = z.object({
+  platforms: z.array(z.string().min(1).max(60)).min(1, 'Choisissez au moins une plateforme').max(10),
+  message: z.string().max(1000).optional(),
+});
+
+export const catalogStatusSchema = z.object({
+  status: z.enum(CATALOG_REQUEST_STATUSES),
+  adminNote: z.string().max(1000).optional(),
+});
+
+export const catalogListQuerySchema = z.object({
+  status: z.enum(CATALOG_REQUEST_STATUSES).optional(),
 });
 
 // --- Sync (offline) ---

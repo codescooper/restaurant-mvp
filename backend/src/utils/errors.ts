@@ -50,6 +50,9 @@ export const ErrorCodes = {
   PUBLIC_002: 'Trop de requêtes, réessayez dans un instant',
   ARTICLE_001: 'Article introuvable',
   ARTICLE_002: 'Type ou statut invalide',
+  CATALOG_001: 'Demande introuvable',
+  CATALOG_002: 'Une demande est déjà en cours pour ce restaurant',
+  CATALOG_003: 'Plateformes ou statut invalide',
 } as const;
 
 export type ErrorCode = keyof typeof ErrorCodes;

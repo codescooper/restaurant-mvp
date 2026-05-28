@@ -22,6 +22,7 @@ import settingsRoutes from './settings.routes';
 import publicRoutes from './public.routes';
 import invitationRoutes from './invitation.routes';
 import adminRoutes from './admin.routes';
+import catalogRoutes from './catalog.routes';
 
 const router = Router();
 
@@ -53,6 +54,7 @@ router.use('/inventory', ...tenant, inventoryRoutes);
 router.use('/promotions', ...tenant, promotionRoutes);
 router.use('/settings', ...tenant, settingsRoutes);
 router.use('/invitations', invitationRoutes);
+router.use('/catalog-requests', catalogRoutes);
 
 // Route inconnue dans l'espace /api → 404 (l'authenticate ne doit pas intercepter avant le 404 handler global).
 router.use((_req: Request, res: Response) => sendError(res, 404, 'INTERNAL_001', 'Route introuvable'));
