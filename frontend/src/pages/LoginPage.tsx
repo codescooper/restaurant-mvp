@@ -132,26 +132,30 @@ export default function LoginPage() {
           </Link>
         </div>
 
-        <div className="mt-6 pt-6 border-t border-neutral-800">
-          <p className="text-xs text-neutral-500 text-center mb-3">Comptes de démonstration</p>
-          <div className="space-y-2">
-            {DEMO_ACCOUNTS.map((acc) => (
-              <button
-                key={acc.email}
-                onClick={() => fillDemo(acc.email, acc.password)}
-                className="w-full flex items-center gap-3 px-3 py-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-lg text-left text-sm transition"
-              >
-                <span className="text-xl">{acc.emoji}</span>
-                <div>
-                  <div className="font-medium text-neutral-100">{acc.label}</div>
-                  <div className="text-xs text-neutral-400">
-                    {acc.email} / {acc.password}
+        {/* Comptes de démonstration : visibles uniquement en développement.
+            En production, la plateforme n'est pas présentée comme une démo. */}
+        {import.meta.env.DEV && (
+          <div className="mt-6 pt-6 border-t border-neutral-800">
+            <p className="text-xs text-neutral-500 text-center mb-3">Comptes de démonstration (dev)</p>
+            <div className="space-y-2">
+              {DEMO_ACCOUNTS.map((acc) => (
+                <button
+                  key={acc.email}
+                  onClick={() => fillDemo(acc.email, acc.password)}
+                  className="w-full flex items-center gap-3 px-3 py-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-lg text-left text-sm transition"
+                >
+                  <span className="text-xl">{acc.emoji}</span>
+                  <div>
+                    <div className="font-medium text-neutral-100">{acc.label}</div>
+                    <div className="text-xs text-neutral-400">
+                      {acc.email} / {acc.password}
+                    </div>
                   </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
