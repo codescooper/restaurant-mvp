@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useWebSocket } from '../contexts/WebSocketContext';
+import { homeForRole } from '../services/auth-helpers';
 import { useMemo } from 'react';
 
 interface RouteDef {
@@ -70,7 +71,7 @@ export function Navigation() {
     <nav className="bg-black border-b border-neutral-800 sticky top-0 z-40 no-print">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex justify-between items-center h-16">
-          <Link to="/" className="flex items-center gap-3">
+          <Link to={homeForRole(currentRole)} className="flex items-center gap-3">
             <div
               className="w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden"
               style={{ borderColor: brandColor, borderWidth: 2, borderStyle: 'solid' }}
