@@ -173,6 +173,10 @@ model Employee {
   emergencyPhone   String?   @map("emergency_phone") @db.VarChar(30)
   idNumber         String?   @map("id_number") @db.VarChar(50)
   notes            String?   @db.Text
+  // Paie / CNPS
+  cnpsNumber        String?  @map("cnps_number") @db.VarChar(30)
+  maritalStatus     String?  @map("marital_status") @db.VarChar(20)
+  dependentChildren Int?     @map("dependent_children")
   // Statut & lien compte
   isActive         Boolean   @default(true) @map("is_active")
   userId           Int?      @unique @map("user_id")

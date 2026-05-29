@@ -381,6 +381,9 @@ export interface Employee {
   emergencyPhone?: string | null;
   idNumber?: string | null;
   notes?: string | null;
+  cnpsNumber?: string | null;
+  maritalStatus?: string | null;
+  dependentChildren?: number | null;
   isActive: boolean;
   userId?: number | null;
   createdAt?: string;

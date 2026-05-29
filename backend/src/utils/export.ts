@@ -3,6 +3,7 @@ import { Response } from 'express';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { DashboardData, FinancialReport, ProductReport } from '../services/stats.service';
+import { PayslipResult, PayslipLine } from '../services/payroll.service';
 
 const GOLD = '#B8902A'; // or assombri : meilleur contraste à l'impression que #D4AF37
 const GREY = '#666666';
@@ -480,6 +481,162 @@ export function streamProductReportPdf(res: Response, r: ProductReport): void {
     doc.text(`•  ${p.name} — ${p.quantity} vendu(s) (${fcfa(p.revenue)})`, left, doc.y, { width: fullWidth });
     doc.moveDown(0.2);
   }
+
+  doc.end();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bulletin de paie — PDF.
+// ─────────────────────────────────────────────────────────────────────────────
+export interface PayslipPdfData {
+  restaurantName: string;
+  employeeName: string;
+  position: string | null;
+  cnpsNumber: string | null;
+  contractType: string | null;
+  paymentMethod: string | null;
+  periodLabel: string; // ex. « Mai 2026 »
+  payslip: PayslipResult;
+}
+
+export function streamPayslipPdf(res: Response, data: PayslipPdfData): void {
+  const doc = new PDFDocument({ margin: 40, size: 'A4' });
+  const fileLabel = `${data.employeeName}-${data.periodLabel}`.replace(/[^a-zA-Z0-9_\-]/g, '_');
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="bulletin-${fileLabel}.pdf"`);
+  doc.pipe(res);
+
+  const left = doc.page.margins.left;
+  const right = doc.page.width - doc.page.margins.right;
+  const fullWidth = right - left;
+  const p = data.payslip;
+
+  // En-tête
+  doc.font('Helvetica-Bold').fontSize(20).fillColor(GOLD).text('BULLETIN DE PAIE', { align: 'center' });
+  doc.font('Helvetica-Bold').fontSize(14).fillColor('#000').text(data.restaurantName, { align: 'center' });
+  doc.font('Helvetica').fontSize(11).fillColor(GREY).text(`Période : ${data.periodLabel}`, { align: 'center' });
+  doc.fontSize(8).fillColor(GREY).text(`Généré le ${format(new Date(), 'dd/MM/yyyy à HH:mm', { locale: fr })}`, {
+    align: 'center',
+  });
+  doc.moveDown(0.6);
+
+  // Bloc salarié
+  sectionTitle(doc, 'Salarié');
+  const infoLine = (label: string, value: string) => {
+    const top = doc.y;
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#000').text(label, left, top, { width: 150 });
+    doc.font('Helvetica').fontSize(10).fillColor('#000').text(value, left + 150, top, { width: fullWidth - 150 });
+    doc.y = top + 15;
+  };
+  infoLine('Nom & prénom', data.employeeName);
+  if (data.position) infoLine('Poste', data.position);
+  if (data.contractType) infoLine('Type de contrat', data.contractType);
+  infoLine('N° CNPS', data.cnpsNumber || '— (non renseigné)');
+
+  // Colonnes des tableaux de cotisations.
+  const cLabel = { x: left, width: 215 };
+  const cBase = { x: left + 215, width: 95, align: 'right' as const };
+  const cRate = { x: left + 315, width: 70, align: 'right' as const };
+  const cAmount = { x: right - 110, width: 110, align: 'right' as const };
+  const dash = '—';
+  const rateTxt = (l: PayslipLine) => (l.rate > 0 ? `${l.rate} %` : dash);
+  const baseTxt = (l: PayslipLine) => (l.base > 0 ? fcfa(l.base) : dash);
+
+  // Gains
+  sectionTitle(doc, '1. Rémunération brute');
+  drawRow(doc, [{ text: 'Salaire brut', ...cLabel }, { text: '', ...cBase }, { text: '', ...cRate }, { text: fcfa(p.grossSalary), ...cAmount }]);
+
+  // Retenues salariales
+  sectionTitle(doc, '2. Retenues salariales');
+  drawRow(
+    doc,
+    [
+      { text: 'Cotisation / impôt', ...cLabel },
+      { text: 'Base', ...cBase },
+      { text: 'Taux', ...cRate },
+      { text: 'Montant', ...cAmount },
+    ],
+    true
+  );
+  for (const l of p.employeeLines) {
+    drawRow(doc, [
+      { text: l.label, ...cLabel },
+      { text: baseTxt(l), ...cBase },
+      { text: rateTxt(l), ...cRate },
+      { text: fcfa(l.amount), ...cAmount },
+    ]);
+  }
+  if (p.its > 0) {
+    drawRow(doc, [
+      { text: 'Impôt sur salaire (ITS)', ...cLabel },
+      { text: fcfa(p.grossSalary), ...cBase },
+      { text: 'barème', ...cRate },
+      { text: fcfa(p.its), ...cAmount },
+    ]);
+  }
+  doc.moveDown(0.2);
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#000').text(`Total retenues : ${fcfa(p.totalEmployee)}`, left, doc.y, {
+    width: fullWidth,
+    align: 'right',
+  });
+
+  // Net à payer (mis en avant)
+  doc.moveDown(0.4);
+  const topNet = doc.y;
+  doc.font('Helvetica-Bold').fontSize(14).fillColor('#000').text('NET À PAYER', left, topNet, { width: fullWidth - 160 });
+  doc.font('Helvetica-Bold').fontSize(14).fillColor('#137333').text(fcfa(p.netSalary), right - 160, topNet, {
+    width: 160,
+    align: 'right',
+  });
+  doc.y = topNet + 22;
+  if (data.paymentMethod) {
+    doc.font('Helvetica').fontSize(9).fillColor(GREY).text(`Mode de paiement : ${data.paymentMethod}`, left);
+  }
+
+  // Charges patronales
+  sectionTitle(doc, '3. Charges patronales (employeur)');
+  drawRow(
+    doc,
+    [
+      { text: 'Cotisation', ...cLabel },
+      { text: 'Base', ...cBase },
+      { text: 'Taux', ...cRate },
+      { text: 'Montant', ...cAmount },
+    ],
+    true
+  );
+  for (const l of p.employerLines) {
+    drawRow(doc, [
+      { text: l.label, ...cLabel },
+      { text: baseTxt(l), ...cBase },
+      { text: rateTxt(l), ...cRate },
+      { text: fcfa(l.amount), ...cAmount },
+    ]);
+  }
+  doc.moveDown(0.2);
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#000').text(`Total charges patronales : ${fcfa(p.totalEmployer)}`, left, doc.y, {
+    width: fullWidth,
+    align: 'right',
+  });
+  doc.moveDown(0.2);
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#000').text(`Coût total employeur : ${fcfa(p.employerCost)}`, left, doc.y, {
+    width: fullWidth,
+    align: 'right',
+  });
+
+  // Mention
+  doc.moveDown(0.8);
+  doc
+    .font('Helvetica')
+    .fontSize(8)
+    .fillColor(GREY)
+    .text(
+      'Document indicatif généré par Restoflow. Les taux et plafonds de cotisation sont paramétrables et doivent être ' +
+        'vérifiés au regard de la réglementation CNPS / DGI en vigueur.',
+      left,
+      doc.y,
+      { width: fullWidth, align: 'justify' }
+    );
 
   doc.end();
 }
