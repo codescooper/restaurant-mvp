@@ -72,6 +72,7 @@ export interface PayrollConfig {
   accidentTravail: ContributionRate;
   cmuEmployee: number; // forfait mensuel salarié (FCFA)
   cmuEmployer: number; // forfait mensuel patronal (FCFA)
+  employerCnpsNumber: string; // n° employeur CNPS (en-tête de la déclaration DISA)
   its: {
     enabled: boolean;   // ITS désactivé par défaut (barème à confirmer DGI)
     brackets: ItsBracket[];
@@ -85,6 +86,7 @@ export const DEFAULT_PAYROLL_CONFIG: PayrollConfig = {
   accidentTravail: { employee: 0, employer: 2, ceiling: 70_000 }, // 2–5 % selon secteur : défaut bas
   cmuEmployee: 500,
   cmuEmployer: 500,
+  employerCnpsNumber: '',
   its: {
     enabled: false,
     brackets: [

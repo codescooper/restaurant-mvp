@@ -52,6 +52,11 @@ export default function PayrollSettingsModal({ onClose }: { onClose: () => void 
     setSaved(false);
   };
 
+  const setEmployerCnps = (raw: string) => {
+    setCfg((c) => (c ? { ...c, employerCnpsNumber: raw } : c));
+    setSaved(false);
+  };
+
   const setItsEnabled = (enabled: boolean) => {
     setCfg((c) => (c ? { ...c, its: { ...c.its, enabled } } : c));
     setSaved(false);
@@ -105,6 +110,12 @@ export default function PayrollSettingsModal({ onClose }: { onClose: () => void 
         </p>
 
         {error && <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-lg p-2 mb-3 text-sm">{error}</div>}
+
+        {/* Identité employeur (DISA) */}
+        <div className="mb-4">
+          <label className="block text-xs text-neutral-400 mb-1">N° employeur CNPS (en-tête de la déclaration DISA)</label>
+          <input className={INPUT} placeholder="matricule employeur" value={cfg.employerCnpsNumber} onChange={(e) => setEmployerCnps(e.target.value)} />
+        </div>
 
         {/* Cotisations */}
         <div className="overflow-x-auto">

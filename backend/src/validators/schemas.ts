@@ -192,6 +192,7 @@ export const createEmployeeSchema = z.object({
   cnpsNumber: z.string().max(30).optional(),
   maritalStatus: z.enum(MARITAL_STATUSES).optional(),
   dependentChildren: z.number().int().min(0).max(30).nullable().optional(),
+  birthDate: z.string().optional(),
   // Statut & lien compte de connexion (null = délier)
   isActive: z.boolean().optional(),
   userId: z.number().int().positive().nullable().optional(),
@@ -217,6 +218,7 @@ export const payrollConfigSchema = z.object({
   accidentTravail: contributionRateSchema,
   cmuEmployee: z.number().int().min(0).optional(),
   cmuEmployer: z.number().int().min(0).optional(),
+  employerCnpsNumber: z.string().max(30).optional(),
   its: z
     .object({
       enabled: z.boolean().optional(),

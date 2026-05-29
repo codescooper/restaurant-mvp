@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, X, ImagePlus, Link2, FileText, Sliders } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, ImagePlus, Link2, FileText, Sliders, FileSpreadsheet } from 'lucide-react';
 import { employeeApi, userApi, EmployeeInput, MemberRow } from '../../services/endpoints';
 import { getApiError } from '../../services/api';
 import { Employee } from '../../types';
@@ -7,6 +7,7 @@ import { formatFCFA } from '../../utils/format';
 import { compressImage } from '../../utils/image';
 import PayslipModal from './PayslipModal';
 import PayrollSettingsModal from './PayrollSettingsModal';
+import DisaModal from './DisaModal';
 
 const PANEL = 'bg-neutral-950 border border-neutral-800 ring-1 ring-white/5 rounded-2xl';
 const INPUT =
@@ -46,6 +47,7 @@ interface EmpForm {
   cnpsNumber: string;
   maritalStatus: string;
   dependentChildren: string;
+  birthDate: string;
   isActive: boolean;
   userId: string;
 }
@@ -55,7 +57,7 @@ const EMPTY: EmpForm = {
   position: '', contractType: '', hireDate: '', endDate: '',
   salary: '', salaryPeriod: 'mensuel', paymentMethod: '',
   emergencyContact: '', emergencyPhone: '', idNumber: '', notes: '',
-  cnpsNumber: '', maritalStatus: '', dependentChildren: '',
+  cnpsNumber: '', maritalStatus: '', dependentChildren: '', birthDate: '',
   isActive: true, userId: '',
 };
 
@@ -72,6 +74,7 @@ export default function EmployeesTab() {
   const [busy, setBusy] = useState(false);
   const [payslipFor, setPayslipFor] = useState<Employee | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [disaOpen, setDisaOpen] = useState(false);
 
   const load = () => employeeApi.list().then(setEmployees).catch((e) => setError(getApiError(e)));
 
@@ -110,6 +113,7 @@ export default function EmployeesTab() {
       cnpsNumber: e.cnpsNumber ?? '',
       maritalStatus: e.maritalStatus ?? '',
       dependentChildren: e.dependentChildren != null ? String(e.dependentChildren) : '',
+      birthDate: toDateInput(e.birthDate),
       isActive: e.isActive,
       userId: e.userId != null ? String(e.userId) : '',
     });
@@ -143,6 +147,7 @@ export default function EmployeesTab() {
       cnpsNumber: form.cnpsNumber || undefined,
       maritalStatus: form.maritalStatus || undefined,
       dependentChildren: form.dependentChildren !== '' ? Number(form.dependentChildren) : null,
+      birthDate: form.birthDate || undefined,
       isActive: form.isActive,
       userId: form.userId ? Number(form.userId) : null,
     };
@@ -182,7 +187,13 @@ export default function EmployeesTab() {
     <div>
       {error && <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-lg p-3 mb-4 text-sm">{error}</div>}
 
-      <div className="flex justify-end gap-2 mb-4">
+      <div className="flex justify-end gap-2 mb-4 flex-wrap">
+        <button
+          onClick={() => setDisaOpen(true)}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-100 transition"
+        >
+          <FileSpreadsheet className="w-5 h-5 text-gold-400" /> Déclaration DISA
+        </button>
         <button
           onClick={() => setSettingsOpen(true)}
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-100 transition"
@@ -325,6 +336,7 @@ export default function EmployeesTab() {
               <L label="Nom *"><input className={INPUT} value={form.lastName} onChange={(e) => setF({ lastName: e.target.value })} /></L>
               <L label="Téléphone"><input className={INPUT} value={form.phone} onChange={(e) => setF({ phone: e.target.value })} /></L>
               <L label="Email"><input className={INPUT} value={form.email} onChange={(e) => setF({ email: e.target.value })} /></L>
+              <L label="Date de naissance"><input type="date" className={INPUT} value={form.birthDate} onChange={(e) => setF({ birthDate: e.target.value })} /></L>
             </div>
             <L label="Adresse"><textarea className={INPUT} rows={2} value={form.address} onChange={(e) => setF({ address: e.target.value })} /></L>
 
@@ -405,6 +417,7 @@ export default function EmployeesTab() {
 
       {settingsOpen && <PayrollSettingsModal onClose={() => setSettingsOpen(false)} />}
       {payslipFor && <PayslipModal employee={payslipFor} onClose={() => setPayslipFor(null)} />}
+      {disaOpen && <DisaModal onClose={() => setDisaOpen(false)} />}
     </div>
   );
 }

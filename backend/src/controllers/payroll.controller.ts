@@ -6,7 +6,7 @@ import { AppError } from '../utils/errors';
 import * as payrollService from '../services/payroll.service';
 import * as employeeService from '../services/employee.service';
 import { getRestaurantName } from '../services/settings.service';
-import { streamPayslipPdf } from '../utils/export';
+import { streamPayslipPdf, disaToCsv } from '../utils/export';
 
 export const getPayrollConfigController = asyncHandler(async (_req, res) => {
   sendSuccess(res, await payrollService.getPayrollConfig());
@@ -55,4 +55,32 @@ export const payslipController = asyncHandler(async (req, res) => {
     periodLabel: periodLabel(year, month),
     payslip,
   });
+});
+
+// Déclaration DISA (CSV) pour une année : un employé par ligne (ceux ayant travaillé dans l'année).
+export const disaController = asyncHandler(async (req, res) => {
+  const yearRaw = Number(req.query.year);
+  const year =
+    Number.isFinite(yearRaw) && yearRaw >= 2000 && yearRaw <= 2100 ? Math.trunc(yearRaw) : new Date().getFullYear();
+  const [employees, config, restaurantName] = await Promise.all([
+    employeeService.listEmployees(),
+    payrollService.getPayrollConfig(),
+    getRestaurantName(),
+  ]);
+  const rows = payrollService.buildDisaRows(
+    year,
+    employees.map((e) => ({
+      cnpsNumber: e.cnpsNumber,
+      lastName: e.lastName,
+      firstName: e.firstName,
+      birthDate: e.birthDate,
+      hireDate: e.hireDate,
+      endDate: e.endDate,
+      salary: e.salary,
+      salaryPeriod: e.salaryPeriod,
+    }))
+  );
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="disa-${year}.csv"`);
+  res.send('﻿' + disaToCsv({ employerCnpsNumber: config.employerCnpsNumber, restaurantName, year, rows }));
 });

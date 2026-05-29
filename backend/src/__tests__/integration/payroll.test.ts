@@ -136,3 +136,25 @@ describe('E. Rôle & validation', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('F. Déclaration DISA', () => {
+  it('génère un CSV listant les employés du resto A', async () => {
+    const res = await request(app).get('/api/payroll/disa?year=2026').set(auth(ownerA));
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('text/csv');
+    expect(res.headers['content-disposition']).toContain('disa-2026.csv');
+    expect(res.text).toContain('DISA');
+    expect(res.text).toContain('Koné'); // employé salarié du resto A
+  });
+
+  it('isolation tenant : la DISA du resto B ne contient pas les employés de A', async () => {
+    const res = await request(app).get('/api/payroll/disa?year=2026').set(auth(ownerB));
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Koné');
+  });
+
+  it('refuse un caissier (403)', async () => {
+    const res = await request(app).get('/api/payroll/disa?year=2026').set(auth(cashierA));
+    expect(res.status).toBe(403);
+  });
+});

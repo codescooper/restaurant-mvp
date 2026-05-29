@@ -309,6 +309,7 @@ export interface EmployeeInput {
   cnpsNumber?: string;
   maritalStatus?: string;
   dependentChildren?: number | null;
+  birthDate?: string;
   isActive?: boolean;
   userId?: number | null;
 }
@@ -338,6 +339,7 @@ export interface PayrollConfig {
   accidentTravail: ContributionRate;
   cmuEmployee: number;
   cmuEmployer: number;
+  employerCnpsNumber: string;
   its: { enabled: boolean; brackets: ItsBracket[] };
 }
 export interface PayslipLine {
@@ -365,6 +367,8 @@ export const payrollApi = {
     api.post('/payroll/preview', { grossSalary }).then((r) => r.data.data as PayslipResult),
   payslip: (data: { employeeId: number; year: number; month: number; grossSalary?: number }) =>
     api.post('/payroll/payslip', data, { responseType: 'blob' }).then((r) => r.data as Blob),
+  disa: (year: number) =>
+    api.get('/payroll/disa', { params: { year }, responseType: 'blob' }).then((r) => r.data as Blob),
 };
 
 export interface ExpenseInput {

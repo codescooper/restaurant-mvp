@@ -7,6 +7,7 @@ import {
   setPayrollConfigController,
   payslipPreviewController,
   payslipController,
+  disaController,
 } from '../controllers/payroll.controller';
 
 const router = Router();
@@ -17,5 +18,6 @@ router.get('/config', getPayrollConfigController);
 router.put('/config', validate(payrollConfigSchema), setPayrollConfigController);
 router.post('/preview', validate(payslipPreviewSchema), payslipPreviewController);
 router.post('/payslip', validate(payslipSchema), payslipController);
+router.get('/disa', disaController);
 
 export default router;

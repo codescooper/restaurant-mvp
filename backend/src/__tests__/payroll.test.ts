@@ -3,6 +3,9 @@ import {
   computePayslip,
   computeIts,
   mergePayrollConfig,
+  monthsWorkedInYear,
+  buildDisaRows,
+  DisaEmployeeInput,
 } from '../services/payroll.service';
 import { DEFAULT_PAYROLL_CONFIG, PayrollConfig } from '../constants';
 
@@ -121,5 +124,45 @@ describe('mergePayrollConfig', () => {
     expect(merged.its.enabled).toBe(true);
     expect(merged.its.brackets[0].upTo).toBe(100_000);
     expect(merged.its.brackets[1].upTo).toBeNull();
+  });
+
+  it('fournit un n° employeur CNPS par défaut vide, surchargeable', () => {
+    expect(mergePayrollConfig(null).employerCnpsNumber).toBe('');
+    expect(mergePayrollConfig({ employerCnpsNumber: 'EMP-99' }).employerCnpsNumber).toBe('EMP-99');
+  });
+});
+
+describe('monthsWorkedInYear', () => {
+  it('année complète (embauché avant, toujours en poste) = 12', () => {
+    expect(monthsWorkedInYear(2026, new Date('2020-01-01'), null)).toBe(12);
+  });
+  it('embauché en cours d’année (15/04/2026) = avril→déc = 9', () => {
+    expect(monthsWorkedInYear(2026, new Date('2026-04-15'), null)).toBe(9);
+  });
+  it('parti en cours d’année (30/06/2026) = janv→juin = 6', () => {
+    expect(monthsWorkedInYear(2026, new Date('2020-01-01'), new Date('2026-06-30'))).toBe(6);
+  });
+  it('parti avant l’année = 0', () => {
+    expect(monthsWorkedInYear(2026, new Date('2019-01-01'), new Date('2025-12-31'))).toBe(0);
+  });
+  it('embauché après l’année = 0', () => {
+    expect(monthsWorkedInYear(2026, new Date('2027-01-01'), null)).toBe(0);
+  });
+});
+
+describe('buildDisaRows', () => {
+  const emps: DisaEmployeeInput[] = [
+    { cnpsNumber: 'CI-1', lastName: 'Koné', firstName: 'Awa', birthDate: new Date('1990-05-01'), hireDate: new Date('2020-01-01'), endDate: null, salary: 200_000, salaryPeriod: 'mensuel' },
+    { cnpsNumber: 'CI-2', lastName: 'Parti', firstName: 'Avant', birthDate: null, hireDate: new Date('2019-01-01'), endDate: new Date('2025-06-30'), salary: 150_000, salaryPeriod: 'mensuel' },
+  ];
+  it('exclut les employés n’ayant pas travaillé dans l’année', () => {
+    const rows = buildDisaRows(2026, emps);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].lastName).toBe('Koné');
+  });
+  it('assiette annuelle = brut mensuel × mois travaillés', () => {
+    const rows = buildDisaRows(2026, emps);
+    expect(rows[0].monthsWorked).toBe(12);
+    expect(rows[0].annualGross).toBe(2_400_000); // 200000 × 12
   });
 });

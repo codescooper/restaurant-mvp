@@ -51,6 +51,7 @@ export function mergePayrollConfig(stored: unknown): PayrollConfig {
     accidentTravail: mergeRate(s.accidentTravail, d.accidentTravail),
     cmuEmployee: num(s.cmuEmployee, d.cmuEmployee),
     cmuEmployer: num(s.cmuEmployer, d.cmuEmployer),
+    employerCnpsNumber: typeof s.employerCnpsNumber === 'string' ? s.employerCnpsNumber : d.employerCnpsNumber,
     its: {
       enabled: typeof itsRaw.enabled === 'boolean' ? itsRaw.enabled : d.its.enabled,
       brackets,
@@ -188,4 +189,65 @@ export function computePayslip(grossSalary: number, config: PayrollConfig): Pays
     netSalary: Math.max(0, gross - totalEmployee),
     employerCost: gross + totalEmployer,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DISA — Déclaration Individuelle des Salaires Annuels (CNPS).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Nombre de mois travaillés dans l'année civile `year` (0..12) d'après embauche/départ.
+export function monthsWorkedInYear(year: number, hireDate: Date | null, endDate: Date | null): number {
+  const yearStart = new Date(year, 0, 1);
+  const yearEnd = new Date(year, 11, 31);
+  const start = hireDate && hireDate > yearStart ? hireDate : yearStart;
+  const end = endDate && endDate < yearEnd ? endDate : yearEnd;
+  if (start > end) return 0; // embauché après l'année ou parti avant
+  const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
+  return Math.max(0, Math.min(12, months));
+}
+
+export interface DisaEmployeeInput {
+  cnpsNumber: string | null;
+  lastName: string;
+  firstName: string;
+  birthDate: Date | null;
+  hireDate: Date | null;
+  endDate: Date | null;
+  salary: number | null;
+  salaryPeriod: string | null;
+}
+
+export interface DisaRow {
+  cnpsNumber: string;
+  lastName: string;
+  firstName: string;
+  birthDate: Date | null;
+  hireDate: Date | null;
+  endDate: Date | null;
+  salaryPeriod: string | null;
+  monthsWorked: number;
+  annualGross: number; // assiette annuelle ≈ brut mensuel × mois travaillés
+}
+
+// Construit les lignes DISA pour une année : un employé par ligne, uniquement ceux
+// ayant travaillé au moins un mois dans l'année (mois travaillés > 0).
+export function buildDisaRows(year: number, employees: DisaEmployeeInput[]): DisaRow[] {
+  const rows: DisaRow[] = [];
+  for (const e of employees) {
+    const monthsWorked = monthsWorkedInYear(year, e.hireDate, e.endDate);
+    if (monthsWorked <= 0) continue;
+    const monthly = e.salary ?? 0;
+    rows.push({
+      cnpsNumber: e.cnpsNumber ?? '',
+      lastName: e.lastName,
+      firstName: e.firstName,
+      birthDate: e.birthDate,
+      hireDate: e.hireDate,
+      endDate: e.endDate,
+      salaryPeriod: e.salaryPeriod,
+      monthsWorked,
+      annualGross: monthly * monthsWorked,
+    });
+  }
+  return rows;
 }

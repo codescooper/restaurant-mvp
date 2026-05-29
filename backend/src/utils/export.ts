@@ -3,7 +3,7 @@ import { Response } from 'express';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { DashboardData, FinancialReport, ProductReport } from '../services/stats.service';
-import { PayslipResult, PayslipLine } from '../services/payroll.service';
+import { PayslipResult, PayslipLine, DisaRow } from '../services/payroll.service';
 
 const GOLD = '#B8902A'; // or assombri : meilleur contraste à l'impression que #D4AF37
 const GREY = '#666666';
@@ -483,6 +483,46 @@ export function streamProductReportPdf(res: Response, r: ProductReport): void {
   }
 
   doc.end();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DISA — Déclaration Individuelle des Salaires Annuels (CNPS) — CSV.
+// Format reprenant les champs du fichier d'entrée e-DISA (état civil / affectation /
+// salaire). À vérifier/charger dans le modèle e-DISA officiel de la CNPS.
+// ─────────────────────────────────────────────────────────────────────────────
+export interface DisaExport {
+  employerCnpsNumber: string;
+  restaurantName: string;
+  year: number;
+  rows: DisaRow[];
+}
+
+export function disaToCsv(data: DisaExport): string {
+  const L: string[] = [];
+  L.push('Déclaration Individuelle des Salaires Annuels (DISA)');
+  L.push(`Employeur,${escapeCsv(data.restaurantName)}`);
+  L.push(`N° employeur CNPS,${escapeCsv(data.employerCnpsNumber || '')}`);
+  L.push(`Année,${data.year}`);
+  L.push('');
+  L.push(
+    "N° immatriculation CNPS,Nom,Prénoms,Date de naissance,Date d'embauche,Date de départ,Périodicité,Nombre de mois,Salaire brut annuel (FCFA)"
+  );
+  for (const r of data.rows) {
+    L.push(
+      [
+        escapeCsv(r.cnpsNumber),
+        escapeCsv(r.lastName),
+        escapeCsv(r.firstName),
+        r.birthDate ? shortDate(r.birthDate) : '',
+        r.hireDate ? shortDate(r.hireDate) : '',
+        r.endDate ? shortDate(r.endDate) : '',
+        escapeCsv(r.salaryPeriod ?? ''),
+        r.monthsWorked,
+        Math.round(r.annualGross),
+      ].join(',')
+    );
+  }
+  return L.join('\n');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -384,6 +384,7 @@ export interface Employee {
   cnpsNumber?: string | null;
   maritalStatus?: string | null;
   dependentChildren?: number | null;
+  birthDate?: string | null;
   isActive: boolean;
   userId?: number | null;
   createdAt?: string;

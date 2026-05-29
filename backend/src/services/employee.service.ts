@@ -25,6 +25,7 @@ export interface EmployeeInput {
   cnpsNumber?: string;
   maritalStatus?: MaritalStatus;
   dependentChildren?: number | null;
+  birthDate?: string;
   isActive?: boolean;
   userId?: number | null;
 }
@@ -88,6 +89,7 @@ function buildData(data: EmployeeInput) {
     cnpsNumber: nz(data.cnpsNumber),
     maritalStatus: data.maritalStatus ?? null,
     dependentChildren: data.dependentChildren ?? null,
+    birthDate: toDate(data.birthDate),
     isActive: data.isActive ?? true,
     userId: data.userId ?? null,
   };
