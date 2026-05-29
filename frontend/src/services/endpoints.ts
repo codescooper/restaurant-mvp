@@ -306,6 +306,10 @@ export interface EmployeeInput {
   emergencyPhone?: string;
   idNumber?: string;
   notes?: string;
+  cnpsNumber?: string;
+  maritalStatus?: string;
+  dependentChildren?: number | null;
+  birthDate?: string;
   isActive?: boolean;
   userId?: number | null;
 }
@@ -316,6 +320,55 @@ export const employeeApi = {
   create: (data: EmployeeInput) => api.post('/employees', data).then((r) => r.data.data as Employee),
   update: (id: number, data: EmployeeInput) => api.put(`/employees/${id}`, data).then((r) => r.data.data as Employee),
   remove: (id: number) => api.delete(`/employees/${id}`).then((r) => r.data.data),
+};
+
+// --- Paie & CNPS ---
+export interface ContributionRate {
+  employee: number;
+  employer: number;
+  ceiling: number | null;
+}
+export interface ItsBracket {
+  upTo: number | null;
+  rate: number;
+}
+export interface PayrollConfig {
+  retraite: ContributionRate;
+  prestationsFamiliales: ContributionRate;
+  maternite: ContributionRate;
+  accidentTravail: ContributionRate;
+  cmuEmployee: number;
+  cmuEmployer: number;
+  employerCnpsNumber: string;
+  its: { enabled: boolean; brackets: ItsBracket[] };
+}
+export interface PayslipLine {
+  key: string;
+  label: string;
+  base: number;
+  rate: number;
+  amount: number;
+}
+export interface PayslipResult {
+  grossSalary: number;
+  employeeLines: PayslipLine[];
+  its: number;
+  employerLines: PayslipLine[];
+  totalEmployee: number;
+  totalEmployer: number;
+  netSalary: number;
+  employerCost: number;
+}
+
+export const payrollApi = {
+  getConfig: () => api.get('/payroll/config').then((r) => r.data.data as PayrollConfig),
+  setConfig: (data: Partial<PayrollConfig>) => api.put('/payroll/config', data).then((r) => r.data.data as PayrollConfig),
+  preview: (grossSalary: number) =>
+    api.post('/payroll/preview', { grossSalary }).then((r) => r.data.data as PayslipResult),
+  payslip: (data: { employeeId: number; year: number; month: number; grossSalary?: number }) =>
+    api.post('/payroll/payslip', data, { responseType: 'blob' }).then((r) => r.data as Blob),
+  disa: (year: number) =>
+    api.get('/payroll/disa', { params: { year }, responseType: 'blob' }).then((r) => r.data as Blob),
 };
 
 export interface ExpenseInput {

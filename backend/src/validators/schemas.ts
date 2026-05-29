@@ -19,6 +19,7 @@ import {
   INVITABLE_ROLES,
   Role,
   CATALOG_REQUEST_STATUSES,
+  MARITAL_STATUSES,
 } from '../constants';
 
 // --- Auth ---
@@ -187,12 +188,66 @@ export const createEmployeeSchema = z.object({
   emergencyPhone: z.string().max(30).optional(),
   idNumber: z.string().max(50).optional(),
   notes: z.string().max(1000).optional(),
+  // Paie / CNPS
+  cnpsNumber: z.string().max(30).optional(),
+  maritalStatus: z.enum(MARITAL_STATUSES).optional(),
+  dependentChildren: z.number().int().min(0).max(30).nullable().optional(),
+  birthDate: z.string().optional(),
   // Statut & lien compte de connexion (null = délier)
   isActive: z.boolean().optional(),
   userId: z.number().int().positive().nullable().optional(),
 });
 
 export const updateEmployeeSchema = createEmployeeSchema.partial();
+
+// --- Paie & CNPS ---
+// Cotisation : taux salarial/patronal (%) et plafond mensuel de la base (null = pas de plafond).
+const contributionRateSchema = z
+  .object({
+    employee: z.number().min(0).max(100).optional(),
+    employer: z.number().min(0).max(100).optional(),
+    ceiling: z.number().int().min(0).nullable().optional(),
+  })
+  .optional();
+
+// Réglages de paie (tous les champs optionnels : fusionnés sur les défauts côté service).
+export const payrollConfigSchema = z.object({
+  retraite: contributionRateSchema,
+  prestationsFamiliales: contributionRateSchema,
+  maternite: contributionRateSchema,
+  accidentTravail: contributionRateSchema,
+  cmuEmployee: z.number().int().min(0).optional(),
+  cmuEmployer: z.number().int().min(0).optional(),
+  employerCnpsNumber: z.string().max(30).optional(),
+  its: z
+    .object({
+      enabled: z.boolean().optional(),
+      brackets: z
+        .array(
+          z.object({
+            // Borne haute finie ≥ 1 (0 serait silencieusement ignoré au calcul) ; null = tranche supérieure.
+            upTo: z.number().int().min(1).nullable(),
+            rate: z.number().min(0).max(100),
+          })
+        )
+        .max(12)
+        .optional(),
+    })
+    .optional(),
+});
+
+// Génération d'un bulletin : employé + période ; brut optionnel (sinon salaire de la fiche).
+export const payslipSchema = z.object({
+  employeeId: z.number().int().positive(),
+  year: z.number().int().min(2000).max(2100),
+  month: z.number().int().min(1).max(12),
+  grossSalary: z.number().int().min(1).optional(),
+});
+
+// Aperçu live (JSON) d'un calcul de bulletin pour un brut donné (config courante).
+export const payslipPreviewSchema = z.object({
+  grossSalary: z.number().int().min(1),
+});
 
 // --- Dépenses ---
 export const createExpenseSchema = z.object({

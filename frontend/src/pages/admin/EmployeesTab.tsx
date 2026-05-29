@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, X, ImagePlus, Link2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, ImagePlus, Link2, FileText, Sliders, FileSpreadsheet } from 'lucide-react';
 import { employeeApi, userApi, EmployeeInput, MemberRow } from '../../services/endpoints';
 import { getApiError } from '../../services/api';
 import { Employee } from '../../types';
 import { formatFCFA } from '../../utils/format';
 import { compressImage } from '../../utils/image';
+import PayslipModal from './PayslipModal';
+import PayrollSettingsModal from './PayrollSettingsModal';
+import DisaModal from './DisaModal';
 
 const PANEL = 'bg-neutral-950 border border-neutral-800 ring-1 ring-white/5 rounded-2xl';
 const INPUT =
@@ -15,6 +18,7 @@ const BTN_GOLD = 'bg-gold-400 hover:bg-gold-300 text-black font-bold transition 
 
 const CONTRACT_TYPES = ['CDI', 'CDD', 'extra', 'stagiaire', 'autre'];
 const SALARY_PERIODS = ['mensuel', 'horaire', 'journalier'];
+const MARITAL_STATUSES = ['célibataire', 'marié', 'veuf', 'divorcé'];
 const PAYMENT_METHODS: { value: string; label: string }[] = [
   { value: 'espèces', label: 'Espèces' },
   { value: 'virement', label: 'Virement' },
@@ -40,6 +44,10 @@ interface EmpForm {
   emergencyPhone: string;
   idNumber: string;
   notes: string;
+  cnpsNumber: string;
+  maritalStatus: string;
+  dependentChildren: string;
+  birthDate: string;
   isActive: boolean;
   userId: string;
 }
@@ -49,6 +57,7 @@ const EMPTY: EmpForm = {
   position: '', contractType: '', hireDate: '', endDate: '',
   salary: '', salaryPeriod: 'mensuel', paymentMethod: '',
   emergencyContact: '', emergencyPhone: '', idNumber: '', notes: '',
+  cnpsNumber: '', maritalStatus: '', dependentChildren: '', birthDate: '',
   isActive: true, userId: '',
 };
 
@@ -63,6 +72,9 @@ export default function EmployeesTab() {
   const [editing, setEditing] = useState<Employee | null>(null);
   const [form, setForm] = useState<EmpForm>(EMPTY);
   const [busy, setBusy] = useState(false);
+  const [payslipFor, setPayslipFor] = useState<Employee | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [disaOpen, setDisaOpen] = useState(false);
 
   const load = () => employeeApi.list().then(setEmployees).catch((e) => setError(getApiError(e)));
 
@@ -98,6 +110,10 @@ export default function EmployeesTab() {
       emergencyPhone: e.emergencyPhone ?? '',
       idNumber: e.idNumber ?? '',
       notes: e.notes ?? '',
+      cnpsNumber: e.cnpsNumber ?? '',
+      maritalStatus: e.maritalStatus ?? '',
+      dependentChildren: e.dependentChildren != null ? String(e.dependentChildren) : '',
+      birthDate: toDateInput(e.birthDate),
       isActive: e.isActive,
       userId: e.userId != null ? String(e.userId) : '',
     });
@@ -128,6 +144,10 @@ export default function EmployeesTab() {
       emergencyPhone: form.emergencyPhone || undefined,
       idNumber: form.idNumber || undefined,
       notes: form.notes || undefined,
+      cnpsNumber: form.cnpsNumber || undefined,
+      maritalStatus: form.maritalStatus || undefined,
+      dependentChildren: form.dependentChildren !== '' ? Number(form.dependentChildren) : null,
+      birthDate: form.birthDate || undefined,
       isActive: form.isActive,
       userId: form.userId ? Number(form.userId) : null,
     };
@@ -167,7 +187,19 @@ export default function EmployeesTab() {
     <div>
       {error && <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-lg p-3 mb-4 text-sm">{error}</div>}
 
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-end gap-2 mb-4 flex-wrap">
+        <button
+          onClick={() => setDisaOpen(true)}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-100 transition"
+        >
+          <FileSpreadsheet className="w-5 h-5 text-gold-400" /> Déclaration DISA
+        </button>
+        <button
+          onClick={() => setSettingsOpen(true)}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-100 transition"
+        >
+          <Sliders className="w-5 h-5 text-gold-400" /> Paramètres de paie (CNPS)
+        </button>
         <button onClick={openCreate} className={`flex items-center gap-2 px-4 py-2 rounded-lg ${BTN_GOLD}`}>
           <Plus className="w-5 h-5" /> Nouvel employé
         </button>
@@ -231,10 +263,13 @@ export default function EmployeesTab() {
                   </span>
                 </td>
                 <td className="p-3 text-right whitespace-nowrap">
-                  <button onClick={() => openEdit(e)} className="p-1.5 text-gold-400 hover:bg-neutral-800 rounded">
+                  <button onClick={() => setPayslipFor(e)} className="p-1.5 text-emerald-400 hover:bg-emerald-500/10 rounded" title="Bulletin de paie">
+                    <FileText className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => openEdit(e)} className="p-1.5 text-gold-400 hover:bg-neutral-800 rounded" title="Modifier">
                     <Pencil className="w-4 h-4" />
                   </button>
-                  <button onClick={() => remove(e)} className="p-1.5 text-rose-400 hover:bg-rose-500/10 rounded">
+                  <button onClick={() => remove(e)} className="p-1.5 text-rose-400 hover:bg-rose-500/10 rounded" title="Supprimer">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </td>
@@ -301,6 +336,7 @@ export default function EmployeesTab() {
               <L label="Nom *"><input className={INPUT} value={form.lastName} onChange={(e) => setF({ lastName: e.target.value })} /></L>
               <L label="Téléphone"><input className={INPUT} value={form.phone} onChange={(e) => setF({ phone: e.target.value })} /></L>
               <L label="Email"><input className={INPUT} value={form.email} onChange={(e) => setF({ email: e.target.value })} /></L>
+              <L label="Date de naissance"><input type="date" className={INPUT} value={form.birthDate} onChange={(e) => setF({ birthDate: e.target.value })} /></L>
             </div>
             <L label="Adresse"><textarea className={INPUT} rows={2} value={form.address} onChange={(e) => setF({ address: e.target.value })} /></L>
 
@@ -344,6 +380,19 @@ export default function EmployeesTab() {
             </div>
             <L label="Notes internes"><textarea className={INPUT} rows={2} value={form.notes} onChange={(e) => setF({ notes: e.target.value })} /></L>
 
+            {/* Paie / CNPS */}
+            <Section title="Paie / CNPS" />
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              <L label="N° CNPS"><input className={INPUT} placeholder="matricule assuré" value={form.cnpsNumber} onChange={(e) => setF({ cnpsNumber: e.target.value })} /></L>
+              <L label="Situation matrimoniale">
+                <select className={INPUT} value={form.maritalStatus} onChange={(e) => setF({ maritalStatus: e.target.value })}>
+                  <option value="">—</option>
+                  {MARITAL_STATUSES.map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </L>
+              <L label="Enfants à charge"><input type="number" min="0" max="30" className={INPUT} value={form.dependentChildren} onChange={(e) => setF({ dependentChildren: e.target.value })} /></L>
+            </div>
+
             {/* Compte & statut */}
             <Section title="Compte & statut" />
             <div className="grid grid-cols-2 gap-3 items-end mb-1">
@@ -365,6 +414,10 @@ export default function EmployeesTab() {
           </div>
         </div>
       )}
+
+      {settingsOpen && <PayrollSettingsModal onClose={() => setSettingsOpen(false)} />}
+      {payslipFor && <PayslipModal employee={payslipFor} onClose={() => setPayslipFor(null)} />}
+      {disaOpen && <DisaModal onClose={() => setDisaOpen(false)} />}
     </div>
   );
 }

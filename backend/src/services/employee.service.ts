@@ -1,7 +1,7 @@
 import { prisma } from '../config/prisma';
 import { AppError } from '../utils/errors';
 import { logAudit } from './audit.service';
-import { ContractType, SalaryPeriod, SalaryPaymentMethod } from '../constants';
+import { ContractType, SalaryPeriod, SalaryPaymentMethod, MaritalStatus } from '../constants';
 
 export interface EmployeeInput {
   firstName: string;
@@ -21,6 +21,11 @@ export interface EmployeeInput {
   emergencyPhone?: string;
   idNumber?: string;
   notes?: string;
+  // Paie / CNPS
+  cnpsNumber?: string;
+  maritalStatus?: MaritalStatus;
+  dependentChildren?: number | null;
+  birthDate?: string;
   isActive?: boolean;
   userId?: number | null;
 }
@@ -81,6 +86,10 @@ function buildData(data: EmployeeInput) {
     emergencyPhone: nz(data.emergencyPhone),
     idNumber: nz(data.idNumber),
     notes: nz(data.notes),
+    cnpsNumber: nz(data.cnpsNumber),
+    maritalStatus: data.maritalStatus ?? null,
+    dependentChildren: data.dependentChildren ?? null,
+    birthDate: toDate(data.birthDate),
     isActive: data.isActive ?? true,
     userId: data.userId ?? null,
   };

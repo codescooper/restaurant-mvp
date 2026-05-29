@@ -40,6 +40,64 @@ export const DEFAULT_PRIMARY_COLOR = '#D4AF37';
 export const DEFAULT_ACCENT_COLOR = '#E4C86A';      // gold-300 (accent secondaire par défaut)
 export const DEFAULT_BACKGROUND_COLOR = '#000000';  // noir (fond par défaut quand pas d'image)
 
+// Situation matrimoniale (fiche employé ; sert au crédit d'impôt familial ITS).
+export const MARITAL_STATUSES = ['célibataire', 'marié', 'veuf', 'divorcé'] as const;
+export type MaritalStatus = (typeof MARITAL_STATUSES)[number];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Paie & CNPS (Côte d'Ivoire). Clé de réglage + barème par défaut AJUSTABLE.
+// Les taux/plafonds sont éditables par restaurant (table app_settings, clé ci-dessous)
+// car l'accident du travail varie par secteur (2–5 %) et les plafonds changent.
+// Défauts : CLEISS / CNPS.ci (cf. mémoire cnps-its-rates-ci).
+// ─────────────────────────────────────────────────────────────────────────────
+export const SETTING_PAYROLL_CONFIG = 'payroll.config';
+
+// Une cotisation : part salariale + part patronale (en %) sur une base mensuelle plafonnée.
+export interface ContributionRate {
+  employee: number;       // % part salariale
+  employer: number;       // % part patronale
+  ceiling: number | null; // plafond mensuel de la base (FCFA) ; null = pas de plafond
+}
+
+// Une tranche du barème ITS (mensuel). upTo = borne haute ; null = tranche supérieure.
+export interface ItsBracket {
+  upTo: number | null;
+  rate: number; // %
+}
+
+export interface PayrollConfig {
+  retraite: ContributionRate;
+  prestationsFamiliales: ContributionRate;
+  maternite: ContributionRate;
+  accidentTravail: ContributionRate;
+  cmuEmployee: number; // forfait mensuel salarié (FCFA)
+  cmuEmployer: number; // forfait mensuel patronal (FCFA)
+  employerCnpsNumber: string; // n° employeur CNPS (en-tête de la déclaration DISA)
+  its: {
+    enabled: boolean;   // ITS désactivé par défaut (barème à confirmer DGI)
+    brackets: ItsBracket[];
+  };
+}
+
+export const DEFAULT_PAYROLL_CONFIG: PayrollConfig = {
+  retraite: { employee: 6.3, employer: 7.7, ceiling: 3_375_000 },
+  prestationsFamiliales: { employee: 0, employer: 5, ceiling: 70_000 },
+  maternite: { employee: 0, employer: 0.75, ceiling: 70_000 },
+  accidentTravail: { employee: 0, employer: 2, ceiling: 70_000 }, // 2–5 % selon secteur : défaut bas
+  cmuEmployee: 500,
+  cmuEmployer: 500,
+  employerCnpsNumber: '',
+  its: {
+    enabled: false,
+    brackets: [
+      { upTo: 75_000, rate: 0 },
+      { upTo: 240_000, rate: 16 },
+      { upTo: 800_000, rate: 21 },
+      { upTo: null, rate: 24 },
+    ],
+  },
+};
+
 export const STOCK_UNITS = ['kg', 'litre', 'unité', 'gramme', 'ml'] as const;
 export type StockUnit = (typeof STOCK_UNITS)[number];
 
