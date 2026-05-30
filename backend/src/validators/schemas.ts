@@ -432,6 +432,11 @@ export const setRestaurantNameSchema = z.object({
   restaurantName: z.string().max(100),
 });
 
+// Largeur du ticket thermique : 58 ou 80 mm uniquement.
+export const setReceiptWidthSchema = z.object({
+  receiptWidth: z.enum(['58', '80']),
+});
+
 // PIN manager : chaîne (vide = désactive la protection).
 export const setManagerPinSchema = z.object({
   pin: z.string().max(20),

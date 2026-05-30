@@ -481,6 +481,10 @@ export const settingsApi = {
     api.get('/settings/manager-pin/status').then((r) => r.data.data.configured as boolean),
   setManagerPin: (pin: string) =>
     api.put('/settings/manager-pin', { pin }).then((r) => r.data.data.configured as boolean),
+  getReceiptWidth: () =>
+    api.get('/settings/receipt-width').then((r) => r.data.data.receiptWidth as '58' | '80'),
+  setReceiptWidth: (receiptWidth: '58' | '80') =>
+    api.put('/settings/receipt-width', { receiptWidth }).then((r) => r.data.data.receiptWidth as '58' | '80'),
 };
 
 export const notificationApi = {

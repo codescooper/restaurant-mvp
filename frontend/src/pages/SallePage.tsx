@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { LayoutGrid, Users, X, CreditCard, CheckCircle, Plus, Minus, Bell, Merge, CalendarDays, Clock, Printer, Pencil, Trash2, Wallet, Utensils } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useWebSocket } from '../contexts/WebSocketContext';
-import { tableApi, orderApi, dishApi, ReservationPayload, SplitPaymentLine } from '../services/endpoints';
+import { tableApi, orderApi, dishApi, settingsApi, ReservationPayload, SplitPaymentLine } from '../services/endpoints';
 import { getApiError } from '../services/api';
 import { RestaurantTable, Reservation, MenuDish } from '../types';
 import { formatFCFA, formatDateTime, formatTime } from '../utils/format';
+import { applyReceiptWidth } from '../utils/receiptWidth';
 import PaymentSplit, { PaymentLine } from '../components/PaymentSplit';
 
 type PaymentMethod = '' | 'espèces' | 'mobile_money' | 'carte' | 'virement' | 'qr_code' | 'mixte';
@@ -157,6 +158,8 @@ export default function SallePage() {
   // Menu chargé une fois (sélecteur de pré-commande).
   useEffect(() => {
     dishApi.menu().then(setMenu).catch(() => {});
+    // Calibre le format du ticket (58/80 mm) avant toute impression de reçu.
+    settingsApi.getReceiptWidth().then(applyReceiptWidth).catch(() => { /* défaut 80mm conservé */ });
   }, []);
 
   useEffect(() => {

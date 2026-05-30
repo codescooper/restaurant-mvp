@@ -31,6 +31,16 @@ export const setManagerPinController = asyncHandler(async (req, res) => {
   sendSuccess(res, { configured: await settings.isManagerPinSet() });
 });
 
+// --- Largeur du ticket thermique (58 ou 80 mm) ---
+export const getReceiptWidthController = asyncHandler(async (_req, res) => {
+  sendSuccess(res, { receiptWidth: await settings.getReceiptWidth() });
+});
+
+export const setReceiptWidthController = asyncHandler(async (req, res) => {
+  const receiptWidth = await settings.setReceiptWidth(String(req.body.receiptWidth ?? '80'));
+  sendSuccess(res, { receiptWidth });
+});
+
 // --- Branding (P2b) ---
 export const getBrandingController = asyncHandler(async (_req, res) => {
   sendSuccess(res, await settings.getBranding());

@@ -37,7 +37,7 @@
     position: absolute;
     left: 0;
     top: 0;
-    width: 72mm; /* 80mm - marges */
+    width: var(--receipt-width, 72mm); /* piloté par applyReceiptWidth (58→52mm, 80→72mm) */
     padding: 0 !important;
     margin: 0 !important;
     border-radius: 0 !important;

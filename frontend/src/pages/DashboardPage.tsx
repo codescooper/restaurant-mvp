@@ -22,6 +22,7 @@ import { statsApi, settingsApi } from '../services/endpoints';
 import { DashboardData } from '../types';
 import { formatFCFA, formatTime } from '../utils/format';
 import { shortcutToRange } from '../utils/date-range';
+import { applyReceiptWidth, ReceiptWidth } from '../utils/receiptWidth';
 
 const CHANNEL_LABELS: Record<string, string> = { sur_place: 'Sur place', emporter: 'À emporter', livraison: 'Livraison' };
 
@@ -54,6 +55,8 @@ export default function DashboardPage() {
   const [reportEnd, setReportEnd] = useState(() => toInput(new Date()));
   const [restaurantName, setRestaurantName] = useState('');
   const [nameSaved, setNameSaved] = useState(false);
+  const [receiptWidth, setReceiptWidth] = useState<ReceiptWidth>('80');
+  const [widthSaved, setWidthSaved] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -81,6 +84,13 @@ export default function DashboardPage() {
     settingsApi
       .getRestaurantName()
       .then(setRestaurantName)
+      .catch(() => {});
+    settingsApi
+      .getReceiptWidth()
+      .then((w) => {
+        setReceiptWidth(w);
+        applyReceiptWidth(w);
+      })
       .catch(() => {});
   }, []);
 
@@ -115,6 +125,20 @@ export default function DashboardPage() {
       setTimeout(() => setNameSaved(false), 2000);
     } catch {
       setExportError("Impossible d'enregistrer le nom (réservé à l'administrateur).");
+    }
+  };
+
+  const saveWidth = async (width: ReceiptWidth) => {
+    setExportError('');
+    setReceiptWidth(width);
+    applyReceiptWidth(width); // effet immédiat dans cette session
+    try {
+      const saved = await settingsApi.setReceiptWidth(width);
+      setReceiptWidth(saved);
+      setWidthSaved(true);
+      setTimeout(() => setWidthSaved(false), 2000);
+    } catch {
+      setExportError("Impossible d'enregistrer le format du ticket (réservé à l'administrateur).");
     }
   };
 
@@ -545,6 +569,34 @@ export default function DashboardPage() {
                   {nameSaved ? 'Enregistré' : 'Enregistrer'}
                 </button>
               </div>
+            </div>
+
+            {/* Format du ticket de caisse (largeur de l'imprimante thermique) */}
+            <div className="mb-4">
+              <label className="block text-sm text-neutral-400 mb-1">Format du ticket (imprimante thermique)</label>
+              <div className="flex items-center gap-2">
+                {(['58', '80'] as ReceiptWidth[]).map((w) => (
+                  <button
+                    key={w}
+                    onClick={() => saveWidth(w)}
+                    className={`px-4 py-2 rounded-lg border text-sm font-semibold transition ${
+                      receiptWidth === w
+                        ? 'border-gold-400 bg-gold-400/10 text-gold-300'
+                        : 'border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800'
+                    }`}
+                  >
+                    {w} mm{w === '80' ? ' (standard)' : ''}
+                  </button>
+                ))}
+                {widthSaved && (
+                  <span className="flex items-center gap-1 text-emerald-400 text-sm">
+                    <Check className="w-4 h-4" /> Enregistré
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-neutral-500 mt-1">
+                Le reçu est conçu à cette largeur : Chrome n'applique plus de réduction, le texte sort net en 1:1.
+              </p>
             </div>
 
             {/* Plage de dates + raccourcis */}

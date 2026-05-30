@@ -22,6 +22,8 @@ export type DiscountType = (typeof DISCOUNT_TYPES)[number];
 export const SETTING_MAX_DISCOUNT = 'max_discount_percent';
 export const SETTING_MANAGER_PIN = 'manager_pin';
 export const SETTING_RESTAURANT_NAME = 'restaurant_name';
+export const SETTING_RECEIPT_WIDTH = 'receipt_width';
+export const DEFAULT_RECEIPT_WIDTH = '80'; // largeur ticket thermique en mm : '58' ou '80'
 
 // Clés de réglages — branding (P2b).
 export const SETTING_BRANDING_PRIMARY_COLOR = 'branding_primary_color';

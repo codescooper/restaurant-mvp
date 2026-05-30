@@ -32,6 +32,7 @@ import { cacheMenu, getCachedMenu, queueOrder } from '../services/offline';
 import { getApiError } from '../services/api';
 import { CartItem, MenuDish, MenuVariant, CashSessionSummary, Order } from '../types';
 import { formatFCFA, formatDateTime } from '../utils/format';
+import { applyReceiptWidth } from '../utils/receiptWidth';
 import PaymentSplit, { PaymentLine } from '../components/PaymentSplit';
 
 const CATEGORIES = ['Tout', 'Entrée', 'Plat', 'Accompagnement', 'Fast-food', 'Dessert', 'Boisson'];
@@ -305,6 +306,8 @@ export default function CaissePage() {
     if (canManageCash) {
       settingsApi.getManagerPinStatus().then(setPinConfigured).catch(() => setPinConfigured(false));
     }
+    // Calibre le format du ticket (58/80 mm) avant toute impression.
+    settingsApi.getReceiptWidth().then(applyReceiptWidth).catch(() => { /* défaut 80mm conservé */ });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

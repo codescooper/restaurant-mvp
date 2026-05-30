@@ -16,6 +16,8 @@ import {
   DEFAULT_PRIMARY_COLOR,
   DEFAULT_ACCENT_COLOR,
   DEFAULT_BACKGROUND_COLOR,
+  SETTING_RECEIPT_WIDTH,
+  DEFAULT_RECEIPT_WIDTH,
   Role,
 } from '../constants';
 import { getTenantIdOrThrow } from '../config/tenant-context';
@@ -70,6 +72,18 @@ export async function setManagerPin(pin: string): Promise<void> {
   const trimmed = pin.trim();
   const value = trimmed ? bcrypt.hashSync(trimmed, 10) : '';
   await setSetting(SETTING_MANAGER_PIN, value, 'Code manager haché (annulation / remboursement)');
+}
+
+// --- Largeur du ticket thermique (58 ou 80 mm) ---
+export async function getReceiptWidth(): Promise<string> {
+  const raw = await getSetting(SETTING_RECEIPT_WIDTH);
+  return raw === '58' ? '58' : DEFAULT_RECEIPT_WIDTH;
+}
+
+export async function setReceiptWidth(width: string): Promise<string> {
+  const safe = width === '58' ? '58' : '80';
+  await setSetting(SETTING_RECEIPT_WIDTH, safe, 'Largeur du ticket thermique (58 ou 80 mm)');
+  return safe;
 }
 
 // --- Branding (P2b) ---

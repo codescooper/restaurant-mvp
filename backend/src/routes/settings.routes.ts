@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate, requireRole } from '../middlewares/auth';
 import { validate } from '../middlewares/validate';
-import { setMaxDiscountSchema, setManagerPinSchema, setRestaurantNameSchema, brandingSchema } from '../validators/schemas';
+import { setMaxDiscountSchema, setManagerPinSchema, setRestaurantNameSchema, setReceiptWidthSchema, brandingSchema } from '../validators/schemas';
 import {
   getMaxDiscountController,
   setMaxDiscountController,
@@ -9,6 +9,8 @@ import {
   setRestaurantNameController,
   getManagerPinStatusController,
   setManagerPinController,
+  getReceiptWidthController,
+  setReceiptWidthController,
   getBrandingController,
   setBrandingController,
 } from '../controllers/settings.controller';
@@ -26,6 +28,10 @@ router.put('/restaurant-name', requireRole('administrateur'), validate(setRestau
 // Statut lisible par le caissier (pour savoir s'il faut demander le PIN) ; modification réservée à l'admin.
 router.get('/manager-pin/status', requireRole('caissier', 'propriétaire', 'administrateur'), getManagerPinStatusController);
 router.put('/manager-pin', requireRole('propriétaire', 'administrateur'), validate(setManagerPinSchema), setManagerPinController);
+
+// Largeur du ticket : lisible par ceux qui impriment (serveur en salle, caissier) ; réglage réservé à l'admin.
+router.get('/receipt-width', requireRole('serveur', 'caissier', 'propriétaire', 'administrateur'), getReceiptWidthController);
+router.put('/receipt-width', requireRole('propriétaire', 'administrateur'), validate(setReceiptWidthSchema), setReceiptWidthController);
 
 // Branding : lecture ouverte à tous les rôles authentifiés (theming) ; écriture réservée aux admins.
 router.get('/branding', getBrandingController);
