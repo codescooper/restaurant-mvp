@@ -21,11 +21,17 @@
 }
 
 @media print {
-  /* Format ticket thermique 80 mm. */
+  /* Format ticket thermique par défaut (80 mm) ; applyReceiptWidth réinjecte 58/80 mm. */
   @page {
     size: 80mm auto;
     margin: 4mm;
   }
+
+  html,
+  body {
+    background: #fff;
+  }
+
   body * {
     visibility: hidden;
   }
@@ -33,30 +39,64 @@
   .print-area * {
     visibility: visible;
   }
+
   .print-area {
     position: absolute;
     left: 0;
     top: 0;
-    width: var(--receipt-width, 72mm); /* piloté par applyReceiptWidth (58→52mm, 80→72mm) */
+    width: var(--receipt-width, 72mm); /* piloté par applyReceiptWidth (58→48mm, 80→72mm) */
     padding: 0 !important;
     margin: 0 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
-    background: #fff;
-    color: #000;
+    background: #fff !important;
+    color: #000 !important;
     font-family: "Courier New", ui-monospace, monospace;
-    font-size: 11px;
-    line-height: 1.35;
+    font-size: 12px;
+    font-weight: 600; /* trait plus épais : net sur tête thermique 1 bit */
+    line-height: 1.4;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
-  /* Titres compacts pour ne pas déborder de la largeur du ticket. */
+
+  /* Une imprimante thermique est en 1 bit (noir OU blanc) : tout gris/couleur/opacité
+     est tramé en pointillés et donne un rendu « baveux ». On force donc le noir pur,
+     pas de fond ni d'ombre, et des bordures noires nettes pour TOUT le ticket. */
+  .print-area *,
+  .print-area *::before,
+  .print-area *::after {
+    color: #000 !important;
+    background: transparent !important;
+    border-color: #000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    opacity: 1 !important;
+  }
+
+  /* Logo : converti en noir & blanc contrasté (les couleurs ressortent mal en thermique). */
+  .print-area img {
+    filter: grayscale(1) contrast(1.6) brightness(0.95);
+    max-width: 100%;
+  }
+  .receipt-logo {
+    display: block;
+    width: auto;
+    max-height: 64px;
+    margin: 0 auto 4px;
+  }
+
+  /* Hiérarchie compacte mais bien lisible. */
   .print-area h3 {
-    font-size: 14px;
+    font-size: 15px;
+    font-weight: 800;
   }
   .print-area .text-xl,
   .print-area .text-lg,
   .print-area .text-base {
-    font-size: 13px;
+    font-size: 14px;
+    font-weight: 800;
   }
+
   .no-print {
     display: none !important;
   }

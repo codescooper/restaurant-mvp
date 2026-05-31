@@ -102,7 +102,8 @@ interface ResItem {
 }
 
 export default function SallePage() {
-  const { currentRole } = useAuth();
+  const { currentRole, branding } = useAuth();
+  const [restaurantName, setRestaurantName] = useState('Mon Restaurant');
   const { socket } = useWebSocket();
   const navigate = useNavigate();
 
@@ -160,6 +161,8 @@ export default function SallePage() {
     dishApi.menu().then(setMenu).catch(() => {});
     // Calibre le format du ticket (58/80 mm) avant toute impression de reçu.
     settingsApi.getReceiptWidth().then(applyReceiptWidth).catch(() => { /* défaut 80mm conservé */ });
+    // Nom du restaurant pour l'en-tête du reçu.
+    settingsApi.getRestaurantName().then(setRestaurantName).catch(() => { /* garde le défaut */ });
   }, []);
 
   useEffect(() => {
@@ -1063,7 +1066,10 @@ export default function SallePage() {
             {/* Reçu imprimable : reste blanc pour l'impression. */}
             <div className="print-area bg-white text-gray-800 rounded-xl p-5 text-sm">
               <div className="text-center mb-2">
-                <h3 className="text-lg font-bold">Restaurant Pilote</h3>
+                {branding?.logoUrl && (
+                  <img src={branding.logoUrl} alt="" className="receipt-logo mx-auto mb-1 max-h-16 w-auto object-contain" />
+                )}
+                <h3 className="text-lg font-bold">{restaurantName}</h3>
                 <p className="text-gray-500">Reçu d'encaissement</p>
               </div>
               <p className="text-center text-gray-600 mb-0.5">{settleReceipt.tableName}</p>

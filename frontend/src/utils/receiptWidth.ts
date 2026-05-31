@@ -13,8 +13,10 @@ export type ReceiptWidth = '58' | '80';
 const STYLE_ID = 'receipt-page-size';
 
 // Marges et largeur utile par format (largeur papier − 2 × marge).
+// Largeurs alignées sur la zone imprimable réelle des têtes thermiques POS courantes :
+//   80 mm → ~72 mm imprimables (marge 4 mm/côté) ; 58 mm → ~48 mm (marge 5 mm/côté).
 const GEOMETRY: Record<ReceiptWidth, { page: string; margin: string; content: string }> = {
-  '58': { page: '58mm', margin: '3mm', content: '52mm' },
+  '58': { page: '58mm', margin: '5mm', content: '48mm' },
   '80': { page: '80mm', margin: '4mm', content: '72mm' },
 };
 

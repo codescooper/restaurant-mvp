@@ -103,7 +103,7 @@ const MODAL = 'bg-neutral-950 border border-neutral-800 ring-1 ring-white/10 rou
 const BTN_GOLD = 'bg-gold-400 hover:bg-gold-300 text-black font-bold transition disabled:opacity-40 disabled:cursor-not-allowed';
 
 export default function CaissePage() {
-  const { currentUser, currentRole } = useAuth();
+  const { currentUser, currentRole, branding } = useAuth();
   const clock = useClock();
   const navigate = useNavigate();
   const { online, queuedCount } = useOfflineSync();
@@ -142,6 +142,7 @@ export default function CaissePage() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const [restaurantName, setRestaurantName] = useState('Mon Restaurant');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -308,6 +309,8 @@ export default function CaissePage() {
     }
     // Calibre le format du ticket (58/80 mm) avant toute impression.
     settingsApi.getReceiptWidth().then(applyReceiptWidth).catch(() => { /* défaut 80mm conservé */ });
+    // Nom du restaurant pour l'en-tête du reçu.
+    settingsApi.getRestaurantName().then(setRestaurantName).catch(() => { /* garde le défaut */ });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -660,7 +663,10 @@ export default function CaissePage() {
           {/* Reçu imprimable : reste blanc pour l'impression. */}
           <div className="print-area bg-white text-gray-800 rounded-2xl shadow-lg p-6 text-sm">
             <div className="text-center mb-3">
-              <h3 className="text-lg font-bold">Restaurant Pilote</h3>
+              {branding?.logoUrl && (
+                <img src={branding.logoUrl} alt="" className="receipt-logo mx-auto mb-1 max-h-16 w-auto object-contain" />
+              )}
+              <h3 className="text-lg font-bold">{restaurantName}</h3>
               <p className="text-gray-500">Reçu de commande</p>
             </div>
             <div className="text-center font-bold text-xl mb-1">{receipt.orderNumber}</div>
