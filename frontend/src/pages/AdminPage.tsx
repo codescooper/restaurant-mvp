@@ -26,6 +26,7 @@ import {
   LayoutGrid,
   Palette,
   Globe,
+  Settings,
 } from 'lucide-react';
 import { stockApi, dishApi, userApi, cashApi, auditApi, orderApi, invitationApi, MemberRow } from '../services/endpoints';
 import { useAuth } from '../contexts/AuthContext';
@@ -41,8 +42,9 @@ import ExpensesTab from './admin/ExpensesTab';
 import TablesTab from './admin/TablesTab';
 import BrandingTab from './admin/BrandingTab';
 import CatalogTab from './admin/CatalogTab';
+import ParametresTab from './admin/ParametresTab';
 
-type Tab = 'stock' | 'menu' | 'users' | 'employes' | 'depenses' | 'caisse' | 'journal' | 'fournisseurs' | 'inventaire' | 'promotions' | 'tables' | 'personnalisation' | 'referencement';
+type Tab = 'stock' | 'menu' | 'users' | 'employes' | 'depenses' | 'caisse' | 'journal' | 'fournisseurs' | 'inventaire' | 'promotions' | 'tables' | 'parametres' | 'personnalisation' | 'referencement';
 type CrudTab = 'stock' | 'menu' | 'users';
 type UserEditing = MemberRow | null;
 
@@ -350,6 +352,7 @@ export default function AdminPage() {
     { id: 'tables', label: 'Tables', icon: LayoutGrid },
     { id: 'caisse', label: 'Caisse', icon: Banknote },
     { id: 'journal', label: "Journal d'actions", icon: ClipboardList },
+    { id: 'parametres', label: 'Paramètres', icon: Settings, ownerOnly: true },
     { id: 'personnalisation', label: 'Personnalisation', icon: Palette, ownerOnly: true },
     { id: 'referencement', label: 'Référencement', icon: Globe, ownerOnly: true },
   ];
@@ -739,6 +742,9 @@ export default function AdminPage() {
 
       {/* TABLES */}
       {tab === 'tables' && <TablesTab />}
+
+      {/* PARAMÈTRES */}
+      {tab === 'parametres' && <ParametresTab />}
 
       {/* PERSONNALISATION */}
       {tab === 'personnalisation' && <BrandingTab />}

@@ -21,9 +21,10 @@ router.use(authenticate);
 router.get('/max-discount', requireRole('serveur', 'caissier', 'propriétaire', 'administrateur'), getMaxDiscountController);
 router.put('/max-discount', requireRole('propriétaire', 'administrateur'), validate(setMaxDiscountSchema), setMaxDiscountController);
 
-// Nom du restaurant : lisible par admin/caissier (en-tête des rapports) ; modifiable par l'admin.
-router.get('/restaurant-name', requireRole('caissier', 'administrateur'), getRestaurantNameController);
-router.put('/restaurant-name', requireRole('administrateur'), validate(setRestaurantNameSchema), setRestaurantNameController);
+// Nom du restaurant : lisible par tous ceux qui impriment un ticket (en-tête reçu/rapports) ;
+// modifiable par le propriétaire/admin.
+router.get('/restaurant-name', requireRole('serveur', 'caissier', 'propriétaire', 'administrateur'), getRestaurantNameController);
+router.put('/restaurant-name', requireRole('propriétaire', 'administrateur'), validate(setRestaurantNameSchema), setRestaurantNameController);
 
 // Statut lisible par le caissier (pour savoir s'il faut demander le PIN) ; modification réservée à l'admin.
 router.get('/manager-pin/status', requireRole('caissier', 'propriétaire', 'administrateur'), getManagerPinStatusController);
