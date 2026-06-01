@@ -6,6 +6,7 @@ import { NotificationProvider } from './contexts/NotificationContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Layout } from './components/Layout';
+import { UpdateBanner } from './components/UpdateBanner';
 import { useAuth } from './contexts/AuthContext';
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
@@ -54,7 +55,9 @@ function SimpleMessage({ title, message }: { title: string; message: string }) {
 
 export default function App() {
   return (
-    <ErrorBoundary>
+    <>
+      <UpdateBanner />
+      <ErrorBoundary>
       <AuthProvider>
         <WebSocketProvider>
           <NotificationProvider>
@@ -158,5 +161,6 @@ export default function App() {
         </WebSocketProvider>
       </AuthProvider>
     </ErrorBoundary>
+    </>
   );
 }
