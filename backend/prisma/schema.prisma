@@ -336,6 +336,9 @@ model Order {
   refundedBy          Int?      @map("refunded_by")
   refundReason        String?   @map("refund_reason") @db.Text
   isSynced            Boolean   @default(false) @map("is_synced")
+  // Clé d'idempotence générée côté client pour les commandes hors-ligne (UUID). Permet de
+  // dédupliquer les rejeux de sync (réponse perdue) : un même clientId ne crée qu'une commande.
+  clientId            String?   @unique @map("client_id") @db.VarChar(64)
   restaurantId        Int?      @map("restaurant_id")
 
   creator        User?           @relation("CreatedOrders", fields: [createdBy], references: [id])

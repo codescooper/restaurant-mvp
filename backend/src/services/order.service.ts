@@ -2,7 +2,7 @@ import { format } from 'date-fns';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { AppError } from '../utils/errors';
-import { roundQty, checkLowStock } from './stock.service';
+import { roundQty, checkLowStock, applyStockDelta } from './stock.service';
 import { createNotification } from './notification.service';
 import { resolveCashSessionForPayment } from './cash.service';
 import { logAudit } from './audit.service';
@@ -154,6 +154,17 @@ export interface CreateOrderInput {
   deliveryPlatform?: DeliveryPlatform;
   customerName?: string;
   customerPhone?: string;
+  // Clé d'idempotence (UUID) des commandes hors-ligne : dédup des rejeux de sync.
+  clientId?: string;
+}
+
+// True si l'erreur est une violation de contrainte unique (P2002) portant sur `column`.
+export function isUniqueViolationOn(e: unknown, column: string): boolean {
+  if (!(e instanceof Prisma.PrismaClientKnownRequestError) || e.code !== 'P2002') return false;
+  const target = e.meta?.target;
+  if (Array.isArray(target)) return target.includes(column);
+  if (typeof target === 'string') return target.includes(column);
+  return false;
 }
 
 // Formatage pur du numero de commande YYYYMMDD-NNN (§13.2 regle 1).
@@ -342,7 +353,11 @@ export async function createOrder(input: CreateOrderInput, userId?: number, mark
   // restaurantId du tenant courant (nécessaire pour les lignes OrderPayment dans la tx).
   const restaurantId = pay.hasPayment ? getTenantIdOrThrow() : null;
 
-  const order = await prisma.$transaction(async (tx) => {
+  // Le numéro de commande est dérivé d'un count() : deux commandes simultanées peuvent viser
+  // le même numéro → la contrainte unique (restaurantId, orderNumber) rejette la 2e (P2002).
+  // On réessaie alors la transaction (jusqu'à 5 fois) ; le count() reflète alors la 1re commande
+  // déjà committée et le numéro suivant est attribué. Tout effet de bord est annulé par le rollback.
+  const runOrderTransaction = () => prisma.$transaction(async (tx) => {
     const orderNumber = await generateOrderNumber(tx);
     const created = await tx.order.create({
       data: {
@@ -367,6 +382,7 @@ export async function createOrder(input: CreateOrderInput, userId?: number, mark
         isPaid: pay.hasPayment,
         paidAt: pay.hasPayment ? new Date() : null,
         cashSessionId,
+        clientId: input.clientId ?? null,
         status: 'commandée',
         tableId: input.tableId ?? null,
         serverId: input.serverId ?? null,
@@ -398,20 +414,15 @@ export async function createOrder(input: CreateOrderInput, userId?: number, mark
     }
 
     // Decrement automatique du stock + mouvements (§13.1 regle 1).
+    // Décrément ATOMIQUE et gardé (>= 0) : interdit la sur-vente sous commandes concurrentes.
     for (const [stockItemId, qty] of required) {
-      const si = await tx.stockItem.findUnique({ where: { id: stockItemId } });
-      if (!si) continue;
-      const newQuantity = roundQty(si.quantity - qty);
-      await tx.stockItem.update({
-        where: { id: stockItemId },
-        data: { quantity: newQuantity, lastUpdated: new Date() },
-      });
+      const { previousQuantity, newQuantity } = await applyStockDelta(tx, stockItemId, -qty, { guardNonNegative: true });
       await tx.stockMovement.create({
         data: {
           stockItemId,
           movementType: 'commande',
           quantity: roundQty(-qty),
-          previousQuantity: si.quantity,
+          previousQuantity,
           newQuantity,
           orderId: created.id,
           createdBy: userId,
@@ -420,6 +431,19 @@ export async function createOrder(input: CreateOrderInput, userId?: number, mark
     }
     return created;
   });
+
+  let order: Awaited<ReturnType<typeof runOrderTransaction>>;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      order = await runOrderTransaction();
+      break;
+    } catch (e) {
+      // Seules les collisions de NUMÉRO de commande se réessaient. Une collision de clientId
+      // (rejeu d'une commande hors-ligne déjà créée) doit remonter pour être traitée par syncOrders.
+      if (isUniqueViolationOn(e, 'order_number') && attempt < 5) continue;
+      throw e;
+    }
+  }
 
   // Notifications temps reel (§7.7).
   emitNewOrder({
@@ -533,21 +557,16 @@ export async function cancelOrder(id: number, reason: string, userId?: number, r
       where: { orderId: id, movementType: 'commande' },
     });
     for (const mv of movements) {
-      const si = await tx.stockItem.findUnique({ where: { id: mv.stockItemId } });
-      if (!si) continue;
-      // mv.quantity est negatif : restaurer = retirer cette valeur negative.
-      const restored = roundQty(si.quantity - mv.quantity);
-      await tx.stockItem.update({
-        where: { id: mv.stockItemId },
-        data: { quantity: restored, lastUpdated: new Date() },
-      });
+      // mv.quantity est negatif : restaurer = ajouter |mv.quantity|. Incrément ATOMIQUE
+      // (un seul UPDATE) → pas de lost update si une commande décrémente le même article en parallèle.
+      const { previousQuantity, newQuantity } = await applyStockDelta(tx, mv.stockItemId, -mv.quantity);
       await tx.stockMovement.create({
         data: {
           stockItemId: mv.stockItemId,
           movementType: 'ajustement',
           quantity: roundQty(-mv.quantity),
-          previousQuantity: si.quantity,
-          newQuantity: restored,
+          previousQuantity,
+          newQuantity,
           orderId: id,
           createdBy: userId,
           note: 'Annulation commande',

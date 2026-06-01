@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getQueuedOrders, clearQueuedOrder, countQueuedOrders } from '../services/offline';
+import { getQueuedOrders, clearQueuedOrder, countQueuedOrders, isSyncResultCleared } from '../services/offline';
 import { syncApi } from '../services/endpoints';
 
 // Detecte l'etat reseau et rejoue les commandes hors-ligne a la reconnexion (§13 offline).
@@ -17,7 +17,7 @@ export function useOfflineSync() {
     try {
       const res = await syncApi.push(queued);
       for (const r of res.results ?? []) {
-        if (r.status === 'synced' && r.clientId) await clearQueuedOrder(r.clientId);
+        if (r.clientId && isSyncResultCleared(r.status)) await clearQueuedOrder(r.clientId);
       }
     } catch {
       // on reste hors-ligne, on retentera plus tard

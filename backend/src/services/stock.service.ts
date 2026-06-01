@@ -4,10 +4,55 @@ import { StockUnit } from '../constants';
 import { emitStockAlert } from '../websocket';
 import { createNotification } from './notification.service';
 import { recordStockPurchase } from './expense.service';
-import { StockItem } from '@prisma/client';
+import { getTenantIdOrThrow } from '../config/tenant-context';
+import { Prisma, StockItem } from '@prisma/client';
+
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 export function roundQty(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+/**
+ * Applique un delta atomique à la quantité d'un article de stock DANS la transaction `tx`.
+ *
+ * Un seul UPDATE conditionnel (verrou de ligne Postgres) remplace le triplet
+ * lecture → calcul JS → écriture : deux commandes concurrentes ne peuvent plus se
+ * recouvrir (fini le « lost update » et la sur-vente).
+ *
+ * `guardNonNegative` : l'UPDATE n'affecte la ligne QUE si le résultat reste >= 0.
+ *   0 ligne touchée ⇒ stock insuffisant → STOCK_001. Indispensable sur les décréments
+ *   de commande/perte pour interdire toute sur-vente, même sous forte concurrence.
+ *
+ * Le scope tenant est appliqué EXPLICITEMENT (restaurant_id) : $queryRaw contourne
+ * l'extension d'isolation Prisma, donc on filtre nous-mêmes.
+ *
+ * Retourne les quantités avant/après (arrondies) pour journaliser le StockMovement.
+ */
+export async function applyStockDelta(
+  tx: Tx,
+  stockItemId: number,
+  delta: number,
+  opts: { guardNonNegative?: boolean } = {}
+): Promise<{ previousQuantity: number; newQuantity: number }> {
+  const restaurantId = getTenantIdOrThrow();
+  const guard = opts.guardNonNegative
+    ? Prisma.sql`AND quantity + ${delta}::double precision >= 0`
+    : Prisma.empty;
+  const rows = await tx.$queryRaw<{ quantity: number }[]>(Prisma.sql`
+    UPDATE stock_items
+    SET quantity = ROUND((quantity + ${delta}::double precision)::numeric, 2)::double precision,
+        last_updated = NOW()
+    WHERE id = ${stockItemId} AND restaurant_id = ${restaurantId} ${guard}
+    RETURNING quantity
+  `);
+  if (rows.length === 0) {
+    // Aucune ligne : soit le stock est insuffisant (garde), soit l'article n'existe pas / autre tenant.
+    throw new AppError(400, opts.guardNonNegative ? 'STOCK_001' : 'STOCK_002');
+  }
+  const newQuantity = roundQty(rows[0].quantity);
+  const previousQuantity = roundQty(newQuantity - delta);
+  return { previousQuantity, newQuantity };
 }
 
 export async function listStock() {

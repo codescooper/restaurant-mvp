@@ -58,6 +58,17 @@ export async function clearQueuedOrder(clientId: string): Promise<void> {
   await offlineDb.queue.delete(clientId);
 }
 
+/**
+ * Décide si une commande peut être retirée de la file après sync.
+ * - 'synced'    : créée côté serveur → retirer.
+ * - 'duplicate' : déjà créée lors d'un envoi précédent (réponse perdue) → retirer pour ne pas
+ *   boucler indéfiniment (idempotence garantie côté serveur par la clé clientId).
+ * - autre ('error', ...) : conserver pour retenter.
+ */
+export function isSyncResultCleared(status: string): boolean {
+  return status === 'synced' || status === 'duplicate';
+}
+
 export async function countQueuedOrders(): Promise<number> {
   return offlineDb.queue.count();
 }
