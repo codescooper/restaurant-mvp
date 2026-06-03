@@ -58,7 +58,7 @@ export default function HelpPage() {
             {filtered.length === 0 ? (
               <p className="text-neutral-500 text-sm px-1">Aucun guide ne correspond.</p>
             ) : (
-              <nav className="space-y-1">
+              <nav aria-label="Guides d'aide" className="space-y-1">
                 {filtered.map((g) => {
                   const Icon = (Icons as Record<string, any>)[g.icon] ?? HelpCircle;
                   const isActive = g.id === active.id;

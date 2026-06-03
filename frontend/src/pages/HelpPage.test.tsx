@@ -23,7 +23,7 @@ function renderAt(path: string) {
 // La liste des guides est dans le <nav> ; on y scope les assertions d'appartenance
 // pour éviter la collision avec le titre du guide affiché dans le panneau de contenu.
 function list() {
-  return within(screen.getByRole('navigation'));
+  return within(screen.getByRole('navigation', { name: /guides d'aide/i }));
 }
 
 describe('HelpPage', () => {
@@ -75,8 +75,9 @@ describe('HelpPage', () => {
 
   it('échappe le HTML du contenu (sécurité)', () => {
     const { container } = render(<div>{renderMarkdown('Bonjour <script>alert(1)</script>')}</div>);
+    // La vraie garantie : aucun élément <script> n'est injecté dans le DOM…
     expect(container.querySelector('script')).toBeNull();
-    expect(container.textContent).toContain('script');
-    expect(container.textContent).not.toContain('<script>');
+    // …et le texte est rendu comme contenu inerte (échappé), pas exécuté.
+    expect(container.textContent).toContain('alert(1)');
   });
 });
