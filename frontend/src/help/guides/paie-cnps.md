@@ -18,7 +18,7 @@ Si votre restaurant bénéficie d'un taux négocié ou d'une exonération, modif
 
 - Accédez à **Paie** et cliquez sur **Nouveau bulletin**.
 - Sélectionnez l'**employé** et le **mois** concerné.
-- Vérifiez le salaire de base (issu de la fiche employé) et ajoutez les éventuels **primes**, **heures supplémentaires** ou **retenues**.
+- Vérifiez le salaire de base (issu de la fiche employé) et ajoutez les éventuelles **primes**, **heures supplémentaires** ou **retenues**.
 - Restoflow calcule automatiquement les cotisations CNPS (salarié et employeur) et le **net à payer**.
 - Validez pour archiver le bulletin. Il peut être imprimé ou exporté en PDF.
 

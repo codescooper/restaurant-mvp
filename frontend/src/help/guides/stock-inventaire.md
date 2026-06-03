@@ -17,7 +17,7 @@ Le module **Stock** vous permet de suivre vos matières premières et consommabl
 
 ## Décrément automatique à la vente
 
-- Dès qu'une commande est validée en caisse ou en salle, les ingrédients liés aux plats via leur **recette** sont automatiquement déduits.
+- Dès la création de la commande (en caisse ou en salle), les ingrédients liés aux plats via leur **recette** sont automatiquement déduits.
 - Vous n'avez pas à saisir manuellement les consommations du service : tout est calculé en temps réel.
 
 ## Alertes de seuil

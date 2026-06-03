@@ -9,7 +9,7 @@ Les KPIs (indicateurs de performance) s'affichent en haut de l'écran pour la p�
 - **Chiffre d'affaires** — total des ventes encaissées sur la période.
 - **Nombre de commandes** — volume de transactions traitées.
 - **Ticket moyen** — chiffre d'affaires divisé par le nombre de commandes.
-- **Résultat net** — chiffre d'affaires diminué des dépenses saisies dans le module RH.
+- **Résultat net** — résultat simplifié : chiffre d'affaires diminué des dépenses saisies dans Restoflow (hors charges sociales et fiscales non enregistrées dans l'application).
 - **Articles en alerte stock** — nombre d'ingrédients sous leur seuil d'alerte.
 
 Utilisez le sélecteur de période en haut à droite pour afficher les données du **jour**, de la **semaine**, du **mois** ou d'une période personnalisée.

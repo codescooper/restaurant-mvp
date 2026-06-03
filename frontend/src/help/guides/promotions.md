@@ -6,12 +6,12 @@ Le module **Promotions** vous permet de créer des offres tarifaires spéciales 
 
 - Accédez à **Promotions > Happy hours** et cliquez sur **Nouvelle offre**.
 - Définissez un **nom**, les **jours de la semaine** concernés et la **plage horaire** (ex. : 17 h – 19 h).
-- Choisissez le type de remise applicable pendant cette plage :
+- Choisissez le type de réduction applicable pendant cette plage :
   - **Pourcentage** — ex. 20 % sur toute la carte ou sur une catégorie sélectionnée.
   - **Montant fixe** — ex. 500 F CFA de réduction par commande.
 - Sélectionnez les **catégories ou plats** concernés, ou laissez vide pour appliquer à tout le menu.
 - Activez ou désactivez l'offre d'un clic sans la supprimer.
-- La remise est appliquée **automatiquement** en caisse dès que la commande est passée dans la plage horaire.
+- La réduction est appliquée **automatiquement** en caisse dès que la commande est passée dans la plage horaire.
 
 ## Coupons
 
@@ -27,7 +27,7 @@ Le module **Promotions** vous permet de créer des offres tarifaires spéciales 
 ## Application en caisse
 
 - Sur l'écran **Caisse**, avant de valider le paiement, cliquez sur **Coupon / Réduction**.
-- Saisissez le **code coupon** : Restoflow vérifie sa validité et applique la remise.
+- Saisissez le **code coupon** : Restoflow vérifie sa validité et applique la réduction.
 - Les **happy hours actifs** sont appliqués automatiquement sans saisie de code.
-- La remise apparaît clairement sur le **reçu** remis au client.
-- Le *plafond de réduction* défini dans les paramètres reste en vigueur même avec un coupon.
+- La réduction apparaît clairement sur le **reçu** remis au client.
+- Le *plafond de réduction* des paramètres concerne les réductions saisies manuellement à la caisse ; les happy hours et coupons configurés par le responsable s'appliquent automatiquement.

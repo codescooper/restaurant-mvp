@@ -5,6 +5,7 @@ L'**écran cuisine** (KDS — Kitchen Display System) affiche en temps réel les
 ## Recevoir les commandes
 
 - Chaque nouvelle commande apparaît automatiquement sous forme de **carte** contenant le numéro de table (ou « emporter »), la liste des articles et les éventuelles notes du serveur.
+- Les commandes passées en caisse sans table apparaissent avec la mention « emporter ».
 - Une **alerte sonore** retentit à chaque nouvelle commande pour attirer l'attention de l'équipe.
 - Les commandes sont triées par ordre d'arrivée : la plus ancienne est affichée en premier.
 - Hors-ligne, les commandes saisies en caisse sont transmises à la reconnexion.

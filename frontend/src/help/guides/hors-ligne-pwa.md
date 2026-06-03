@@ -5,7 +5,7 @@ Restoflow est une **Progressive Web App (PWA)** : elle peut être installée sur
 ## Installer l'application
 
 - Sur **Android** ou **Windows** : ouvrez Restoflow dans Chrome, puis appuyez sur **Installer l'application** dans la barre d'adresse ou dans le menu du navigateur.
-- Sur **iOS (iPhone/iPad)** : ouvrez Restoflow dans Safari, appuyez sur le bouton **Partager**, puis sur **Sur l'écran d'accueil**.
+- Sur **iOS (iPhone/iPad)** : ouvrez Restoflow dans Safari, appuyez sur le bouton **Partager**, puis sur **Ajouter à l'écran d'accueil**.
 - Une fois installée, Restoflow s'ouvre comme une application native, sans barre de navigateur.
 - L'installation n'est pas obligatoire : vous pouvez continuer à utiliser Restoflow dans votre navigateur habituel.
 

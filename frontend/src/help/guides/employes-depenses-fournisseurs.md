@@ -17,7 +17,7 @@ Le module **RH** regroupe la gestion du personnel, le suivi des dépenses opéra
 - Sélectionnez le **mode de paiement** utilisé : espèces, mobile money ou carte.
 - Indiquez le montant, la date et ajoutez un commentaire si nécessaire.
 - Les dépenses sont visibles dans le **tableau de bord** et intégrées au calcul du résultat net.
-- Pour enregistrer le remboursement d'un acompte de réservation annulée, utilisez la catégorie *Remboursement client*.
+- Pour enregistrer le remboursement d'un acompte de réservation annulée, utilisez la catégorie *remboursement d'acompte*.
 
 ## Fournisseurs et achats
 
