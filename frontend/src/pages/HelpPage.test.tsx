@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderMarkdown } from '../utils/markdown';
@@ -20,6 +20,12 @@ function renderAt(path: string) {
   );
 }
 
+// La liste des guides est dans le <nav> ; on y scope les assertions d'appartenance
+// pour éviter la collision avec le titre du guide affiché dans le panneau de contenu.
+function list() {
+  return within(screen.getByRole('navigation'));
+}
+
 describe('HelpPage', () => {
   beforeEach(() => {
     authRef.current = { currentUser: { isSuperAdmin: false }, currentRole: 'cuisinier' };
@@ -27,26 +33,32 @@ describe('HelpPage', () => {
 
   it('filtre les guides selon le rôle (cuisinier)', () => {
     renderAt('/aide');
-    expect(screen.getByText('Écran cuisine (KDS)')).toBeInTheDocument();
-    expect(screen.getByText('Premiers pas')).toBeInTheDocument();
-    expect(screen.queryByText('Encaisser à la caisse')).not.toBeInTheDocument();
-    expect(screen.queryByText('Paie & CNPS')).not.toBeInTheDocument();
+    expect(list().getByText('Écran cuisine (KDS)')).toBeInTheDocument();
+    expect(list().getByText('Premiers pas')).toBeInTheDocument();
+    expect(list().queryByText('Encaisser à la caisse')).not.toBeInTheDocument();
+    expect(list().queryByText('Paie & CNPS')).not.toBeInTheDocument();
   });
 
   it('montre tous les guides au super-admin', () => {
     authRef.current = { currentUser: { isSuperAdmin: true }, currentRole: 'cuisinier' };
     renderAt('/aide');
-    expect(screen.getByText('Encaisser à la caisse')).toBeInTheDocument();
-    expect(screen.getByText('Paie & CNPS')).toBeInTheDocument();
+    expect(list().getByText('Encaisser à la caisse')).toBeInTheDocument();
+    expect(list().getByText('Paie & CNPS')).toBeInTheDocument();
+  });
+
+  it('affiche le premier guide visible sur /aide (contenu)', () => {
+    renderAt('/aide'); // cuisinier → premier visible = Premiers pas
+    expect(screen.getByRole('heading', { name: 'Premiers pas' })).toBeInTheDocument();
   });
 
   it('filtre par recherche et affiche un message si aucun résultat', () => {
     authRef.current = { currentUser: { isSuperAdmin: true }, currentRole: 'propriétaire' };
     renderAt('/aide');
-    fireEvent.change(screen.getByPlaceholderText(/rechercher/i), { target: { value: 'cnps' } });
-    expect(screen.getByText('Paie & CNPS')).toBeInTheDocument();
-    expect(screen.queryByText('Premiers pas')).not.toBeInTheDocument();
-    fireEvent.change(screen.getByPlaceholderText(/rechercher/i), { target: { value: 'zzzzz' } });
+    const input = screen.getByPlaceholderText(/rechercher/i);
+    fireEvent.change(input, { target: { value: 'cnps' } });
+    expect(list().getByText('Paie & CNPS')).toBeInTheDocument();
+    expect(list().queryByText('Premiers pas')).not.toBeInTheDocument();
+    fireEvent.change(input, { target: { value: 'zzzzz' } });
     expect(screen.getByText(/aucun guide/i)).toBeInTheDocument();
   });
 
@@ -57,16 +69,13 @@ describe('HelpPage', () => {
   });
 
   it('replie sur le premier guide visible si l\'id est inconnu', () => {
-    renderAt('/aide/inexistant');
-    // rôle cuisinier → premier guide visible = Premiers pas
+    renderAt('/aide/inexistant'); // cuisinier → premier visible = Premiers pas
     expect(screen.getByRole('heading', { name: 'Premiers pas' })).toBeInTheDocument();
   });
 
   it('échappe le HTML du contenu (sécurité)', () => {
     const { container } = render(<div>{renderMarkdown('Bonjour <script>alert(1)</script>')}</div>);
-    // Le rendu n'injecte jamais d'élément <script> : aucune exécution possible.
     expect(container.querySelector('script')).toBeNull();
-    // renderMarkdown échappe les chevrons (< → &lt;) : le code reste du texte visible.
     expect(container.textContent).toContain('script');
     expect(container.textContent).not.toContain('<script>');
   });
