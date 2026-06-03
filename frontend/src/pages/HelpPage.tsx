@@ -7,7 +7,7 @@ import { HELP_GUIDES, type HelpGuide } from '../help/manifest';
 import { renderMarkdown } from '../utils/markdown';
 
 function normalize(s: string): string {
-  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
 export default function HelpPage() {
