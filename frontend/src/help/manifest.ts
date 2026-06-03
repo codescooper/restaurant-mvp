@@ -12,10 +12,24 @@ import dashboard from './guides/dashboard.md?raw';
 import parametresEquipe from './guides/parametres-equipe.md?raw';
 import horsLignePwa from './guides/hors-ligne-pwa.md?raw';
 
+export type HelpIcon =
+  | 'Rocket'
+  | 'ShoppingCart'
+  | 'LayoutGrid'
+  | 'ChefHat'
+  | 'UtensilsCrossed'
+  | 'Package'
+  | 'Users'
+  | 'Banknote'
+  | 'Tag'
+  | 'BarChart3'
+  | 'Settings'
+  | 'WifiOff';
+
 export interface HelpGuide {
   id: string;
   title: string;
-  icon: string; // nom d'icône lucide-react
+  icon: HelpIcon; // nom d'icône lucide-react
   keywords: string[];
   roles: Role[];
   content: string;
