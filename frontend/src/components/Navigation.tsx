@@ -13,6 +13,7 @@ import {
   Wifi,
   WifiOff,
   Shield,
+  HelpCircle,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useWebSocket } from '../contexts/WebSocketContext';
@@ -60,6 +61,7 @@ export function Navigation() {
   } else if (currentRole === 'cuisinier') {
     routes.push({ path: '/cuisine', label: 'Cuisine', icon: ChefHat });
   }
+  routes.push({ path: '/aide', label: 'Aide', icon: HelpCircle });
 
   const activeMembership = memberships.find((m) => m.restaurantId === activeRestaurantId);
 

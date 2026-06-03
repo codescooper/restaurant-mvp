@@ -28,6 +28,7 @@ const PendingMemberPage = lazy(() => import('./pages/PendingMemberPage'));
 const InviteAcceptPage = lazy(() => import('./pages/InviteAcceptPage'));
 const SuperAdminPage = lazy(() => import('./pages/SuperAdminPage'));
 const PublicRestaurantPage = lazy(() => import('./pages/PublicRestaurantPage'));
+const HelpPage = lazy(() => import('./pages/HelpPage'));
 
 function SuperAdminRoute({ children }: { children: React.ReactNode }) {
   const { currentUser, loading } = useAuth();
@@ -129,6 +130,27 @@ export default function App() {
                     <ProtectedRoute allowedRoles={['propriétaire', 'administrateur', 'caissier']}>
                       <Layout>
                         <DashboardPage />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
+                  path="/aide"
+                  element={
+                    <ProtectedRoute allowedRoles={['propriétaire', 'administrateur', 'caissier', 'cuisinier', 'serveur']}>
+                      <Layout>
+                        <HelpPage />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/aide/:guideId"
+                  element={
+                    <ProtectedRoute allowedRoles={['propriétaire', 'administrateur', 'caissier', 'cuisinier', 'serveur']}>
+                      <Layout>
+                        <HelpPage />
                       </Layout>
                     </ProtectedRoute>
                   }
