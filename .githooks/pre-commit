@@ -1,0 +1,16 @@
+#!/bin/sh
+# Vérifie que la documentation générée est à jour avant chaque commit.
+# Activation (une fois par clone) :  git config core.hooksPath .githooks
+#
+# Pour passer outre exceptionnellement :  git commit --no-verify
+
+if command -v node >/dev/null 2>&1; then
+  node scripts/sync-docs.mjs --check || {
+    echo ""
+    echo "✗ Documentation obsolète. Lancez :"
+    echo "    node scripts/sync-docs.mjs && git add docs/"
+    echo "  puis recommencez le commit (ou --no-verify pour passer outre)."
+    exit 1
+  }
+fi
+exit 0
