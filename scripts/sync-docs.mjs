@@ -94,13 +94,14 @@ function parseHelpGuides() {
 
   const guides = [];
   const errors = [];
-  const entryRe = /id:\s*'([^']+)'[\s\S]*?title:\s*'((?:[^'\\]|\\.)*)'[\s\S]*?roles:\s*(\w+|\[[^\]]*\])[\s\S]*?content:\s*(\w+)\s*[},]/g;
+  const entryRe = /id:\s*'([^']+)'[^}]*?title:\s*'((?:[^'\\]|\\.)*)'[^}]*?roles:\s*(\w+|\[[^\]]*\])[^}]*?content:\s*(\w+)\s*[},]/g;
   let e;
   while ((e = entryRe.exec(src))) {
     const id = e[1];
     const title = e[2].replace(/\\'/g, "'");
     const rolesToken = e[3];
     const contentId = e[4];
+    // ALL/GESTION sont des alias définis dans manifest.ts ; gardés en phase ici (le parseur regex ne résout pas les variables TS).
     let roles;
     if (rolesToken === 'ALL') roles = ['tous'];
     else if (rolesToken === 'GESTION') roles = ['propriétaire', 'administrateur'];
