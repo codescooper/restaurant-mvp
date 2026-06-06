@@ -20,6 +20,8 @@ import {
   Role,
   CATALOG_REQUEST_STATUSES,
   MARITAL_STATUSES,
+  BUDGET_STATUSES,
+  BUDGET_LINE_SOURCES,
 } from '../constants';
 
 // --- Auth ---
@@ -587,6 +589,61 @@ export const catalogStatusSchema = z.object({
 export const catalogListQuerySchema = z.object({
   status: z.enum(CATALOG_REQUEST_STATUSES).optional(),
 });
+
+// --- Budget d'approvisionnement ---
+// Génération d'une proposition (sans persistance) : budget cible + signaux activés.
+export const generateBudgetSchema = z.object({
+  periodLabel: z.string().min(1, 'Période requise').max(60),
+  targetTotal: z.number().int().min(1, 'Budget cible invalide'),
+  reservePercent: z.number().int().min(0).max(100).optional(),
+  periodStart: z.string().optional(),
+  periodEnd: z.string().optional(),
+  historyMonths: z.number().int().min(1).max(24).optional(),
+  useHistory: z.boolean().optional(),
+  useRotation: z.boolean().optional(),
+  useThreshold: z.boolean().optional(),
+  withAi: z.boolean().optional(), // demander l'enrichissement IA (suggestions + conclusion)
+});
+
+const budgetLineSchema = z.object({
+  label: z.string().min(1).max(120),
+  stockItemId: z.number().int().positive().nullable().optional(),
+  quantity: z.number().min(0).nullable().optional(),
+  unit: z.string().max(20).nullable().optional(),
+  unitPrice: z.number().int().min(0).nullable().optional(),
+  amount: z.number().int().min(0),
+  source: z.enum(BUDGET_LINE_SOURCES).optional(),
+  sortOrder: z.number().int().optional(),
+});
+
+const budgetPosteSchema = z.object({
+  name: z.string().min(1).max(80),
+  plannedAmount: z.number().int().min(0).default(0),
+  sortOrder: z.number().int().optional(),
+  lines: z.array(budgetLineSchema).max(200).optional(),
+});
+
+const budgetSectionSchema = z.object({
+  name: z.string().min(1).max(80),
+  sortOrder: z.number().int().optional(),
+  postes: z.array(budgetPosteSchema).max(50).optional(),
+});
+
+export const createBudgetSchema = z.object({
+  title: z.string().min(1, 'Titre requis').max(120),
+  periodLabel: z.string().min(1).max(60),
+  periodStart: z.string().nullable().optional(),
+  periodEnd: z.string().nullable().optional(),
+  targetTotal: z.number().int().min(0),
+  reservePercent: z.number().int().min(0).max(100).default(20),
+  status: z.enum(BUDGET_STATUSES).optional(),
+  conclusion: z.string().max(5000).nullable().optional(),
+  aiSuggestions: z.string().max(20000).nullable().optional(),
+  sections: z.array(budgetSectionSchema).min(1, 'Au moins une section').max(20),
+});
+
+// Mise à jour : champs racine optionnels ; si `sections` est fourni, il remplace tout.
+export const updateBudgetSchema = createBudgetSchema.partial();
 
 // --- Sync (offline) ---
 export const syncSchema = z.object({

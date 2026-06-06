@@ -401,6 +401,119 @@ export const statsApi = {
       .then((r) => r.data as Blob),
 };
 
+// ─── Budget d'approvisionnement ───────────────────────────────────────────────
+export interface BudgetLineDTO {
+  id?: number;
+  label: string;
+  stockItemId?: number | null;
+  quantity?: number | null;
+  unit?: string | null;
+  unitPrice?: number | null;
+  amount: number;
+  source?: string;
+  sortOrder?: number;
+}
+export interface BudgetPosteDTO {
+  id?: number;
+  name: string;
+  plannedAmount: number;
+  sortOrder?: number;
+  lines: BudgetLineDTO[];
+}
+export interface BudgetSectionDTO {
+  id?: number;
+  name: string;
+  sortOrder?: number;
+  postes: BudgetPosteDTO[];
+}
+export interface BudgetSummary {
+  id: number;
+  title: string;
+  periodLabel: string;
+  targetTotal: number;
+  reservePercent: number;
+  status: string;
+  periodStart: string | null;
+  periodEnd: string | null;
+  createdAt: string;
+}
+export interface BudgetDetail extends BudgetSummary {
+  conclusion: string | null;
+  aiSuggestions: string | null;
+  sections: BudgetSectionDTO[];
+}
+export interface BudgetSuggestion {
+  poste: string;
+  reason: string;
+}
+export interface BudgetProposalDTO {
+  targetTotal: number;
+  reserveAmount: number;
+  operatingTotal: number;
+  usedFallback: boolean;
+  sections: { name: string; postes: BudgetPosteDTO[] }[];
+  suggestions: BudgetSuggestion[];
+}
+export interface BudgetGenerateResult {
+  proposal: BudgetProposalDTO;
+  ai: { suggestions: BudgetSuggestion[]; conclusion: string } | null;
+  aiAvailable: boolean;
+}
+export interface BudgetGenerateInput {
+  periodLabel: string;
+  targetTotal: number;
+  reservePercent?: number;
+  periodStart?: string;
+  periodEnd?: string;
+  historyMonths?: number;
+  useHistory?: boolean;
+  useRotation?: boolean;
+  useThreshold?: boolean;
+  withAi?: boolean;
+}
+export interface BudgetSaveInput {
+  title: string;
+  periodLabel: string;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  targetTotal: number;
+  reservePercent: number;
+  status?: string;
+  conclusion?: string | null;
+  aiSuggestions?: string | null;
+  sections: BudgetSectionDTO[];
+}
+export interface BudgetTrackingRow {
+  poste: string;
+  planned: number;
+  actual: number;
+  diff: number;
+}
+export interface BudgetTrackingDTO {
+  budgetId: number;
+  title: string;
+  periodLabel: string;
+  periodStart: string;
+  periodEnd: string;
+  rows: BudgetTrackingRow[];
+  totalPlanned: number;
+  totalActual: number;
+}
+
+export const budgetApi = {
+  list: () => api.get('/budget').then((r) => r.data.data as BudgetSummary[]),
+  get: (id: number) => api.get(`/budget/${id}`).then((r) => r.data.data as BudgetDetail),
+  generate: (input: BudgetGenerateInput) =>
+    api.post('/budget/generate', input).then((r) => r.data.data as BudgetGenerateResult),
+  create: (data: BudgetSaveInput) => api.post('/budget', data).then((r) => r.data.data as BudgetDetail),
+  update: (id: number, data: Partial<BudgetSaveInput>) =>
+    api.put(`/budget/${id}`, data).then((r) => r.data.data as BudgetDetail),
+  remove: (id: number) => api.delete(`/budget/${id}`).then((r) => r.data.data),
+  tracking: (id: number) => api.get(`/budget/${id}/tracking`).then((r) => r.data.data as BudgetTrackingDTO),
+  export: (id: number, format: 'pdf' | 'csv') =>
+    api.post(`/budget/${id}/export`, { format }, { responseType: 'blob' }).then((r) => r.data as Blob),
+};
+
 export const cashApi = {
   current: () => api.get('/cash/current').then((r) => r.data.data as CashSessionSummary | null),
   open: (openingFloat: number, notes?: string) =>

@@ -13,6 +13,7 @@ import {
   Wifi,
   WifiOff,
   Shield,
+  Wallet,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useWebSocket } from '../contexts/WebSocketContext';
@@ -40,6 +41,7 @@ export function Navigation() {
     routes.push(
       { path: '/dashboard', label: 'Dashboard', icon: BarChart3 },
       { path: '/admin', label: 'Gestion', icon: Package },
+      { path: '/budget', label: 'Budget', icon: Wallet },
       { path: '/caisse', label: 'Caisse', icon: ShoppingCart },
       { path: '/salle', label: 'Salle', icon: LayoutGrid },
       { path: '/service', label: 'Service', icon: BellRing },

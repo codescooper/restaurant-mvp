@@ -680,3 +680,166 @@ export function streamPayslipPdf(res: Response, data: PayslipPdfData): void {
 
   doc.end();
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Proposition de budget d'approvisionnement — CSV + PDF.
+// Structure : synthèse globale → sections (Cuisine & Exploitation, Boissons,
+// Réserve stratégique) → postes → lignes produit + sous-totaux → conclusion.
+// Reprend la mise en page du document type fourni. Montants en entiers FCFA.
+// ─────────────────────────────────────────────────────────────────────────────
+export interface BudgetExportLine {
+  label: string;
+  amount: number;
+  quantity?: number | null;
+  unit?: string | null;
+  unitPrice?: number | null;
+}
+export interface BudgetExportPoste {
+  name: string;
+  plannedAmount: number;
+  lines: BudgetExportLine[];
+}
+export interface BudgetExportSection {
+  name: string;
+  postes: BudgetExportPoste[];
+}
+export interface BudgetExport {
+  restaurantName: string;
+  title: string;
+  periodLabel: string;
+  targetTotal: number;
+  reservePercent: number;
+  sections: BudgetExportSection[];
+  conclusion?: string | null;
+}
+
+const RESERVE_SECTION = 'Réserve stratégique';
+const sectionTotal = (s: BudgetExportSection) => s.postes.reduce((sum, p) => sum + p.plannedAmount, 0);
+
+export function budgetToCsv(b: BudgetExport): string {
+  const L: string[] = [];
+  L.push(`Proposition de budget d'approvisionnement,${escapeCsv(b.restaurantName)}`);
+  L.push(`Titre,${escapeCsv(b.title)}`);
+  L.push(`Période,${escapeCsv(b.periodLabel)}`);
+  L.push('');
+
+  L.push('Synthèse générale');
+  L.push('Poste,Montant (FCFA)');
+  for (const s of b.sections) L.push(`${escapeCsv(s.name)},${sectionTotal(s)}`);
+  L.push(`Budget global,${b.targetTotal}`);
+  L.push('');
+
+  for (const s of b.sections) {
+    L.push(escapeCsv(s.name));
+    L.push('Poste,Produit,Montant (FCFA)');
+    for (const p of s.postes) {
+      for (const l of p.lines) L.push(`${escapeCsv(p.name)},${escapeCsv(l.label)},${l.amount}`);
+      L.push(`${escapeCsv(p.name)},Sous-total,${p.plannedAmount}`);
+    }
+    L.push(`${escapeCsv(s.name)},TOTAL,${sectionTotal(s)}`);
+    L.push('');
+  }
+
+  if (b.conclusion) {
+    L.push('Conclusion');
+    L.push(escapeCsv(b.conclusion));
+  }
+  return L.join('\n');
+}
+
+export function streamBudgetProposalPdf(res: Response, b: BudgetExport): void {
+  const doc = new PDFDocument({ margin: 40, size: 'A4' });
+  const fileLabel = `${b.title}-${b.periodLabel}`.replace(/[^a-zA-Z0-9_\-]/g, '_');
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="budget-${fileLabel}.pdf"`);
+  doc.pipe(res);
+
+  const left = doc.page.margins.left;
+  const right = doc.page.width - doc.page.margins.right;
+  const fullWidth = right - left;
+
+  // En-tête
+  doc.font('Helvetica-Bold').fontSize(20).fillColor(GOLD).text("PROPOSITION DE BUDGET D'APPROVISIONNEMENT", { align: 'center' });
+  doc.font('Helvetica-Bold').fontSize(15).fillColor('#000').text(b.restaurantName, { align: 'center' });
+  doc.font('Helvetica').fontSize(11).fillColor(GREY).text(`${b.title} — ${b.periodLabel}`, { align: 'center' });
+  doc.fontSize(8).fillColor(GREY).text(`Généré le ${format(new Date(), 'dd/MM/yyyy à HH:mm', { locale: fr })}`, {
+    align: 'center',
+  });
+  doc.moveDown(0.5);
+
+  const operating = b.sections.filter((s) => s.name !== RESERVE_SECTION).reduce((sum, s) => sum + sectionTotal(s), 0);
+  const reserve = b.sections.filter((s) => s.name === RESERVE_SECTION).reduce((sum, s) => sum + sectionTotal(s), 0);
+
+  // Synthèse générale
+  sectionTitle(doc, 'Synthèse générale');
+  const sName = { x: left, width: 360 };
+  const sAmount = { x: right - 130, width: 130, align: 'right' as const };
+  drawRow(doc, [{ text: 'Poste', ...sName }, { text: 'Montant', ...sAmount }], true);
+  for (const s of b.sections) {
+    drawRow(doc, [{ text: s.name, ...sName }, { text: fcfa(sectionTotal(s)), ...sAmount }]);
+  }
+  doc.moveDown(0.2);
+  const summary = (label: string, value: string) => {
+    const top = doc.y;
+    doc.font('Helvetica-Bold').fontSize(11).fillColor('#000').text(label, left, top, { width: fullWidth - 150 });
+    doc.text(value, right - 150, top, { width: 150, align: 'right' });
+    doc.y = top + 16;
+  };
+  summary('Total dépenses d’exploitation', fcfa(operating));
+  if (reserve > 0) summary('Réserve stratégique', fcfa(reserve));
+  doc.moveDown(0.2);
+  const topG = doc.y;
+  doc.font('Helvetica-Bold').fontSize(13).fillColor('#000').text('BUDGET GLOBAL', left, topG, { width: fullWidth - 160 });
+  doc.font('Helvetica-Bold').fontSize(13).fillColor(GOLD).text(fcfa(b.targetTotal), right - 160, topG, {
+    width: 160,
+    align: 'right',
+  });
+  doc.y = topG + 22;
+
+  // Une section par groupe (avec ses postes et lignes).
+  const pName = { x: left, width: 360 };
+  const pAmount = { x: right - 130, width: 130, align: 'right' as const };
+  b.sections.forEach((s, i) => {
+    sectionTitle(doc, `${i + 1}. ${s.name}`);
+    for (const p of s.postes) {
+      if (p.lines.length) {
+        doc.font('Helvetica-Bold').fontSize(11).fillColor('#000').text(p.name, left, doc.y);
+        doc.moveDown(0.2);
+        drawRow(doc, [{ text: 'Produit', ...pName }, { text: 'Montant', ...pAmount }], true);
+        for (const l of p.lines) {
+          drawRow(doc, [{ text: l.label, ...pName }, { text: fcfa(l.amount), ...pAmount }]);
+        }
+        doc.moveDown(0.1);
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(10)
+          .fillColor('#000')
+          .text(`Sous-total ${p.name} : ${fcfa(p.plannedAmount)}`, left, doc.y, { width: fullWidth, align: 'right' });
+        doc.moveDown(0.2);
+      } else {
+        const top = doc.y;
+        doc.font('Helvetica').fontSize(10).fillColor('#000').text(p.name, left, top, { width: fullWidth - 130 });
+        doc.font('Helvetica').fontSize(10).text(fcfa(p.plannedAmount), right - 130, top, { width: 130, align: 'right' });
+        doc.y = top + 15;
+      }
+    }
+    doc.moveDown(0.1);
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(11)
+      .fillColor(GOLD)
+      .text(`TOTAL ${s.name.toUpperCase()} : ${fcfa(sectionTotal(s))}`, left, doc.y, { width: fullWidth, align: 'right' });
+    doc.fillColor('#000');
+  });
+
+  // Conclusion
+  if (b.conclusion && b.conclusion.trim()) {
+    sectionTitle(doc, 'Conclusion');
+    doc.font('Helvetica').fontSize(10).fillColor('#000').text(b.conclusion.trim(), left, doc.y, {
+      width: fullWidth,
+      align: 'justify',
+    });
+  }
+
+  doc.end();
+}

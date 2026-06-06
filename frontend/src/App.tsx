@@ -22,6 +22,7 @@ const ServicePage = lazy(() => import('./pages/ServicePage'));
 const CuisinePage = lazy(() => import('./pages/CuisinePage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const BudgetPage = lazy(() => import('./pages/BudgetPage'));
 const SuspendedPage = lazy(() => import('./pages/SuspendedPage'));
 const RejectedPage = lazy(() => import('./pages/RejectedPage'));
 const PendingMemberPage = lazy(() => import('./pages/PendingMemberPage'));
@@ -129,6 +130,17 @@ export default function App() {
                     <ProtectedRoute allowedRoles={['propriétaire', 'administrateur', 'caissier']}>
                       <Layout>
                         <DashboardPage />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
+                  path="/budget"
+                  element={
+                    <ProtectedRoute allowedRoles={['propriétaire', 'administrateur']}>
+                      <Layout>
+                        <BudgetPage />
                       </Layout>
                     </ProtectedRoute>
                   }

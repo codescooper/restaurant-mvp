@@ -47,6 +47,7 @@ model Restaurant {
   invitations      Invitation[]
   catalogRequests  CatalogRequest[]
   orderPayments    OrderPayment[]
+  budgets          Budget[]
 
   @@map("restaurants")
 }
@@ -202,6 +203,9 @@ model StockItem {
   // Coût d'achat par unité (FCFA). Float pour gérer les coûts au gramme/ml près. Base du coût de revient des plats.
   unitCost         Float    @default(0) @map("unit_cost")
   alertThreshold   Float    @default(10) @map("alert_threshold")
+  // Poste budgétaire d'approvisionnement (Cuisine / Épicerie / Bières …). Sert au module Budget :
+  // regroupement des articles pour la répartition ET agrégation des achats réels au suivi. Null = « Divers ».
+  budgetCategory   String?  @map("budget_category") @db.VarChar(50)
   lastUpdated    DateTime @default(now()) @map("last_updated")
   createdAt      DateTime @default(now()) @map("created_at")
   restaurantId   Int?     @map("restaurant_id")
@@ -700,6 +704,79 @@ model InventoryLine {
 
   @@unique([inventoryId, stockItemId])
   @@map("inventory_lines")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Budget d'approvisionnement : proposition de répartition d'un budget cible
+// (dépenses d'exploitation + réserve stratégique), arborescente
+// Budget → Section → Poste → Ligne. Montants en entiers FCFA. (§ Budget)
+// ─────────────────────────────────────────────────────────────────────────────
+model Budget {
+  id             Int       @id @default(autoincrement())
+  title          String    @db.VarChar(120)
+  periodLabel    String    @map("period_label") @db.VarChar(60) // ex. « Juin 2026 »
+  periodStart    DateTime? @map("period_start") // bornes pour le suivi budget vs réel
+  periodEnd      DateTime? @map("period_end")
+  targetTotal    Int       @map("target_total") // budget global cible (FCFA)
+  reservePercent Int       @default(20) @map("reserve_percent") // % réserve stratégique
+  status         String    @default("brouillon") @db.VarChar(20) // 'brouillon' | 'validé' | 'clôturé'
+  conclusion     String?   @db.Text // texte de synthèse (saisi ou rédigé par l'IA)
+  aiSuggestions  String?   @map("ai_suggestions") @db.Text // suggestions IA sérialisées (JSON)
+  createdBy      Int?      @map("created_by")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  restaurantId   Int?      @map("restaurant_id")
+
+  sections   BudgetSection[]
+  restaurant Restaurant?     @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
+
+  @@index([restaurantId], map: "idx_budgets_restaurant")
+  @@map("budgets")
+}
+
+model BudgetSection {
+  id        Int    @id @default(autoincrement())
+  budgetId  Int    @map("budget_id")
+  name      String @db.VarChar(80) // ex. « Cuisine & Exploitation », « Boissons », « Réserve stratégique »
+  sortOrder Int    @default(0) @map("sort_order")
+
+  budget Budget        @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  postes BudgetPoste[]
+
+  @@index([budgetId], map: "idx_budget_sections_budget")
+  @@map("budget_sections")
+}
+
+model BudgetPoste {
+  id            Int    @id @default(autoincrement())
+  sectionId     Int    @map("section_id")
+  name          String @db.VarChar(80) // ex. « Cuisine », « Épicerie », « Bières »
+  plannedAmount Int    @default(0) @map("planned_amount") // montant prévu pour le poste (FCFA)
+  sortOrder     Int    @default(0) @map("sort_order")
+
+  section BudgetSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  lines   BudgetLine[]
+
+  @@index([sectionId], map: "idx_budget_postes_section")
+  @@map("budget_postes")
+}
+
+model BudgetLine {
+  id          Int     @id @default(autoincrement())
+  posteId     Int     @map("poste_id")
+  label       String  @db.VarChar(120) // produit / désignation de la ligne
+  stockItemId Int?    @map("stock_item_id") // lien optionnel vers l'article de stock
+  quantity    Float?  // quantité prévue (optionnelle)
+  unit        String? @db.VarChar(20)
+  unitPrice   Int?    @map("unit_price") // prix unitaire prévu (FCFA)
+  amount      Int     @default(0) // montant de la ligne (FCFA)
+  source      String  @default("manuel") @db.VarChar(20) // 'historique' | 'rotation' | 'seuil' | 'manuel' | 'ia'
+  sortOrder   Int     @default(0) @map("sort_order")
+
+  poste BudgetPoste @relation(fields: [posteId], references: [id], onDelete: Cascade)
+
+  @@index([posteId], map: "idx_budget_lines_poste")
+  @@map("budget_lines")
 }
 
 // Article de blog ou success story — contenu plateforme, non scopé par tenant.

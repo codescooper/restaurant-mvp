@@ -53,6 +53,7 @@ export const ErrorCodes = {
   CATALOG_001: 'Demande introuvable',
   CATALOG_002: 'Une demande est déjà en cours pour ce restaurant',
   CATALOG_003: 'Plateformes ou statut invalide',
+  BUDGET_001: 'Budget introuvable',
 } as const;
 
 export type ErrorCode = keyof typeof ErrorCodes;
