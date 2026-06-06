@@ -94,6 +94,14 @@ restaurant-mvp/
 - Énumérations métier en **français accentué** (stockées en `VARCHAR`, validées par Zod).
 - **Paie** : barèmes CNPS/ITS **ajustables par restaurant** (clé `payroll.config` dans
   `app_settings`) car l'accident du travail varie par secteur (2–5 %) et les plafonds évoluent.
+- **Budget d'approvisionnement** : architecture **hybride**. Le moteur de répartition est une
+  **fonction pure déterministe** (`backend/src/services/budget-engine.service.ts`, testée Vitest) —
+  source de vérité des montants. Le service de données (`budget.service.ts`) collecte les signaux
+  (achats / rotation via recettes / seuils), persiste l'arborescence `Budget → Section → Poste →
+  Ligne` en transaction Prisma, et calcule le suivi budget vs réel. Une **couche IA optionnelle**
+  (`budget-ai.service.ts`, SDK `@anthropic-ai/sdk`, modèle `claude-opus-4-8`) enrichit suggestions
+  et conclusion ; elle **dégrade proprement** (renvoie `null`) sans `ANTHROPIC_API_KEY` ou en cas
+  d'erreur, sans jamais bloquer la génération. Réglages du moteur dans `app_settings` (`budget.config`).
 
 ## 8. Déploiement
 

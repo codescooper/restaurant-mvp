@@ -15,7 +15,7 @@ automatiquement** par `node scripts/sync-docs.mjs` — ne les éditez pas à la 
 ## 2. Modèles
 
 <!-- AUTO:MODELS:START -->
-> 31 modèles définis dans `backend/prisma/schema.prisma`.
+> 35 modèles définis dans `backend/prisma/schema.prisma`.
 
 #### `Restaurant`
 
@@ -52,6 +52,7 @@ automatiquement** par `node scripts/sync-docs.mjs` — ne les éditez pas à la 
 | `invitations` | `Invitation[]` |
 | `catalogRequests` | `CatalogRequest[]` |
 | `orderPayments` | `OrderPayment[]` |
+| `budgets` | `Budget[]` |
 
 #### `Membership`
 
@@ -179,6 +180,7 @@ automatiquement** par `node scripts/sync-docs.mjs` — ne les éditez pas à la 
 | `unit` | `String` |
 | `unitCost` | `Float` |
 | `alertThreshold` | `Float` |
+| `budgetCategory` | `String?` |
 | `lastUpdated` | `DateTime` |
 | `createdAt` | `DateTime` |
 | `restaurantId` | `Int?` |
@@ -593,6 +595,66 @@ automatiquement** par `node scripts/sync-docs.mjs` — ne les éditez pas à la 
 | `inventory` | `Inventory` |
 | `stockItem` | `StockItem` |
 
+#### `Budget`
+
+| Champ | Type |
+| --- | --- |
+| `id` | `Int` |
+| `title` | `String` |
+| `periodLabel` | `String` |
+| `periodStart` | `DateTime?` |
+| `periodEnd` | `DateTime?` |
+| `targetTotal` | `Int` |
+| `reservePercent` | `Int` |
+| `status` | `String` |
+| `conclusion` | `String?` |
+| `aiSuggestions` | `String?` |
+| `createdBy` | `Int?` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+| `restaurantId` | `Int?` |
+| `sections` | `BudgetSection[]` |
+| `restaurant` | `Restaurant?` |
+
+#### `BudgetSection`
+
+| Champ | Type |
+| --- | --- |
+| `id` | `Int` |
+| `budgetId` | `Int` |
+| `name` | `String` |
+| `sortOrder` | `Int` |
+| `budget` | `Budget` |
+| `postes` | `BudgetPoste[]` |
+
+#### `BudgetPoste`
+
+| Champ | Type |
+| --- | --- |
+| `id` | `Int` |
+| `sectionId` | `Int` |
+| `name` | `String` |
+| `plannedAmount` | `Int` |
+| `sortOrder` | `Int` |
+| `section` | `BudgetSection` |
+| `lines` | `BudgetLine[]` |
+
+#### `BudgetLine`
+
+| Champ | Type |
+| --- | --- |
+| `id` | `Int` |
+| `posteId` | `Int` |
+| `label` | `String` |
+| `stockItemId` | `Int?` |
+| `quantity` | `Float?` |
+| `unit` | `String?` |
+| `unitPrice` | `Int?` |
+| `amount` | `Int` |
+| `source` | `String` |
+| `sortOrder` | `Int` |
+| `poste` | `BudgetPoste` |
+
 #### `Article`
 
 | Champ | Type |
@@ -651,7 +713,7 @@ automatiquement** par `node scripts/sync-docs.mjs` — ne les éditez pas à la 
 ## 3. Historique des migrations
 
 <!-- AUTO:MIGRATIONS:START -->
-> 27 migrations appliquées (ordre chronologique).
+> 28 migrations appliquées (ordre chronologique).
 
 | Date | Migration |
 | --- | --- |
@@ -682,4 +744,5 @@ automatiquement** par `node scripts/sync-docs.mjs` — ne les éditez pas à la 
 | 2026-05-29 | employee cnps |
 | 2026-05-29 | employee birthdate |
 | 2026-06-01 | order client id |
+| 2026-06-06 | budget module |
 <!-- AUTO:MIGRATIONS:END -->

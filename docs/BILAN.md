@@ -18,12 +18,12 @@ Cible métier : restaurants de **Côte d'Ivoire** (montants en FCFA, paie confor
 <!-- AUTO:STATS:START -->
 | Indicateur | Valeur |
 | --- | --- |
-| Modèles de données (Prisma) | 31 |
-| Migrations appliquées | 27 |
-| Groupes de routes API | 22 |
-| Contrôleurs backend | 24 |
-| Services backend | 25 |
-| Pages frontend (.tsx) | 35 |
+| Modèles de données (Prisma) | 35 |
+| Migrations appliquées | 28 |
+| Groupes de routes API | 23 |
+| Contrôleurs backend | 25 |
+| Services backend | 28 |
+| Pages frontend (.tsx) | 36 |
 <!-- AUTO:STATS:END -->
 
 ## 3. Modules livrés ✅
@@ -38,6 +38,7 @@ Cible métier : restaurants de **Côte d'Ivoire** (montants en FCFA, paie confor
 | **Salle & Service** | Plan de salle, tables, réservations (pré-commande, acompte, remboursement), addition différée |
 | **Stock** | Recettes par plat (+ variantes), décrément automatique, alertes de seuil, mouvements, inventaire physique |
 | **Achats & Fournisseurs** | Fournisseurs, achats, suivi des paiements, coût unitaire du stock |
+| **Budget d'approvisionnement** | Répartition assistée d'un budget cible (+ réserve) via historique d'achats / rotation / seuils ; moteur déterministe + couche IA Claude optionnelle ; sauvegarde, suivi budget vs réel, export PDF/CSV |
 | **Paie & CNPS** | Fiche employé, cotisations ajustables (retraite, prest. familiales, accident, CMU), bulletins, déclaration DISA |
 | **Dépenses** | Charges d'exploitation hors stock, par catégorie |
 | **Promotions** | Happy hours, coupons (% / montant) |

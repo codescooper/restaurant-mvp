@@ -45,8 +45,13 @@ JWT_EXPIRES_IN=24h
 JWT_REFRESH_SECRET=...
 JWT_REFRESH_EXPIRES_IN=7d
 CORS_ORIGIN=http://localhost:5173
-# APP_BASE_URL=...   # liens d'invitation/partage (à finaliser en prod)
+# APP_BASE_URL=...        # liens d'invitation/partage (à finaliser en prod)
+# ANTHROPIC_API_KEY=...   # OPTIONNEL : enrichissement IA du module Budget (suggestions + conclusion).
+#                         # Absente → le module Budget reste 100 % fonctionnel (moteur déterministe seul).
 ```
+
+> Le module **Budget** ajoute la dépendance `@anthropic-ai/sdk` (déjà dans `backend/package.json`).
+> Sans `ANTHROPIC_API_KEY`, aucun appel réseau n'est fait et la génération reste entièrement locale.
 
 **`frontend/.env`**
 

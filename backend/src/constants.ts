@@ -240,3 +240,62 @@ export type CatalogPlatform = (typeof CATALOG_PLATFORMS)[number];
 
 export const CATALOG_REQUEST_STATUSES = ['pending', 'in_progress', 'done', 'rejected'] as const;
 export type CatalogRequestStatus = (typeof CATALOG_REQUEST_STATUSES)[number];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Budget d'approvisionnement (module Budget). Énumérations + préréglage + config.
+// Montants en entiers FCFA. Le préréglage reprend les postes du document type
+// « Proposition de budget d'approvisionnement » et y ajoute des postes pertinents
+// souvent oubliés (gaz, eau/électricité, transport, maintenance).
+// ─────────────────────────────────────────────────────────────────────────────
+export const BUDGET_STATUSES = ['brouillon', 'validé', 'clôturé'] as const;
+export type BudgetStatus = (typeof BUDGET_STATUSES)[number];
+
+// Origine d'une ligne de budget (trace la provenance du montant proposé).
+export const BUDGET_LINE_SOURCES = ['historique', 'rotation', 'seuil', 'manuel', 'ia'] as const;
+export type BudgetLineSource = (typeof BUDGET_LINE_SOURCES)[number];
+
+// Poste « fourre-tout » des articles sans catégorie budgétaire assignée.
+export const BUDGET_DEFAULT_POSTE = 'Divers';
+
+// Préréglage des sections/postes (modifiable). Reprend la structure du PDF type.
+export interface BudgetTemplateSection {
+  name: string;
+  postes: string[];
+}
+export const DEFAULT_BUDGET_TEMPLATE: BudgetTemplateSection[] = [
+  {
+    name: 'Cuisine & Exploitation',
+    postes: ['Cuisine', 'Épicerie et Condiments', 'Emballages et Consommables', 'Entretien'],
+  },
+  {
+    name: 'Boissons',
+    postes: ['Bières', 'Softs et Sucreries', 'Vins et Spiritueux', 'Réserve boissons'],
+  },
+];
+
+// Postes pertinents souvent non anticipés — proposés en suggestions s'ils sont absents du plan.
+export const SUGGESTED_EXTRA_POSTES = [
+  'Gaz de cuisine',
+  'Eau & Électricité',
+  'Transport / Livraison',
+  'Maintenance équipement',
+] as const;
+
+// Réglage par restaurant (table app_settings) : paramètres du moteur de répartition.
+export const SETTING_BUDGET_CONFIG = 'budget.config';
+
+export interface BudgetConfig {
+  reservePercent: number; // % de réserve stratégique par défaut
+  historyMonths: number;  // fenêtre d'historique d'achats prise en compte
+  weights: {
+    purchases: number;  // poids de la dépense moyenne historique (signal principal)
+    rotation: number;   // poids de la rotation des ventes (multiplicateur)
+    threshold: number;  // bonus pour articles sous le seuil d'alerte
+  };
+}
+
+export const DEFAULT_BUDGET_CONFIG: BudgetConfig = {
+  reservePercent: 20,
+  historyMonths: 3,
+  weights: { purchases: 1, rotation: 0.5, threshold: 0.3 },
+};

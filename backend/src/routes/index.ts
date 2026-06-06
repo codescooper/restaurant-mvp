@@ -20,6 +20,7 @@ import expenseRoutes from './expense.routes';
 import inventoryRoutes from './inventory.routes';
 import promotionRoutes from './promotion.routes';
 import settingsRoutes from './settings.routes';
+import budgetRoutes from './budget.routes';
 import publicRoutes from './public.routes';
 import invitationRoutes from './invitation.routes';
 import adminRoutes from './admin.routes';
@@ -55,6 +56,7 @@ router.use('/expenses', ...tenant, expenseRoutes);
 router.use('/inventory', ...tenant, inventoryRoutes);
 router.use('/promotions', ...tenant, promotionRoutes);
 router.use('/settings', ...tenant, settingsRoutes);
+router.use('/budget', ...tenant, budgetRoutes);
 router.use('/invitations', invitationRoutes);
 router.use('/catalog-requests', catalogRoutes);
 

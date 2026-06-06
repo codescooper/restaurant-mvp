@@ -10,7 +10,7 @@ Le temps réel passe par **Socket.io** (mêmes origines, rooms par rôle).
 ## 1. Groupes de routes
 
 <!-- AUTO:ROUTES:START -->
-> 22 groupes de routes montés sous `/api` (voir `backend/src/routes/index.ts`).
+> 23 groupes de routes montés sous `/api` (voir `backend/src/routes/index.ts`).
 > Les routes « multi-tenant » passent par `authenticate → tenantContext → requireActiveRestaurant`.
 
 | Préfixe | Portée |
@@ -35,6 +35,7 @@ Le temps réel passe par **Socket.io** (mêmes origines, rooms par rôle).
 | `/api/inventory` | Authentifié + multi-tenant |
 | `/api/promotions` | Authentifié + multi-tenant |
 | `/api/settings` | Authentifié + multi-tenant |
+| `/api/budget` | Authentifié + multi-tenant |
 | `/api/invitations` | Public |
 | `/api/catalog-requests` | Public |
 <!-- AUTO:ROUTES:END -->

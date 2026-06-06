@@ -9,8 +9,15 @@ Ajouter une entrée **à chaque modification ou ajout de fonctionnalité** (voir
 ### Ajouté
 - Documentation de référence dans `docs/` (bilan, architecture, fonctionnalités, modèle de données,
   API, guide dev) + générateur `scripts/sync-docs.mjs` et hook git de fraîcheur de la doc.
-- Centre d'aide utilisateur intégré (`/aide`) : 12 guides Markdown versionnés, filtrés par rôle,
+- Centre d'aide utilisateur intégré (`/aide`) : 13 guides Markdown versionnés, filtrés par rôle,
   avec recherche et liens profonds ; validation du manifeste par `sync-docs.mjs`.
+- **Module Budget d'approvisionnement** (`/budget`, propriétaire/administrateur) : génération
+  automatique d'une proposition de budget (répartition d'un budget cible + réserve stratégique) à
+  partir de l'historique d'achats, de la rotation des ventes et des seuils de stock ; moteur de
+  calcul **déterministe** (testé Vitest) + **couche IA Claude optionnelle** (suggestions de postes
+  non anticipés + conclusion rédigée, dégradation propre sans `ANTHROPIC_API_KEY`). Sauvegarde des
+  propositions (tables `Budget`/`BudgetSection`/`BudgetPoste`/`BudgetLine`), suivi budget vs achats
+  réels, export PDF/CSV. Nouveau champ `StockItem.budgetCategory` pour le regroupement par poste.
 
 ## Historique (jalons, d'après l'historique git)
 

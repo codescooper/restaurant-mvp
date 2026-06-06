@@ -7,6 +7,7 @@ import menuPlats from './guides/menu-plats.md?raw';
 import stockInventaire from './guides/stock-inventaire.md?raw';
 import employesDepensesFournisseurs from './guides/employes-depenses-fournisseurs.md?raw';
 import paieCnps from './guides/paie-cnps.md?raw';
+import budgetApprovisionnement from './guides/budget-approvisionnement.md?raw';
 import promotions from './guides/promotions.md?raw';
 import dashboard from './guides/dashboard.md?raw';
 import parametresEquipe from './guides/parametres-equipe.md?raw';
@@ -24,7 +25,8 @@ export type HelpIcon =
   | 'Tag'
   | 'BarChart3'
   | 'Settings'
-  | 'WifiOff';
+  | 'WifiOff'
+  | 'Wallet';
 
 export interface HelpGuide {
   id: string;
@@ -48,6 +50,7 @@ export const HELP_GUIDES: HelpGuide[] = [
   { id: 'stock-inventaire', title: 'Stock & inventaire', icon: 'Package', keywords: ['stock', 'inventaire', 'seuil', 'mouvement', 'ingrédient'], roles: GESTION, content: stockInventaire },
   { id: 'employes-depenses-fournisseurs', title: 'Employés, dépenses & fournisseurs', icon: 'Users', keywords: ['employé', 'dépense', 'fournisseur', 'achat'], roles: GESTION, content: employesDepensesFournisseurs },
   { id: 'paie-cnps', title: 'Paie & CNPS', icon: 'Banknote', keywords: ['paie', 'cnps', 'bulletin', 'disa', 'cotisation', 'its'], roles: GESTION, content: paieCnps },
+  { id: 'budget-approvisionnement', title: 'Budget d\'approvisionnement', icon: 'Wallet', keywords: ['budget', 'approvisionnement', 'répartition', 'réserve', 'prévisionnel', 'suivi', 'achats'], roles: GESTION, content: budgetApprovisionnement },
   { id: 'promotions', title: 'Promotions & coupons', icon: 'Tag', keywords: ['promotion', 'coupon', 'happy hour', 'réduction'], roles: GESTION, content: promotions },
   { id: 'dashboard', title: 'Tableau de bord & exports', icon: 'BarChart3', keywords: ['statistiques', 'kpi', 'export', 'pdf', 'csv', 'ventes'], roles: ['propriétaire', 'administrateur', 'caissier'], content: dashboard },
   { id: 'parametres-equipe', title: 'Paramètres & gestion de l\'équipe', icon: 'Settings', keywords: ['paramètres', 'pin', 'ticket', 'invitation', 'équipe', 'membre'], roles: GESTION, content: parametresEquipe },

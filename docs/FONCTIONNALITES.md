@@ -50,6 +50,18 @@ décrément automatique à la vente, **alertes de seuil**, historique des **mouv
 ### Achats & Fournisseurs
 Fiches **fournisseurs**, **achats** avec suivi des paiements, mise à jour du coût unitaire du stock.
 
+### Budget d'approvisionnement — `/budget`
+Génère une **proposition de budget d'approvisionnement** : on saisit un **budget cible** et un
+**% de réserve stratégique**, le programme **répartit** le budget d'exploitation entre les postes
+(Cuisine, Épicerie, Emballages, Entretien, Bières, Softs, Vins & Spiritueux…) à partir de trois
+signaux — **historique d'achats**, **rotation des ventes** (recettes × commandes) et **stock sous
+seuil** — puis **suggère les postes non anticipés** (gaz, eau/électricité, transport, maintenance).
+Moteur de calcul **déterministe** (testé), avec une **couche IA Claude optionnelle** qui enrichit
+les suggestions et rédige la conclusion (désactivée proprement sans `ANTHROPIC_API_KEY`).
+Propositions **sauvegardées et rééditables**, **suivi budget vs achats réels** par poste, **export
+PDF/CSV**. Le regroupement par poste s'appuie sur le champ `budgetCategory` de chaque article de stock.
+Réservé au **propriétaire / administrateur**.
+
 ### Paie & CNPS
 Fiche **employé** (situation matrimoniale, date de naissance), **cotisations ajustables**
 (retraite, prestations familiales, maternité, accident du travail, CMU), **bulletins de paie**,
@@ -87,7 +99,7 @@ Guides du centre d'aide intégré (`/aide`). **Liste générée automatiquement*
 `frontend/src/help/manifest.ts` — ne pas éditer à la main.
 
 <!-- AUTO:HELP:START -->
-> 12 guides disponibles dans le centre d'aide (`/aide`).
+> 13 guides disponibles dans le centre d'aide (`/aide`).
 
 | Guide | Titre | Rôles |
 | --- | --- | --- |
@@ -99,6 +111,7 @@ Guides du centre d'aide intégré (`/aide`). **Liste générée automatiquement*
 | `stock-inventaire` | Stock & inventaire | propriétaire, administrateur |
 | `employes-depenses-fournisseurs` | Employés, dépenses & fournisseurs | propriétaire, administrateur |
 | `paie-cnps` | Paie & CNPS | propriétaire, administrateur |
+| `budget-approvisionnement` | Budget d'approvisionnement | propriétaire, administrateur |
 | `promotions` | Promotions & coupons | propriétaire, administrateur |
 | `dashboard` | Tableau de bord & exports | propriétaire, administrateur, caissier |
 | `parametres-equipe` | Paramètres & gestion de l'équipe | propriétaire, administrateur |

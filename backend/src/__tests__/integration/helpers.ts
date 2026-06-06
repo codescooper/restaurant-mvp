@@ -25,6 +25,7 @@ export async function resetAndSeedTwoRestaurants(): Promise<{ A: SeededRestauran
     basePrisma.purchase.deleteMany(),
     basePrisma.inventoryLine.deleteMany(),
     basePrisma.inventory.deleteMany(),
+    basePrisma.budget.deleteMany(), // cascade sections/postes/lignes ; à supprimer avant les restaurants (FK Restrict)
     basePrisma.employee.deleteMany(),
     basePrisma.reservationItem.deleteMany(),
     basePrisma.reservation.deleteMany(),
